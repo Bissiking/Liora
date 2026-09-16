@@ -27,6 +27,10 @@ import { avatarRouter } from "./storage.js";
 import { previewRouter } from "./previews.js";
 import { integrationRouter, integrationCallback } from "./integrations.js";
 import { commandRouter } from "./commands.js";
+import { calendarRouter } from "./calendar.js";
+import { remindersRouter } from "./reminders.js";
+import { favoritesRouter } from "./favorites.js";
+import { pushRouter } from "./push.js";
 export { VERSION };
 export function createApp() {
   const app = express();
@@ -175,7 +179,7 @@ export function createApp() {
         status: z.enum(["available", "busy", "away", "invisible"]),
         preferences: z
           .object({
-            theme: z.enum(["dark", "light", "dusk"]).default("dark"),
+            theme: z.enum(["dark", "light", "dusk", "midnight", "forest", "ember"]).default("dark"),
             density: z.enum(["comfortable", "compact"]).default("comfortable"),
             fontSize: z.enum(["normal", "large"]).default("normal"),
             mentions: z.boolean().default(true),
@@ -347,6 +351,10 @@ export function createApp() {
     },
     integrationRouter,
     commandRouter,
+    calendarRouter,
+    remindersRouter,
+    favoritesRouter,
+    pushRouter,
     previewRouter,
     collaborationRouter,
     chatRouter,

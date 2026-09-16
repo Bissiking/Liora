@@ -2,9 +2,9 @@
 
 ## NOW
 
-- Validation Kyros réelle avec configuration d’application et compte autorisé.
+- Validation Kyros réelle avec configuration d'application et compte autorisé.
 - Configurer les URLs Argus/Argos et le heartbeat depuis la machine distante.
-- Vérifier une restauration PostgreSQL + fichiers dans l’environnement cible.
+- Vérifier une restauration PostgreSQL + fichiers dans l'environnement cible.
 
 ## NEXT
 
@@ -16,9 +16,14 @@
 
 ## LATER
 
-- Push, calendrier et médias optionnels selon roadmap.
+- Application mobile native (étude de faisabilité en cours).
+- Synchronisation temps réel pour les événements calendrier.
+- Vue jour/semaine du calendrier.
+- VAPID keys pour notifications push en production.
 
 ## DONE
+
+- 0.4.0 : calendrier, rappels, favoris, raccourcis, push, thèmes avancés, hors ligne, PWA.
 
 - 0.3.0 : connecteurs en base, DropIt personnel, routage/automatisations, HMAC, filtres et commandes.
 

@@ -10,7 +10,9 @@
 | FEATURE      | Participants, templates, pages enrichies, groupes                           | Implémenté 0.2.1                                   |
 | FEATURE      | Amis/invitations, aperçus, emojis Unicode, avatar/sons, 3 thèmes, tutoriels | Implémenté 0.2.1                                   |
 | FEATURE      | DropIt personnel, modules en base, Nino/Narra/GitHub, règles et slash       | Implémenté 0.3.0 ; émetteurs externes à configurer |
-| FUTURE       | Calendrier, rappels, PWA, push, application mobile                          | Roadmap 0.4                                        |
+| FEATURE      | Calendrier, rappels, favoris, raccourcis, push desktop, PWA                | Implémenté 0.4                                     |
+| FEATURE      | Thèmes avancés (Minuit, Forêt, Braise) et gestion hors ligne               | Implémenté 0.4                                     |
+| FUTURE       | Application mobile native                                                  | Étude mobile, roadmap 0.4                           |
 | FUTURE       | Jellyfin et demandes de médias                                              | Roadmap 0.5, flags fermés                          |
 | EXPERIMENTAL | Contrôle distant operator/admin                                             | Interdit par défaut ; aucune commande implémentée  |
 | EXPERIMENTAL | Marketplace bots, import Discord/Slack                                      | Non planifié                                       |

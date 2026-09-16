@@ -81,6 +81,19 @@ export type Row = {
   last_error: string;
   source: string;
   payload: Record<string, unknown>;
+  start_at: string;
+  end: string;
+  all_day: boolean;
+  recurrence: string;
+  color: string;
+  reminder_minutes: number | null;
+  remind_at: string;
+  recurring: boolean;
+  recurring_interval: string | null;
+  target_type: string;
+  target_id: string;
+  target_name: string;
+  label: string;
 };
 export type User = {
   avatar?: string;

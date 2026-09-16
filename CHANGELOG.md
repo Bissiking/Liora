@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 — BETA — 2026-09-16
+
+- Calendrier d'équipe avec création, édition, suppression et récurrence des événements.
+- Rappels personnels récurrents avec report et archivage.
+- Favoris : raccourcis privés vers channels, pages, projets et événements.
+- Raccourcis clavier étendus : ⌘1-7 pour les vues principales, ⌘, pour les préférences, ⌘/ pour l'aide.
+- Notifications push desktop avec service worker et abonnement aux push.
+- Thèmes avancés : Minuit, Forêt et Braise en plus de Graphite, Papier et Crépuscule.
+- Gestion fine des états hors ligne avec indicateur et cache service worker.
+- PWA installable : manifest, service worker avec cache et notifications push.
+- Améliorations mobile : touch targets agrandis, grille calendrier adaptée.
+
+Détails et limites : [DOCS/RELEASE_0.4.0.md](DOCS/RELEASE_0.4.0.md).
+
 ## 0.3.0 — BETA — 2026-09-16
 
 - Configuration des modules en base, test, secrets chiffrés et rotation.

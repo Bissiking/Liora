@@ -13,7 +13,6 @@ import {
   Activity,
   Bell,
   Settings,
-  Shield,
   PanelLeft,
   ArrowRight,
   LogOut,
@@ -21,6 +20,10 @@ import {
   Command,
   Users,
   ArrowUpRight,
+  Star,
+  Calendar as CalendarIcon,
+  UserPlus,
+  Shield,
 } from "lucide-react";
 import "@fontsource-variable/manrope";
 import "./styles.css";
@@ -38,8 +41,29 @@ import { Monitoring } from "./Monitoring";
 import { SearchMessages } from "./Collaboration";
 import { Friends, Invitation } from "./Social";
 import { Help } from "./Help";
+import { Calendar } from "./Calendar";
+import { Reminders } from "./Reminders";
+import { Favorites } from "./Favorites";
+import { Groups } from "./Groups";
+import { Members } from "./Members";
 import { playSound } from "./sound";
 function App() {
+  const [offline, setOffline] = useState(!navigator.onLine);
+  useEffect(() => {
+    const on = () => setOffline(false);
+    const off = () => setOffline(true);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
+  }, []);
   const [invite, setInvite] = useState(() => {
     const token = new URLSearchParams(location.hash.slice(1)).get("invite");
     if (token) sessionStorage.setItem("liora.invite", token);
@@ -64,8 +88,12 @@ function App() {
     [workspaceId, setWorkspaceId] = useState(""),
     [status, setStatus] = useState("loading"),
     [error, setError] = useState(""),
-    [view, setView] = useState("chat"),
-    [adminTab, setAdminTab] = useState("overview"),
+    [view, setView] = useState(
+      () => sessionStorage.getItem("liora.view") || "chat",
+    ),
+    [adminTab, setAdminTab] = useState(
+      () => sessionStorage.getItem("liora.adminTab") || "overview",
+    ),
     [channels, setChannels] = useState<Row[]>([]),
     [categories, setCategories] = useState<Row[]>([]),
     [channelId, setChannelId] = useState(
@@ -115,6 +143,12 @@ function App() {
   useEffect(() => {
     if (channelId) sessionStorage.setItem("liora.channel", channelId);
   }, [channelId]);
+  useEffect(() => {
+    sessionStorage.setItem("liora.view", view);
+  }, [view]);
+  useEffect(() => {
+    sessionStorage.setItem("liora.adminTab", adminTab);
+  }, [adminTab]);
   useEffect(() => {
     if (!me) return;
     const prefs = me.preferences;
@@ -223,12 +257,22 @@ function App() {
   }, [workspaceId]);
   useEffect(() => {
     const keyboard = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === "k") {
         e.preventDefault();
         setMobile(true);
         document.getElementById("channel-search")?.focus();
       }
       if (e.key === "Escape") setMobile(false);
+      if (mod && e.key === "1") { e.preventDefault(); navigate("chat"); }
+      if (mod && e.key === "2") { e.preventDefault(); navigate("projects"); }
+      if (mod && e.key === "3") { e.preventDefault(); navigate("calendar"); }
+      if (mod && e.key === "4") { e.preventDefault(); navigate("reminders"); }
+      if (mod && e.key === "5") { e.preventDefault(); navigate("favorites"); }
+      if (mod && e.key === "6") { e.preventDefault(); navigate("notifications"); }
+      if (mod && e.key === "7") { e.preventDefault(); navigate("pages"); }
+      if (mod && e.key === ",") { e.preventDefault(); navigate("settings"); }
+      if (mod && e.key === "/") { e.preventDefault(); navigate("help"); }
     };
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
@@ -366,35 +410,91 @@ function App() {
   if (!workspace)
     return (
       <div className="waiting">
-        <img src="/brand/logo-dark.svg" alt="Liora" />
-        <h1>Bienvenue, {me?.name}.</h1>
-        <p>
-          Votre compte est prêt. Un administrateur peut vous ajouter à LUMA avec
-          cet identifiant Kyros :
-        </p>
-        <code>{me?.kyros_user_id}</code>
-        <button
-          onClick={() =>
-            setForm({
-              title: "Nouvel espace",
-              fields: [{ key: "name", label: "Nom" }],
-              save: async (d) => {
-                await api("/api/v1/workspaces", "POST", d);
-                await loadMe();
-              },
-            })
-          }
-        >
-          Créer mon espace
-        </button>
-        <button onClick={() => void loadMe()}>Actualiser mes accès</button>
-        <button
-          onClick={() =>
-            void api("/auth/logout", "POST").then(() => location.reload())
-          }
-        >
-          Se déconnecter
-        </button>
+        <div className="waiting-header">
+          <img src="/brand/logo-dark.svg" alt="Liora" />
+          <h1>Bienvenue, {me?.name}.</h1>
+          <p>
+            Connectez-vous avec votre équipe. Créez un espace ou acceptez une
+            invitation pour commencer.
+          </p>
+        </div>
+
+        <div className="waiting-cards">
+          <section className="waiting-card">
+            <h2>Accepter une invitation</h2>
+            <p>Vous avez reçu un lien d'amis ? Collez-le ici pour accepter.</p>
+            <div className="waiting-join">
+              <input
+                aria-label="Lien d'invitation"
+                placeholder="Lien d'invitation"
+                id="join-input"
+              />
+              <button
+                className="primary"
+                onClick={() => {
+                  const input = document.getElementById(
+                    "join-input",
+                  ) as HTMLInputElement;
+                  const val = input?.value?.trim();
+                  if (!val) return;
+                  let token = val;
+                  if (val.includes("#invite=")) {
+                    token = val.split("#invite=")[1] || "";
+                  } else if (val.includes("/invite/")) {
+                    token = val.split("/invite/")[1] || "";
+                  }
+                  if (token) {
+                    location.hash = `invite=${token}`;
+                    location.reload();
+                  }
+                }}
+              >
+                Accepter
+              </button>
+            </div>
+          </section>
+
+          <section className="waiting-card">
+            <h2>Créer un espace</h2>
+            <p>
+              Invitez vos amis et commencez à discuter dans votre propre espace.
+            </p>
+            <button
+              onClick={() =>
+                setForm({
+                  title: "Nouvel espace",
+                  fields: [{ key: "name", label: "Nom de l'espace" }],
+                  save: async (d) => {
+                    await api("/api/v1/workspaces", "POST", d);
+                    await loadMe();
+                  },
+                })
+              }
+            >
+              Créer mon espace
+            </button>
+          </section>
+        </div>
+
+        <section className="waiting-account">
+          <h2>Votre identifiant</h2>
+          <p>
+            Partagez cet identifiant avec quelqu'un pour qu'il puisse vous
+            envoyer une demande d'amis.
+          </p>
+          <code className="waiting-kyros">{me?.kyros_user_id}</code>
+          <div className="waiting-actions">
+            <button onClick={() => void loadMe()}>Actualiser</button>
+            <button
+              onClick={() =>
+                void api("/auth/logout", "POST").then(() => location.reload())
+              }
+            >
+              Se déconnecter
+            </button>
+          </div>
+        </section>
+
         {form && (
           <FormDialog
             title={form.title}
@@ -419,6 +519,44 @@ function App() {
       <nav className="space-rail" aria-label="Espaces">
         <img className="brand-icon" src="/brand/icon.svg" alt="Liora" />
         <div className="rail-divider" />
+        {can("SEND_MESSAGE") && (
+          <button
+            className="space-button dm-button"
+            title="Conversation privée"
+            aria-label="Nouvelle conversation privée"
+            onClick={() =>
+              void collection(`${base}/members`)
+                .then((r) =>
+                  setForm({
+                    title: "Nouvelle conversation privée",
+                    fields: [
+                      {
+                        key: "user_id",
+                        label: "Membre",
+                        options: r.data
+                          .filter((m) => m.id !== me?.id)
+                          .map((m) => ({ value: m.id, label: m.name })),
+                      },
+                    ],
+                    save: async (d) => {
+                      const r = await api<{ data: Row }>(
+                        `${base}/conversations`,
+                        "POST",
+                        d,
+                      );
+                      refresh();
+                      setChannelId(r.data.id);
+                      navigate("chat");
+                    },
+                  }),
+                )
+                .catch(fail)
+            }
+          >
+            <MessageSquare size={20} />
+          </button>
+        )}
+        <div className="rail-divider" />
         {spaces.map((w) => (
           <button
             key={w.id}
@@ -428,6 +566,7 @@ function App() {
             onClick={() => {
               setWorkspaceId(w.id);
               setChannelId("");
+              setView("chat");
             }}
           >
             {w.name.slice(0, 1)}
@@ -439,7 +578,7 @@ function App() {
           onClick={() =>
             setForm({
               title: "Créer un espace",
-              fields: [{ key: "name", label: "Nom de l’espace" }],
+              fields: [{ key: "name", label: "Nom de l'espace" }],
               save: async (d) => {
                 await api("/api/v1/workspaces", "POST", d);
                 await loadMe();
@@ -482,7 +621,7 @@ function App() {
           create={() =>
             setForm({
               title: "Créer un espace",
-              fields: [{ key: "name", label: "Nom de l’espace" }],
+              fields: [{ key: "name", label: "Nom de l'espace" }],
               save: async (d) => {
                 const r = await api<{ data: Workspace }>(
                   "/api/v1/workspaces",
@@ -500,58 +639,6 @@ function App() {
             navigate("admin");
           }}
         />
-        <div className="collaboration-nav">
-          <button onClick={() => setSearchMessages(true)}>
-            <Search size={15} />
-            Rechercher des messages
-          </button>
-          {can("SEND_MESSAGE") && (
-            <button
-              onClick={() =>
-                void collection(`${base}/members`)
-                  .then((r) =>
-                    setForm({
-                      title: "Nouvelle conversation privée",
-                      fields: [
-                        {
-                          key: "user_id",
-                          label: "Membre",
-                          options: r.data
-                            .filter((m) => m.id !== me?.id)
-                            .map((m) => ({ value: m.id, label: m.name })),
-                        },
-                      ],
-                      save: async (d) => {
-                        const r = await api<{ data: Row }>(
-                          `${base}/conversations`,
-                          "POST",
-                          d,
-                        );
-                        refresh();
-                        setChannelId(r.data.id);
-                        navigate("chat");
-                      },
-                    }),
-                  )
-                  .catch(fail)
-              }
-            >
-              <MessageSquare size={15} />
-              Conversation privée
-            </button>
-          )}
-        </div>
-        <div className="search">
-          <Search size={15} />
-          <input
-            id="channel-search"
-            aria-label="Rechercher un salon"
-            placeholder="Trouver un salon"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <kbd>⌘ K</kbd>
-        </div>
         <nav className="main-nav" aria-label="Navigation principale">
           <button
             className={view === "friends" ? "active" : ""}
@@ -559,13 +646,6 @@ function App() {
           >
             <Users size={18} />
             Amis
-          </button>
-          <button
-            className={view === "help" ? "active" : ""}
-            onClick={() => navigate("help")}
-          >
-            <FileText size={18} />
-            Aide et tutoriels
           </button>
           <button
             className={view === "notifications" ? "active" : ""}
@@ -590,7 +670,7 @@ function App() {
               onClick={() => navigate("pages")}
             >
               <FileText />
-              Pages de l’équipe
+              Pages de l'équipe
             </button>
           )}
           {can("VIEW_MONITORING") && (
@@ -603,8 +683,61 @@ function App() {
               <span className="tiny-dot" />
             </button>
           )}
+          {can("MANAGE_MEMBERS") && (
+            <button
+              className={view === "members" ? "active" : ""}
+              onClick={() => navigate("members")}
+            >
+              <Users size={18} />
+              Membres
+            </button>
+          )}
+        </nav>
+        <nav className="secondary-nav" aria-label="Outils">
+          <button
+            className={view === "calendar" ? "active" : ""}
+            onClick={() => navigate("calendar")}
+            title="Calendrier"
+          >
+            <CalendarIcon size={16} />
+            <span>Calendrier</span>
+          </button>
+          <button
+            className={view === "reminders" ? "active" : ""}
+            onClick={() => navigate("reminders")}
+            title="Rappels"
+          >
+            <Bell size={16} />
+            <span>Rappels</span>
+          </button>
+          <button
+            className={view === "favorites" ? "active" : ""}
+            onClick={() => navigate("favorites")}
+            title="Favoris"
+          >
+            <Star size={16} />
+            <span>Favoris</span>
+          </button>
+          <button
+            className={view === "help" ? "active" : ""}
+            onClick={() => navigate("help")}
+            title="Aide"
+          >
+            <FileText size={16} />
+            <span>Aide</span>
+          </button>
         </nav>
         <div className="channel-index">
+          <div className="channel-filter">
+            <Search size={13} />
+            <input
+              id="channel-search"
+              aria-label="Filtrer les salons"
+              placeholder="Filtrer"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
           <div className="section-label">
             <span>Salons de l’espace</span>
             {can("CREATE_CHANNEL") && (
@@ -678,25 +811,6 @@ function App() {
               <ArrowUpRight size={16} />
             </button>
           </div>
-          {[
-            "VIEW_AUDIT_LOG",
-            "MANAGE_MEMBERS",
-            "MANAGE_ROLES",
-            "MANAGE_CHANNEL",
-            "VIEW_BOTS",
-            "VIEW_WEBHOOKS",
-            "MANAGE_FEATURE_FLAGS",
-            "MANAGE_WORKSPACE",
-            "MANAGE_EMOJIS",
-          ].some(can) && (
-            <button
-              className={`admin-link ${view === "admin" ? "active" : ""}`}
-              onClick={() => navigate("admin")}
-            >
-              <Shield size={16} />
-              Administration
-            </button>
-          )}
           <button
             className="profile-button"
             onClick={() => navigate("settings")}
@@ -730,8 +844,12 @@ function App() {
                       friends: "Amis",
                       help: "Aide et tutoriels",
                       projects: "Projets",
-                      pages: "Pages de l’équipe",
+                      calendar: "Calendrier",
+                      reminders: "Rappels",
+                      favorites: "Favoris",
+                      pages: "Pages de l'équipe",
                       monitoring: "Supervision",
+                      members: "Membres",
                       notifications: "Boîte de réception",
                       admin: "Administration",
                       settings: "Préférences",
@@ -741,6 +859,13 @@ function App() {
             </strong>
           </div>
           <div className="topbar-right">
+            <button
+              className="icon-button topbar-search"
+              aria-label="Rechercher des messages"
+              onClick={() => setSearchMessages(true)}
+            >
+              <Search size={16} />
+            </button>
             <span
               className={`connection ${connection === "En direct" ? "online" : ""}`}
             >
@@ -806,6 +931,43 @@ function App() {
                 revision={revision}
                 refresh={refresh}
                 fail={fail}
+              />
+            )}
+            {view === "calendar" && (
+              <Calendar
+                base={base}
+                can={can}
+                revision={revision}
+                refresh={refresh}
+                fail={fail}
+              />
+            )}
+            {view === "reminders" && (
+              <Reminders
+                base={base}
+                revision={revision}
+                refresh={refresh}
+                fail={fail}
+              />
+            )}
+            {view === "favorites" && (
+              <Favorites
+                base={base}
+                onNavigate={(type, id) => {
+                  if (type === "channel") {
+                    setChannelId(id);
+                    navigate("chat");
+                  }
+                }}
+                fail={fail}
+              />
+            )}
+            {view === "members" && can("MANAGE_MEMBERS") && (
+              <Members
+                base={base}
+                can={can}
+                fail={fail}
+                refresh={refresh}
               />
             )}
             {view === "friends" && (
@@ -934,6 +1096,12 @@ function App() {
           onSave={form.save}
           onClose={() => setForm(null)}
         />
+      )}
+      {offline && (
+        <div className="offline-banner" role="alert">
+          <i />
+          Vous êtes hors ligne. Certaines fonctionnalités peuvent être limitées.
+        </div>
       )}
     </div>
   );

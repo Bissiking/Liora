@@ -155,20 +155,15 @@ socialRouter.post("/invitations/token/:token/accept", async (req, res) => {
       [i.workspace_id, req.actor.id],
       db,
     );
-    if (member)
+    if (member && member.state !== "active") {
       assert(
-        member.state === "active",
+        false,
         403,
         "MEMBERSHIP_DISABLED",
         "Votre accès à cet espace est désactivé.",
       );
-    else {
-      assert(
-        i.join_role,
-        403,
-        "MEMBERSHIP_REQUIRED",
-        "Un administrateur doit vous ajouter à cet espace.",
-      );
+    }
+    if (!member && i.join_role) {
       const actor = { kind: "human" as const, id: i.issuer };
       await authorize(actor, i.workspace_id, "MANAGE_MEMBERS");
       const [r] = await query(
@@ -176,18 +171,14 @@ socialRouter.post("/invitations/token/:token/accept", async (req, res) => {
         [i.join_role, i.workspace_id],
         db,
       );
-      assert(
-        r,
-        403,
-        "ROLE_UNAVAILABLE",
-        "Le rôle de l’invitation n’est plus disponible.",
-      );
-      for (const p of r.permissions) await authorize(actor, i.workspace_id, p);
-      await query(
-        "INSERT INTO workspace_members(workspace_id,user_id,role_id) VALUES($1,$2,$3)",
-        [i.workspace_id, req.actor.id, i.join_role],
-        db,
-      );
+      if (r) {
+        for (const p of r.permissions) await authorize(actor, i.workspace_id, p);
+        await query(
+          "INSERT INTO workspace_members(workspace_id,user_id,role_id) VALUES($1,$2,$3)",
+          [i.workspace_id, req.actor.id, i.join_role],
+          db,
+        );
+      }
     }
     const pair = [i.issuer, req.actor.id].sort();
     await query(

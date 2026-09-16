@@ -28,7 +28,9 @@ Voir [notes 0.3.0](DOCS/RELEASE_0.3.0.md) et [guide des intégrations](DOCS/INTE
 
 ## 0.4 — BETA · expérience
 
-Calendrier, rappels, favoris, raccourcis supplémentaires, push/desktop, thèmes avancés, gestion fine des états hors ligne, PWA et étude mobile native.
+Livré : calendrier d'équipe, rappels personnels récurrents, favoris channel/page/projet, raccourcis clavier étendus, notifications push desktop via service worker, thèmes avancés Minuit/Forêt/Braise, gestion hors ligne avec indicateur, PWA installable, améliorations touch mobile.
+
+Voir [notes 0.4.0](DOCS/RELEASE_0.4.0.md).
 
 ## 0.5 — BETA · médias optionnels
 

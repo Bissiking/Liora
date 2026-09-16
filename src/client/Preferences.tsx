@@ -227,6 +227,9 @@ export function Preferences({
                     <option value="dark">Graphite</option>
                     <option value="light">Papier</option>
                     <option value="dusk">Crépuscule</option>
+                    <option value="midnight">Minuit</option>
+                    <option value="forest">Forêt</option>
+                    <option value="ember">Braise</option>
                   </select>
                 </label>
                 <label>

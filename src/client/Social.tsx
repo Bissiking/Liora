@@ -1,6 +1,17 @@
 // src/client/Social.tsx
 import { useEffect, useState } from "react";
-import { Link, Copy, UserPlus, MessageSquare, Trash2 } from "lucide-react";
+import {
+  Link,
+  Copy,
+  UserPlus,
+  MessageSquare,
+  Trash2,
+  QrCode,
+  ChevronDown,
+  Users,
+  Send,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { api } from "./api";
 import type { Row, Result } from "./types";
 import { Avatar } from "./ui";
@@ -26,18 +37,18 @@ export function Invitation({
   return (
     <div className="invitation-page">
       <img src="/brand/icon.svg" alt="Liora" />
-      <h1>Une invitation à échanger</h1>
+      <h1>Demande d'amis</h1>
       {info && (
         <>
           <p>
-            <strong>{info.issuer_name}</strong> vous invite dans ses amis sur{" "}
-            <strong>{info.workspace_name}</strong>.
+            <strong>{info.issuer_name}</strong> souhaite vous ajouter à ses amis.
           </p>
-          <p>
-            {info.can_join
-              ? "L’administrateur vous autorise aussi à rejoindre cet espace."
-              : "Cette invitation s’adresse aux membres qui ont déjà accès à cet espace."}
-          </p>
+          {info.can_join && (
+            <p>
+              Cette invitation vous donnera aussi accès à{" "}
+              <strong>{info.workspace_name}</strong>.
+            </p>
+          )}
           <button
             className="primary"
             disabled={busy}
@@ -53,7 +64,7 @@ export function Invitation({
               }
             }}
           >
-            Accepter l’invitation
+            Accepter
           </button>
         </>
       )}
@@ -62,7 +73,7 @@ export function Invitation({
           {error}
         </p>
       )}
-      <button onClick={() => void done()}>Revenir à mon espace</button>
+      <button onClick={() => void done()}>Retour</button>
     </div>
   );
 }
@@ -88,7 +99,9 @@ export function Friends({
     [online, setOnline] = useState(false),
     [allowJoin, setAllowJoin] = useState(false),
     [link, setLink] = useState(""),
-    [copied, setCopied] = useState(false);
+    [copied, setCopied] = useState(false),
+    [openInvite, setOpenInvite] = useState(false),
+    [openSent, setOpenSent] = useState(false);
   const load = () =>
     void Promise.all([
       api<Result>("/api/v1/friends"),
@@ -104,159 +117,227 @@ export function Friends({
     const timer = setInterval(load, 30000);
     return () => clearInterval(timer);
   }, []);
+  const pending = invites.filter(
+    (i) =>
+      !i.revoked && !i.accepted_by && new Date(i.expires_at) > new Date(),
+  );
+  const sent = invites.filter(
+    (i) => i.accepted_by || i.revoked || new Date(i.expires_at) <= new Date(),
+  );
   return (
     <div className="page friends-page">
       <header className="page-heading">
         <div>
-          <h1>Les amis, tout simplement.</h1>
-          <p>Une invitation acceptée, puis une conversation à votre rythme.</p>
+          <h1>Amis</h1>
+          <p>Invitez, échangez, discutez.</p>
         </div>
-        <button
-          className="primary"
-          onClick={() =>
-            void api<{ url: string }>("/api/v1/invitations", "POST", {
-              workspace_id: workspace,
-              allow_join: allowJoin,
-            })
-              .then((r) => {
-                setLink(r.url);
-                load();
-              })
-              .catch(fail)
-          }
-        >
-          <UserPlus size={17} />
-          Créer une invitation
-        </button>
       </header>
-      {can("MANAGE_MEMBERS") && (
-        <label className="check-line">
-          <input
-            type="checkbox"
-            checked={allowJoin}
-            onChange={(e) => setAllowJoin(e.target.checked)}
+
+      <section className="friends-section">
+        <button
+          className="friends-section-header"
+          onClick={() => setOpenInvite(!openInvite)}
+        >
+          <UserPlus size={18} />
+          <span>Créer une invitation</span>
+          <ChevronDown
+            size={16}
+            className={`chevron ${openInvite ? "open" : ""}`}
           />
-          Autoriser aussi l’entrée d’un nouveau membre dans cet espace
-        </label>
-      )}
-      {link && (
-        <section className="invitation-link">
-          <Link size={20} />
-          <div>
-            <strong>Votre lien à usage unique</strong>
-            <p>
-              Valable 7 jours. La personne devra se connecter avec Kyros et
-              accepter.
-            </p>
-            <input
-              aria-label="Lien d’invitation"
-              value={link}
-              readOnly
-              onFocus={(e) => e.target.select()}
-            />
-          </div>
-          <button
-            onClick={() =>
-              void navigator.clipboard
-                .writeText(link)
-                .then(() => setCopied(true))
-                .catch(fail)
-            }
-          >
-            <Copy size={16} />
-            {copied ? "Copié" : "Copier"}
-          </button>
-        </section>
-      )}
-      <div className="section-toolbar">
-        <h2>Mes amis · {friends.length}</h2>
-        <label className="check-line">
-          <input
-            type="checkbox"
-            checked={online}
-            onChange={(e) => setOnline(e.target.checked)}
-          />
-          En ligne uniquement
-        </label>
-      </div>
-      <div className="friends-list">
-        {friends
-          .filter((f) => !online || f.status !== "offline")
-          .map((f) => (
-            <article key={f.id}>
-              <Avatar name={f.name} src={f.avatar} />
-              <div>
-                <strong>{f.name}</strong>
-                <p>
-                  <span
-                    className={`presence-dot ${f.status === "offline" ? "offline" : ""}`}
-                  />
-                  {{
-                    available: "Disponible",
-                    busy: "Occupé",
-                    away: "Absent",
-                    offline: "Hors ligne",
-                  }[f.status] || f.status}
-                </p>
-              </div>
-              <button
-                onClick={() =>
-                  void api<{ data: Row }>(`${base}/conversations`, "POST", {
-                    user_id: f.id,
-                  })
-                    .then((r) => open(r.data.id))
-                    .catch(fail)
-                }
-              >
-                <MessageSquare size={16} />
-                Écrire
-              </button>
-              <button
-                aria-label={`Retirer ${f.name} des amis`}
-                onClick={() => {
-                  if (confirm(`Retirer ${f.name} de vos amis ?`))
-                    void api(`/api/v1/friends/${f.id}`, "DELETE")
-                      .then(load)
-                      .catch(fail);
-                }}
-              >
-                <Trash2 size={16} />
-              </button>
-            </article>
-          ))}
-      </div>
-      {!friends.length && (
-        <p className="muted">
-          Partagez votre premier lien. Vos amis apparaîtront ici après avoir
-          accepté.
-        </p>
-      )}
-      <h2>Invitations envoyées</h2>
-      {invites.map((i) => (
-        <article className="invitation-row" key={i.id}>
-          <span>
-            {i.revoked
-              ? "Révoquée"
-              : i.accepted_by
-                ? "Acceptée"
-                : new Date(i.expires_at) < new Date()
-                  ? "Expirée"
-                  : "En attente"}{" "}
-            · expire le {new Date(i.expires_at).toLocaleDateString("fr-FR")}
-          </span>
-          {!i.revoked && !i.accepted_by && (
+        </button>
+        {openInvite && (
+          <div className="friends-section-body">
+            <label className="check-line">
+              <input
+                type="checkbox"
+                checked={allowJoin}
+                onChange={(e) => setAllowJoin(e.target.checked)}
+              />
+              Autoriser aussi l'accès à mon espace
+            </label>
             <button
+              className="primary"
               onClick={() =>
-                void api(`/api/v1/invitations/${i.id}`, "DELETE")
-                  .then(load)
+                void api<{ url: string }>("/api/v1/invitations", "POST", {
+                  workspace_id: workspace,
+                  allow_join: allowJoin,
+                })
+                  .then((r) => {
+                    setLink(r.url);
+                    load();
+                  })
                   .catch(fail)
               }
             >
-              Révoquer
+              <UserPlus size={16} />
+              Générer un lien
             </button>
+            {link && (
+              <div className="invitation-card">
+                <div className="invitation-card-link">
+                  <Link size={16} />
+                  <div>
+                    <strong>Lien à usage unique</strong>
+                    <p>Valable 7 jours</p>
+                    <input
+                      aria-label="Lien d'invitation"
+                      value={link}
+                      readOnly
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
+                  <button
+                    onClick={() =>
+                      void navigator.clipboard
+                        .writeText(link)
+                        .then(() => setCopied(true))
+                        .catch(fail)
+                    }
+                  >
+                    <Copy size={14} />
+                    {copied ? "Copié" : "Copier"}
+                  </button>
+                </div>
+                <div className="invitation-card-qr">
+                  <QRCodeSVG
+                    value={link}
+                    size={100}
+                    bgColor="var(--surface)"
+                    fgColor="var(--text)"
+                  />
+                  <span>
+                    <QrCode size={11} /> Scanner
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="friends-section">
+        <div className="friends-section-header static">
+          <Users size={18} />
+          <span>Mes amis · {friends.length}</span>
+          <label
+            className="check-line compact"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <input
+              type="checkbox"
+              checked={online}
+              onChange={(e) => setOnline(e.target.checked)}
+            />
+            En ligne
+          </label>
+        </div>
+        <div className="friends-section-body">
+          <div className="friends-list">
+            {friends
+              .filter((f) => !online || f.status !== "offline")
+              .map((f) => (
+                <article key={f.id} className="friend-row">
+                  <Avatar name={f.name} src={f.avatar} />
+                  <div className="friend-info">
+                    <strong>{f.name}</strong>
+                    <span className="friend-status">
+                      <span
+                        className={`presence-dot ${f.status === "offline" ? "offline" : ""}`}
+                      />
+                      {{
+                        available: "Disponible",
+                        busy: "Occupé",
+                        away: "Absent",
+                        offline: "Hors ligne",
+                      }[f.status] || f.status}
+                    </span>
+                  </div>
+                  <div className="friend-actions">
+                    <button
+                      onClick={() =>
+                        void api<{ data: Row }>(
+                          `${base}/conversations`,
+                          "POST",
+                          { user_id: f.id },
+                        )
+                          .then((r) => open(r.data.id))
+                          .catch(fail)
+                      }
+                    >
+                      <MessageSquare size={15} />
+                    </button>
+                    <button
+                      className="icon-button danger"
+                      aria-label={`Retirer ${f.name} des amis`}
+                      onClick={() => {
+                        if (confirm(`Retirer ${f.name} de vos amis ?`))
+                          void api(`/api/v1/friends/${f.id}`, "DELETE")
+                            .then(load)
+                            .catch(fail);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </article>
+              ))}
+          </div>
+          {!friends.length && (
+            <p className="muted empty-hint">
+              Aucun ami pour le moment. Partagez une invitation pour commencer.
+            </p>
           )}
-        </article>
-      ))}
+        </div>
+      </section>
+
+      <section className="friends-section">
+        <button
+          className="friends-section-header"
+          onClick={() => setOpenSent(!openSent)}
+        >
+          <Send size={18} />
+          <span>Invitations envoyées · {pending.length} en attente</span>
+          <ChevronDown
+            size={16}
+            className={`chevron ${openSent ? "open" : ""}`}
+          />
+        </button>
+        {openSent && (
+          <div className="friends-section-body">
+            {sent.length ? (
+              <div className="sent-list">
+                {sent.map((i) => (
+                  <article className="sent-row" key={i.id}>
+                    <span className="sent-status">
+                      {i.revoked
+                        ? "Révoquée"
+                        : i.accepted_by
+                          ? "Acceptée"
+                          : "Expirée"}
+                    </span>
+                    <span className="sent-date">
+                      {new Date(i.expires_at).toLocaleDateString("fr-FR")}
+                    </span>
+                    {!i.revoked && !i.accepted_by && (
+                      <button
+                        onClick={() =>
+                          void api(`/api/v1/invitations/${i.id}`, "DELETE")
+                            .then(load)
+                            .catch(fail)
+                        }
+                      >
+                        Révoquer
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="muted empty-hint">Aucune invitation envoyée.</p>
+            )}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

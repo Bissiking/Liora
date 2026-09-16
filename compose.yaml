@@ -1,0 +1,35 @@
+# compose.yaml
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: liora
+      POSTGRES_USER: liora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U liora -d liora']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+  liora:
+    build: .
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4310
+      DATABASE_URL: postgresql://liora:${POSTGRES_PASSWORD}@postgres:5432/liora
+    ports:
+      - '127.0.0.1:4310:4310'
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres:
+  uploads:

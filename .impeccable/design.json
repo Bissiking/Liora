@@ -1,0 +1,736 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-15T21:46:50.438876+00:00",
+  "title": "Design System: Liora",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Sauge",
+        "tonalRamp": [
+          "oklch(15.00% 0.07144 142.48)",
+          "oklch(26.43% 0.07144 142.48)",
+          "oklch(37.86% 0.07144 142.48)",
+          "oklch(49.29% 0.07144 142.48)",
+          "oklch(60.71% 0.07144 142.48)",
+          "oklch(72.14% 0.07144 142.48)",
+          "oklch(83.57% 0.07144 142.48)",
+          "oklch(95.00% 0.07144 142.48)"
+        ]
+      },
+      "bg": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "tonalRamp": [
+          "oklch(15.00% 0.01471 248.47)",
+          "oklch(26.43% 0.01471 248.47)",
+          "oklch(37.86% 0.01471 248.47)",
+          "oklch(49.29% 0.01471 248.47)",
+          "oklch(60.71% 0.01471 248.47)",
+          "oklch(72.14% 0.01471 248.47)",
+          "oklch(83.57% 0.01471 248.47)",
+          "oklch(95.00% 0.01471 248.47)"
+        ]
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Ivoire",
+        "tonalRamp": [
+          "oklch(15.00% 0.00735 132.42)",
+          "oklch(26.43% 0.00735 132.42)",
+          "oklch(37.86% 0.00735 132.42)",
+          "oklch(49.29% 0.00735 132.42)",
+          "oklch(60.71% 0.00735 132.42)",
+          "oklch(72.14% 0.00735 132.42)",
+          "oklch(83.57% 0.00735 132.42)",
+          "oklch(95.00% 0.00735 132.42)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Gris de lecture",
+        "tonalRamp": [
+          "oklch(15.00% 0.01408 233.81)",
+          "oklch(26.43% 0.01408 233.81)",
+          "oklch(37.86% 0.01408 233.81)",
+          "oklch(49.29% 0.01408 233.81)",
+          "oklch(60.71% 0.01408 233.81)",
+          "oklch(72.14% 0.01408 233.81)",
+          "oklch(83.57% 0.01408 233.81)",
+          "oklch(95.00% 0.01408 233.81)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.01647 248.44)",
+          "oklch(26.43% 0.01647 248.44)",
+          "oklch(37.86% 0.01647 248.44)",
+          "oklch(49.29% 0.01647 248.44)",
+          "oklch(60.71% 0.01647 248.44)",
+          "oklch(72.14% 0.01647 248.44)",
+          "oklch(83.57% 0.01647 248.44)",
+          "oklch(95.00% 0.01647 248.44)"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "surface-2",
+        "tonalRamp": [
+          "oklch(15.00% 0.01830 248.43)",
+          "oklch(26.43% 0.01830 248.43)",
+          "oklch(37.86% 0.01830 248.43)",
+          "oklch(49.29% 0.01830 248.43)",
+          "oklch(60.71% 0.01830 248.43)",
+          "oklch(72.14% 0.01830 248.43)",
+          "oklch(83.57% 0.01830 248.43)",
+          "oklch(95.00% 0.01830 248.43)"
+        ]
+      },
+      "side": {
+        "role": "neutral",
+        "displayName": "side",
+        "tonalRamp": [
+          "oklch(15.00% 0.01672 248.49)",
+          "oklch(26.43% 0.01672 248.49)",
+          "oklch(37.86% 0.01672 248.49)",
+          "oklch(49.29% 0.01672 248.49)",
+          "oklch(60.71% 0.01672 248.49)",
+          "oklch(72.14% 0.01672 248.49)",
+          "oklch(83.57% 0.01672 248.49)",
+          "oklch(95.00% 0.01672 248.49)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "line",
+        "tonalRamp": [
+          "oklch(15.00% 0.01840 245.17)",
+          "oklch(26.43% 0.01840 245.17)",
+          "oklch(37.86% 0.01840 245.17)",
+          "oklch(49.29% 0.01840 245.17)",
+          "oklch(60.71% 0.01840 245.17)",
+          "oklch(72.14% 0.01840 245.17)",
+          "oklch(83.57% 0.01840 245.17)",
+          "oklch(95.00% 0.01840 245.17)"
+        ]
+      },
+      "accent-ink": {
+        "role": "primary",
+        "displayName": "accent-ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.04720 149.50)",
+          "oklch(26.43% 0.04720 149.50)",
+          "oklch(37.86% 0.04720 149.50)",
+          "oklch(49.29% 0.04720 149.50)",
+          "oklch(60.71% 0.04720 149.50)",
+          "oklch(72.14% 0.04720 149.50)",
+          "oklch(83.57% 0.04720 149.50)",
+          "oklch(95.00% 0.04720 149.50)"
+        ]
+      },
+      "hover": {
+        "role": "neutral",
+        "displayName": "hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.01942 242.35)",
+          "oklch(26.43% 0.01942 242.35)",
+          "oklch(37.86% 0.01942 242.35)",
+          "oklch(49.29% 0.01942 242.35)",
+          "oklch(60.71% 0.01942 242.35)",
+          "oklch(72.14% 0.01942 242.35)",
+          "oklch(83.57% 0.01942 242.35)",
+          "oklch(95.00% 0.01942 242.35)"
+        ]
+      },
+      "primary-hover": {
+        "role": "primary",
+        "displayName": "primary-hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.05283 142.56)",
+          "oklch(26.43% 0.05283 142.56)",
+          "oklch(37.86% 0.05283 142.56)",
+          "oklch(49.29% 0.05283 142.56)",
+          "oklch(60.71% 0.05283 142.56)",
+          "oklch(72.14% 0.05283 142.56)",
+          "oklch(83.57% 0.05283 142.56)",
+          "oklch(95.00% 0.05283 142.56)"
+        ]
+      },
+      "nav-active": {
+        "role": "neutral",
+        "displayName": "nav-active",
+        "tonalRamp": [
+          "oklch(15.00% 0.01918 169.81)",
+          "oklch(26.43% 0.01918 169.81)",
+          "oklch(37.86% 0.01918 169.81)",
+          "oklch(49.29% 0.01918 169.81)",
+          "oklch(60.71% 0.01918 169.81)",
+          "oklch(72.14% 0.01918 169.81)",
+          "oklch(83.57% 0.01918 169.81)",
+          "oklch(95.00% 0.01918 169.81)"
+        ]
+      },
+      "nav-active-text": {
+        "role": "neutral",
+        "displayName": "nav-active-text",
+        "tonalRamp": [
+          "oklch(15.00% 0.04094 141.86)",
+          "oklch(26.43% 0.04094 141.86)",
+          "oklch(37.86% 0.04094 141.86)",
+          "oklch(49.29% 0.04094 141.86)",
+          "oklch(60.71% 0.04094 141.86)",
+          "oklch(72.14% 0.04094 141.86)",
+          "oklch(83.57% 0.04094 141.86)",
+          "oklch(95.00% 0.04094 141.86)"
+        ]
+      },
+      "light-bg": {
+        "role": "neutral",
+        "displayName": "light-bg",
+        "tonalRamp": [
+          "oklch(15.00% 0.00793 106.55)",
+          "oklch(26.43% 0.00793 106.55)",
+          "oklch(37.86% 0.00793 106.55)",
+          "oklch(49.29% 0.00793 106.55)",
+          "oklch(60.71% 0.00793 106.55)",
+          "oklch(72.14% 0.00793 106.55)",
+          "oklch(83.57% 0.00793 106.55)",
+          "oklch(95.00% 0.00793 106.55)"
+        ]
+      },
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "light-surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "light-surface-2": {
+        "role": "neutral",
+        "displayName": "light-surface-2",
+        "tonalRamp": [
+          "oklch(15.00% 0.01239 121.71)",
+          "oklch(26.43% 0.01239 121.71)",
+          "oklch(37.86% 0.01239 121.71)",
+          "oklch(49.29% 0.01239 121.71)",
+          "oklch(60.71% 0.01239 121.71)",
+          "oklch(72.14% 0.01239 121.71)",
+          "oklch(83.57% 0.01239 121.71)",
+          "oklch(95.00% 0.01239 121.71)"
+        ]
+      },
+      "light-side": {
+        "role": "neutral",
+        "displayName": "light-side",
+        "tonalRamp": [
+          "oklch(15.00% 0.01083 118.03)",
+          "oklch(26.43% 0.01083 118.03)",
+          "oklch(37.86% 0.01083 118.03)",
+          "oklch(49.29% 0.01083 118.03)",
+          "oklch(60.71% 0.01083 118.03)",
+          "oklch(72.14% 0.01083 118.03)",
+          "oklch(83.57% 0.01083 118.03)",
+          "oklch(95.00% 0.01083 118.03)"
+        ]
+      },
+      "light-text": {
+        "role": "neutral",
+        "displayName": "light-text",
+        "tonalRamp": [
+          "oklch(15.00% 0.02653 159.77)",
+          "oklch(26.43% 0.02653 159.77)",
+          "oklch(37.86% 0.02653 159.77)",
+          "oklch(49.29% 0.02653 159.77)",
+          "oklch(60.71% 0.02653 159.77)",
+          "oklch(72.14% 0.02653 159.77)",
+          "oklch(83.57% 0.02653 159.77)",
+          "oklch(95.00% 0.02653 159.77)"
+        ]
+      },
+      "light-muted": {
+        "role": "neutral",
+        "displayName": "light-muted",
+        "tonalRamp": [
+          "oklch(15.00% 0.02691 156.92)",
+          "oklch(26.43% 0.02691 156.92)",
+          "oklch(37.86% 0.02691 156.92)",
+          "oklch(49.29% 0.02691 156.92)",
+          "oklch(60.71% 0.02691 156.92)",
+          "oklch(72.14% 0.02691 156.92)",
+          "oklch(83.57% 0.02691 156.92)",
+          "oklch(95.00% 0.02691 156.92)"
+        ]
+      },
+      "light-line": {
+        "role": "neutral",
+        "displayName": "light-line",
+        "tonalRamp": [
+          "oklch(15.00% 0.01920 130.21)",
+          "oklch(26.43% 0.01920 130.21)",
+          "oklch(37.86% 0.01920 130.21)",
+          "oklch(49.29% 0.01920 130.21)",
+          "oklch(60.71% 0.01920 130.21)",
+          "oklch(72.14% 0.01920 130.21)",
+          "oklch(83.57% 0.01920 130.21)",
+          "oklch(95.00% 0.01920 130.21)"
+        ]
+      },
+      "light-accent": {
+        "role": "primary",
+        "displayName": "light-accent",
+        "tonalRamp": [
+          "oklch(15.00% 0.07225 148.38)",
+          "oklch(26.43% 0.07225 148.38)",
+          "oklch(37.86% 0.07225 148.38)",
+          "oklch(49.29% 0.07225 148.38)",
+          "oklch(60.71% 0.07225 148.38)",
+          "oklch(72.14% 0.07225 148.38)",
+          "oklch(83.57% 0.07225 148.38)",
+          "oklch(95.00% 0.07225 148.38)"
+        ]
+      },
+      "light-accent-ink": {
+        "role": "primary",
+        "displayName": "light-accent-ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "light-hover": {
+        "role": "neutral",
+        "displayName": "light-hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.01894 130.19)",
+          "oklch(26.43% 0.01894 130.19)",
+          "oklch(37.86% 0.01894 130.19)",
+          "oklch(49.29% 0.01894 130.19)",
+          "oklch(60.71% 0.01894 130.19)",
+          "oklch(72.14% 0.01894 130.19)",
+          "oklch(83.57% 0.01894 130.19)",
+          "oklch(95.00% 0.01894 130.19)"
+        ]
+      },
+      "light-primary-hover": {
+        "role": "primary",
+        "displayName": "light-primary-hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.06271 149.14)",
+          "oklch(26.43% 0.06271 149.14)",
+          "oklch(37.86% 0.06271 149.14)",
+          "oklch(49.29% 0.06271 149.14)",
+          "oklch(60.71% 0.06271 149.14)",
+          "oklch(72.14% 0.06271 149.14)",
+          "oklch(83.57% 0.06271 149.14)",
+          "oklch(95.00% 0.06271 149.14)"
+        ]
+      },
+      "light-active": {
+        "role": "neutral",
+        "displayName": "light-active",
+        "tonalRamp": [
+          "oklch(15.00% 0.02608 136.33)",
+          "oklch(26.43% 0.02608 136.33)",
+          "oklch(37.86% 0.02608 136.33)",
+          "oklch(49.29% 0.02608 136.33)",
+          "oklch(60.71% 0.02608 136.33)",
+          "oklch(72.14% 0.02608 136.33)",
+          "oklch(83.57% 0.02608 136.33)",
+          "oklch(95.00% 0.02608 136.33)"
+        ]
+      },
+      "dusk-bg": {
+        "role": "neutral",
+        "displayName": "Bleu nuit de Crépuscule",
+        "tonalRamp": [
+          "oklch(15.00% 0.04233 280.51)",
+          "oklch(26.43% 0.04233 280.51)",
+          "oklch(37.86% 0.04233 280.51)",
+          "oklch(49.29% 0.04233 280.51)",
+          "oklch(60.71% 0.04233 280.51)",
+          "oklch(72.14% 0.04233 280.51)",
+          "oklch(83.57% 0.04233 280.51)",
+          "oklch(95.00% 0.04233 280.51)"
+        ]
+      },
+      "dusk-surface": {
+        "role": "neutral",
+        "displayName": "dusk-surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.04580 281.25)",
+          "oklch(26.43% 0.04580 281.25)",
+          "oklch(37.86% 0.04580 281.25)",
+          "oklch(49.29% 0.04580 281.25)",
+          "oklch(60.71% 0.04580 281.25)",
+          "oklch(72.14% 0.04580 281.25)",
+          "oklch(83.57% 0.04580 281.25)",
+          "oklch(95.00% 0.04580 281.25)"
+        ]
+      },
+      "dusk-surface-2": {
+        "role": "neutral",
+        "displayName": "dusk-surface-2",
+        "tonalRamp": [
+          "oklch(15.00% 0.04943 281.71)",
+          "oklch(26.43% 0.04943 281.71)",
+          "oklch(37.86% 0.04943 281.71)",
+          "oklch(49.29% 0.04943 281.71)",
+          "oklch(60.71% 0.04943 281.71)",
+          "oklch(72.14% 0.04943 281.71)",
+          "oklch(83.57% 0.04943 281.71)",
+          "oklch(95.00% 0.04943 281.71)"
+        ]
+      },
+      "dusk-side": {
+        "role": "neutral",
+        "displayName": "dusk-side",
+        "tonalRamp": [
+          "oklch(15.00% 0.04480 280.96)",
+          "oklch(26.43% 0.04480 280.96)",
+          "oklch(37.86% 0.04480 280.96)",
+          "oklch(49.29% 0.04480 280.96)",
+          "oklch(60.71% 0.04480 280.96)",
+          "oklch(72.14% 0.04480 280.96)",
+          "oklch(83.57% 0.04480 280.96)",
+          "oklch(95.00% 0.04480 280.96)"
+        ]
+      },
+      "dusk-text": {
+        "role": "neutral",
+        "displayName": "dusk-text",
+        "tonalRamp": [
+          "oklch(15.00% 0.01629 297.52)",
+          "oklch(26.43% 0.01629 297.52)",
+          "oklch(37.86% 0.01629 297.52)",
+          "oklch(49.29% 0.01629 297.52)",
+          "oklch(60.71% 0.01629 297.52)",
+          "oklch(72.14% 0.01629 297.52)",
+          "oklch(83.57% 0.01629 297.52)",
+          "oklch(95.00% 0.01629 297.52)"
+        ]
+      },
+      "dusk-muted": {
+        "role": "neutral",
+        "displayName": "dusk-muted",
+        "tonalRamp": [
+          "oklch(15.00% 0.03383 293.26)",
+          "oklch(26.43% 0.03383 293.26)",
+          "oklch(37.86% 0.03383 293.26)",
+          "oklch(49.29% 0.03383 293.26)",
+          "oklch(60.71% 0.03383 293.26)",
+          "oklch(72.14% 0.03383 293.26)",
+          "oklch(83.57% 0.03383 293.26)",
+          "oklch(95.00% 0.03383 293.26)"
+        ]
+      },
+      "dusk-line": {
+        "role": "neutral",
+        "displayName": "dusk-line",
+        "tonalRamp": [
+          "oklch(15.00% 0.04352 284.27)",
+          "oklch(26.43% 0.04352 284.27)",
+          "oklch(37.86% 0.04352 284.27)",
+          "oklch(49.29% 0.04352 284.27)",
+          "oklch(60.71% 0.04352 284.27)",
+          "oklch(72.14% 0.04352 284.27)",
+          "oklch(83.57% 0.04352 284.27)",
+          "oklch(95.00% 0.04352 284.27)"
+        ]
+      },
+      "dusk-accent": {
+        "role": "primary",
+        "displayName": "Lavande de Crépuscule",
+        "tonalRamp": [
+          "oklch(15.00% 0.09557 301.46)",
+          "oklch(26.43% 0.09557 301.46)",
+          "oklch(37.86% 0.09557 301.46)",
+          "oklch(49.29% 0.09557 301.46)",
+          "oklch(60.71% 0.09557 301.46)",
+          "oklch(72.14% 0.09557 301.46)",
+          "oklch(83.57% 0.09557 301.46)",
+          "oklch(95.00% 0.09557 301.46)"
+        ]
+      },
+      "dusk-accent-ink": {
+        "role": "primary",
+        "displayName": "dusk-accent-ink",
+        "tonalRamp": [
+          "oklch(15.00% 0.06421 303.87)",
+          "oklch(26.43% 0.06421 303.87)",
+          "oklch(37.86% 0.06421 303.87)",
+          "oklch(49.29% 0.06421 303.87)",
+          "oklch(60.71% 0.06421 303.87)",
+          "oklch(72.14% 0.06421 303.87)",
+          "oklch(83.57% 0.06421 303.87)",
+          "oklch(95.00% 0.06421 303.87)"
+        ]
+      },
+      "dusk-hover": {
+        "role": "neutral",
+        "displayName": "dusk-hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.04500 289.12)",
+          "oklch(26.43% 0.04500 289.12)",
+          "oklch(37.86% 0.04500 289.12)",
+          "oklch(49.29% 0.04500 289.12)",
+          "oklch(60.71% 0.04500 289.12)",
+          "oklch(72.14% 0.04500 289.12)",
+          "oklch(83.57% 0.04500 289.12)",
+          "oklch(95.00% 0.04500 289.12)"
+        ]
+      },
+      "dusk-rail": {
+        "role": "neutral",
+        "displayName": "dusk-rail",
+        "tonalRamp": [
+          "oklch(15.00% 0.03742 280.35)",
+          "oklch(26.43% 0.03742 280.35)",
+          "oklch(37.86% 0.03742 280.35)",
+          "oklch(49.29% 0.03742 280.35)",
+          "oklch(60.71% 0.03742 280.35)",
+          "oklch(72.14% 0.03742 280.35)",
+          "oklch(83.57% 0.03742 280.35)",
+          "oklch(95.00% 0.03742 280.35)"
+        ]
+      },
+      "dusk-nav-active": {
+        "role": "neutral",
+        "displayName": "dusk-nav-active",
+        "tonalRamp": [
+          "oklch(15.00% 0.05297 297.23)",
+          "oklch(26.43% 0.05297 297.23)",
+          "oklch(37.86% 0.05297 297.23)",
+          "oklch(49.29% 0.05297 297.23)",
+          "oklch(60.71% 0.05297 297.23)",
+          "oklch(72.14% 0.05297 297.23)",
+          "oklch(83.57% 0.05297 297.23)",
+          "oklch(95.00% 0.05297 297.23)"
+        ]
+      },
+      "dusk-nav-active-text": {
+        "role": "neutral",
+        "displayName": "dusk-nav-active-text",
+        "tonalRamp": [
+          "oklch(15.00% 0.04931 303.57)",
+          "oklch(26.43% 0.04931 303.57)",
+          "oklch(37.86% 0.04931 303.57)",
+          "oklch(49.29% 0.04931 303.57)",
+          "oklch(60.71% 0.04931 303.57)",
+          "oklch(72.14% 0.04931 303.57)",
+          "oklch(83.57% 0.04931 303.57)",
+          "oklch(95.00% 0.04931 303.57)"
+        ]
+      },
+      "dusk-avatar": {
+        "role": "neutral",
+        "displayName": "dusk-avatar",
+        "tonalRamp": [
+          "oklch(15.00% 0.05308 297.14)",
+          "oklch(26.43% 0.05308 297.14)",
+          "oklch(37.86% 0.05308 297.14)",
+          "oklch(49.29% 0.05308 297.14)",
+          "oklch(60.71% 0.05308 297.14)",
+          "oklch(72.14% 0.05308 297.14)",
+          "oklch(83.57% 0.05308 297.14)",
+          "oklch(95.00% 0.05308 297.14)"
+        ]
+      },
+      "dusk-primary-hover": {
+        "role": "primary",
+        "displayName": "dusk-primary-hover",
+        "tonalRamp": [
+          "oklch(15.00% 0.06377 303.32)",
+          "oklch(26.43% 0.06377 303.32)",
+          "oklch(37.86% 0.06377 303.32)",
+          "oklch(49.29% 0.06377 303.32)",
+          "oklch(60.71% 0.06377 303.32)",
+          "oklch(72.14% 0.06377 303.32)",
+          "oklch(83.57% 0.06377 303.32)",
+          "oklch(95.00% 0.06377 303.32)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Titre de connexion",
+        "purpose": "Introduction sur la page de connexion."
+      },
+      "message": {
+        "displayName": "Message",
+        "purpose": "Texte du transcript, avec largeur maximale de 75ch."
+      },
+      "help-title": {
+        "displayName": "Titre de guide",
+        "purpose": "Titre de lecture, réduit à 25 px sur mobile."
+      },
+      "emoji": {
+        "displayName": "Emoji Unicode",
+        "purpose": "Glyphe rendu par la police emoji native du système."
+      }
+    },
+    "shadows": [
+      {
+        "name": "emoji-picker",
+        "value": "0 8px 24px #0005",
+        "purpose": "Petit sélecteur historique encore présent dans le CSS ; le catalogue actuel utilise le dialogue."
+      },
+      {
+        "name": "dialog",
+        "value": "0 20px 90px #0007",
+        "purpose": "Dialogue modal."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "background 0.16s, border-color 0.16s",
+        "purpose": "Retour de survol des boutons."
+      },
+      {
+        "name": "mobile-drawer",
+        "value": "transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Ouverture du tiroir mobile ; désactivée en reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1500px"
+      },
+      {
+        "name": "context-hidden-max",
+        "value": "1200px"
+      },
+      {
+        "name": "compact-navigation-max",
+        "value": "900px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "700px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Bouton",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Commande secondaire bordée.",
+      "html": "<button class=\"ds-button\">Actualiser</button>",
+      "css": ".ds-button{font-family:\"Manrope Variable\",sans-serif;border:1px solid var(--line,#343d45);border-radius:7px;padding:9px 13px;background:var(--surface,#20272e);color:var(--text,#edf0eb);cursor:pointer;display:inline-flex;gap:8px;align-items:center;justify-content:center;font-size:12px;font-weight:600;transition:background .16s,border-color .16s;}.ds-button:hover{background:var(--hover,#303a42);border-color:#65756d;}.ds-button:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}.ds-button:disabled{opacity:.45;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}"
+    },
+    {
+      "name": "Bouton principal",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Action principale en sauge ou lavande, avec survol adapté à chacun des trois thèmes.",
+      "html": "<button class=\"ds-primary\">Enregistrer</button>",
+      "css": ".ds-primary{font-family:\"Manrope Variable\",sans-serif;border:1px solid var(--line,#343d45);border-radius:7px;padding:9px 13px;background:var(--surface,#20272e);color:var(--text,#edf0eb);cursor:pointer;display:inline-flex;gap:8px;align-items:center;justify-content:center;font-size:12px;font-weight:600;transition:background .16s,border-color .16s;background:var(--accent,#b8dfb4);border-color:var(--accent,#b8dfb4);color:var(--accent-ink,#213a26);font-weight:750;padding:11px 16px;gap:9px;}.ds-primary:hover{background:#cbe8c8;}.ds-primary:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}.ds-primary:disabled{opacity:.45;cursor:not-allowed;}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}:host-context([data-theme=\"light\"]) .ds-primary:hover{background:#294c30;border-color:#294c30;color:#fff;}:host-context([data-theme=\"dusk\"]) .ds-primary:hover{background:#e4d2ff;}"
+    },
+    {
+      "name": "Bouton d’icône",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "Action compacte avec libellé accessible.",
+      "html": "<button class=\"ds-icon\" aria-label=\"Fermer\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"M18 6 6 18M6 6l12 12\"/></svg></button>",
+      "css": ".ds-icon{font-family:\"Manrope Variable\",sans-serif;border:0;background:none;padding:7px;color:var(--muted,#adb7bd);border-radius:5px;display:inline-flex;cursor:pointer;transition:background .16s,border-color .16s;}.ds-icon:hover{color:var(--text,#edf0eb);background:var(--hover,#303a42);}.ds-icon:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}"
+    },
+    {
+      "name": "Champ",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Champ courant avec libellé visible.",
+      "html": "<label class=\"ds-field\">Nom<input class=\"ds-input\" placeholder=\"Nom du salon\" /></label>",
+      "css": ".ds-field{font-family:\"Manrope Variable\",sans-serif;display:grid;gap:8px;color:var(--text,#edf0eb);font-size:12px;}.ds-input{font-family:\"Manrope Variable\",sans-serif;width:100%;border:1px solid var(--line,#343d45);background:var(--bg,#171d23);border-radius:7px;color:var(--text,#edf0eb);padding:11px 12px;min-width:0;font-size:14px;}.ds-input::placeholder{color:var(--muted,#adb7bd);}.ds-input:focus{border-color:var(--accent,#b8dfb4);}.ds-input:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}"
+    },
+    {
+      "name": "Tag",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "Repère descriptif non interactif.",
+      "html": "<span class=\"ds-tag\">Contrôles périodiques</span>",
+      "css": ".ds-tag{font-family:\"Manrope Variable\",sans-serif;font-size:10px;font-weight:650;color:var(--muted,#adb7bd);border:1px solid var(--line,#343d45);padding:5px 9px;border-radius:5px;white-space:nowrap;}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}"
+    },
+    {
+      "name": "Salon actif",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Entrée sélectionnée de l’index des salons.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Salons\"><button class=\"ds-channel\" aria-current=\"page\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" aria-hidden=\"true\"><path d=\"M4 9h16M3 15h16M10 3 8 21M16 3l-2 18\"/></svg>general</button></nav>",
+      "css": ".ds-nav{width:220px;}.ds-channel{font-family:\"Manrope Variable\",sans-serif;border:1px solid var(--line,#343d45);border-radius:7px;padding:9px 13px;background:var(--surface,#20272e);color:var(--text,#edf0eb);cursor:pointer;display:inline-flex;gap:8px;align-items:center;justify-content:center;font-size:12px;font-weight:600;transition:background .16s,border-color .16s;border:0;width:100%;justify-content:flex-start;gap:11px;font-size:13px;font-weight:500;padding:9px 12px;margin:2px 0;background:#303d38;color:#d0e6cd;}.ds-channel:hover{background:#303d38;}.ds-channel:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}:host-context([data-theme=\"light\"]) .ds-channel{background:#dce8d7;color:var(--accent,#365f3d);}:host-context([data-theme=\"dusk\"]) .ds-channel{background:#39304e;color:#eadcff;}"
+    },
+    {
+      "name": "Carte de supervision",
+      "kind": "card",
+      "refersTo": "monitoring-card",
+      "description": "Conteneur plat associant cible et état écrit.",
+      "html": "<section class=\"ds-monitor\"><header><h2>Argos</h2><span>Non configuré</span></header><p>— <small>ms · dernier contrôle</small></p></section>",
+      "css": ".ds-monitor{font-family:\"Manrope Variable\",sans-serif;padding:22px;background:var(--surface,#20272e);color:var(--text,#edf0eb);border-radius:12px;min-width:0;}.ds-monitor header{display:flex;align-items:center;gap:9px;row-gap:12px;flex-wrap:wrap;}.ds-monitor h2{font-size:13px;margin:0;flex:1;}.ds-monitor header span,.ds-monitor small{font-size:11px;color:var(--muted,#adb7bd);}.ds-monitor p{display:flex;align-items:baseline;gap:9px;margin:25px 0;font-size:32px;font-weight:550;font-variant-numeric:tabular-nums;}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important;}}"
+    },
+    {
+      "name": "Sujet d’aide",
+      "kind": "nav",
+      "refersTo": "help-topic-active",
+      "description": "Sujet sélectionné dans l’index de lecture.",
+      "html": "<nav aria-label=\"Tutoriels\"><button class=\"ds-help-topic\" aria-current=\"page\"><small>Commencer</small>Inviter un ami</button></nav>",
+      "css": ".ds-help-topic{font-family:\"Manrope Variable\",sans-serif;display:block;text-align:left;border:0;border-radius:7px;padding:12px;background:var(--hover,#303a42);color:var(--accent,#b8dfb4);font-size:12px;font-weight:600;cursor:pointer;}.ds-help-topic small{display:block;font-size:11px;margin-bottom:5px;color:var(--muted,#adb7bd);}.ds-help-topic:hover{background:var(--hover,#303a42);}.ds-help-topic:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}"
+    },
+    {
+      "name": "Emoji Unicode",
+      "kind": "button",
+      "refersTo": "emoji-button",
+      "description": "Bouton de catalogue utilisant le glyphe natif et un nom accessible.",
+      "html": "<button class=\"ds-emoji\" aria-label=\"Insérer chat qui sourit\" title=\"Chat qui sourit\">😺</button>",
+      "css": ".ds-emoji{font-family:\"Manrope Variable\",sans-serif;font-size:26px;line-height:1.2;padding:7px 2px;min-width:0;border:0;border-radius:7px;background:transparent;cursor:pointer;}.ds-emoji:hover{background:var(--hover,#303a42);}.ds-emoji:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}"
+    },
+    {
+      "name": "Membres du groupe",
+      "kind": "custom",
+      "refersTo": "group-members",
+      "description": "Cases et libellés alignés horizontalement dans un groupe nommé.",
+      "html": "<fieldset class=\"ds-members\"><legend>Membres du groupe</legend><label class=\"ds-check\"><input type=\"checkbox\" checked>Alex Dupont</label><label class=\"ds-check\"><input type=\"checkbox\">Camille Martin</label></fieldset>",
+      "css": ".ds-members{font-family:\"Manrope Variable\",sans-serif;display:grid;gap:12px;border:1px solid var(--line,#343d45);border-radius:10px;padding:16px;color:var(--text,#edf0eb);font-size:14px;}.ds-check{display:flex;align-items:center;justify-content:flex-start;gap:10px;font-size:13px;}.ds-check input{width:16px;height:16px;flex-shrink:0;accent-color:var(--accent,#b8dfb4);}.ds-check input:focus-visible{outline:2px solid var(--accent,#b8dfb4);outline-offset:3px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Le carnet de liaison numérique",
+    "overview": "Un carnet de liaison numérique pour le studio : un index étroit, un fil de conversation continu et une table de travail. Le graphite, le texte ivoire et la sauge structurent un environnement calme et compact ; les séparateurs fins et les alignements portent la hiérarchie. Papier et Crépuscule déclinent ce même carnet, respectivement en papier chaud et sauge foncée, puis en bleu nuit et lavande.\n\nMode de conception : Operate, construction directe en code, choisie dans le cadre de la délégation explicite du brief. Ce document fusionne la direction initiale avec les extensions construites en 0.2.1, d’après `src/client/styles.css`, les composants React et les captures de revue desktop/mobile, aide, amis, Crépuscule, emojis, lecture de page, groupes et board mobile. Il décrit le système construit ; les tokens de couleur correspondent aux variables du thème ou aux états effectivement présents dans le CSS.",
+    "keyCharacteristics": [
+      "Navigation compacte et contenu central lisible.",
+      "Surfaces mates, séparateurs fins et accent sauge ou lavande selon le thème.",
+      "Manrope variable auto-hébergée et chiffres tabulaires pour les mesures.",
+      "États exprimés en mots ; tiroir de navigation sur mobile."
+    ],
+    "rules": [],
+    "dos": [
+      "Do conserver le fil continu de conversation et ses repères de date.",
+      "Do utiliser les couleurs du thème pour les nouveaux textes et contrôles, y compris Crépuscule.",
+      "Do conserver les repères textuels de publication, présence, invitation et enregistrement.",
+      "Do accompagner les signaux colorés de leur état écrit et conserver l’historique détaillé des contrôles.",
+      "Do garder les actions accessibles au clavier et visibles sur mobile.",
+      "Do respecter la préférence de réduction des mouvements."
+    ],
+    "donts": [
+      "Don't remplacer le système de séparateurs et de surfaces mates par des ombres décoratives.",
+      "Don't transformer chaque message du transcript en carte isolée.",
+      "Don't employer le survol comme seul accès à une action sur mobile.",
+      "Don't assimiler la palette claire à une simple inversion des couleurs."
+    ]
+  }
+}

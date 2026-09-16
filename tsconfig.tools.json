@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist/tools",
+    "rootDir": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  },
+  "include": [
+    "scripts/migrate.ts",
+    "scripts/seed.ts",
+    "scripts/configure-monitoring.ts",
+    "src/server",
+    "src/shared"
+  ]
+}

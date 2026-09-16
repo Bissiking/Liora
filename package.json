@@ -1,0 +1,54 @@
+{
+  "name": "liora",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server/index.ts",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json && tsc -p tsconfig.tools.json",
+    "start": "node dist/server/server/index.js",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "test:e2e": "tsx scripts/e2e.ts",
+    "check": "npm run typecheck && npm test && npm run build",
+    "format": "prettier --write src scripts tests *.ts *.json *.md DOCS/*.md",
+    "format:check": "prettier --check src scripts tests *.ts *.json",
+    "monitoring:configure": "tsx scripts/configure-monitoring.ts",
+    "db:migrate:prod": "node dist/tools/scripts/migrate.js",
+    "db:seed:prod": "node dist/tools/scripts/seed.js"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.4.2",
+    "emojibase-data": "^17.0.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "jose": "^6.2.12",
+    "lucide-react": "^1.46.0",
+    "pg": "^8.23.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.0",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "prettier": "^3.9.6",
+    "puppeteer": "^25.11.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
+  }
+}

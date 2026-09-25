@@ -455,7 +455,6 @@ export function Integrations({
           </form>
         </>
       )}
-      <MonitoringConfiguration base={base} fail={fail} />
       {secret && (
         <Modal title="Accès entrant du module" onClose={() => setSecret(null)}>
           <div className="integration-dialog-body">
@@ -676,59 +675,4 @@ export function ConnectedAccounts({
       )}
     </div>
   );
-}
-
-function MonitoringConfiguration({
-  base,
-  fail,
-}: {
-  base: string;
-  fail: (e: unknown) => void;
-}) {
-  const [targets, setTargets] = useState<
-      { id: string; name: string; kind: string; url: string }[]
-    >([]),
-    [notice, setNotice] = useState(""),
-    [busy, setBusy] = useState(false);
-  useEffect(() => {
-    void api<{ data: typeof targets }>(`${base}/monitoring-settings`)
-      .then((r) => setTargets(r.data.filter((t) => t.kind === "http")))
-      .catch(() => {});
-  }, [base]);
-  return targets.length ? (
-    <section className="monitoring-configuration">
-      <h2>Connexions de supervision</h2>
-      <p className="muted">
-        Ces adresses sont enregistrées en base et utilisées au prochain
-        contrôle. Les adresses internes exigent les droits de sécurité.
-      </p>
-      {targets.map((t) => (
-        <form
-          className="form connector-form"
-          key={t.id}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const url = new FormData(e.currentTarget).get("url");
-            setBusy(true);
-            void api(`${base}/monitoring-settings/${t.id}`, "PATCH", { url })
-              .then(() => setNotice("Adresse enregistrée."))
-              .catch(fail)
-              .finally(() => setBusy(false));
-          }}
-        >
-          <label>
-            {t.name}
-            <input
-              name="url"
-              type="url"
-              defaultValue={t.url || ""}
-              placeholder="https://service.exemple.fr/health"
-            />
-          </label>
-          <button disabled={busy}>Enregistrer l’adresse</button>
-        </form>
-      ))}
-      {notice && <p role="status">{notice}</p>}
-    </section>
-  ) : null;
 }

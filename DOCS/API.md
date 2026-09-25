@@ -111,3 +111,26 @@ Préférences personnelles ajoutées : `theme: dusk`, `dmPolicy: members|friends
 ## Ajouts 0.3.0
 
 Connecteurs, comptes personnels DropIt, règles, configuration de supervision et commandes : routes et authentification détaillées dans [INTEGRATIONS.md](INTEGRATIONS.md). Les identités personnelles sont déduites de la session, jamais d’un ID libre.
+
+## Correctif 0.4.6 — réception heartbeat
+
+`POST /api/v1/workspaces/:workspace/heartbeat` exige `MANAGE_MONITORING`. Pour un émetteur distant, utiliser un jeton de service Liora de cet espace. La cible `Heartbeat Argos` est créée si absente ; succès : `{ "ok": true, "received_at": "date ISO UTC" }`. Le prochain contrôle du worker calcule l’état et publie sa transition. Une cible homonyme d’un type incompatible renvoie 409. Installation et codes d’erreur dans [ARGOS.md](ARGOS.md).
+
+## Expérience 0.4 finalisée (0.4.7)
+
+Routes sous `/api/v1/workspaces/:workspace` :
+
+| Route | Méthodes | Contrat / permission |
+| --- | --- | --- |
+| `calendar` | GET, POST | Liste d’occurrences `start/end` (dates inclusives) et `timezone` ; lecture VIEW_WORKSPACE, création humaine CREATE_CALENDAR_EVENT. |
+| `calendar/:id` | GET, PATCH, DELETE | Lecture de la série ; mutation par l’auteur ou MANAGE_CALENDAR, avec accès au salon lié. |
+| `reminders` / `reminders/:id` | GET, POST / PATCH, DELETE | Rappels personnels humains, VIEW_WORKSPACE ; dates ISO avec offset, fuseau IANA, références validées. |
+| `favorites` / `favorites/:id` | GET, POST / PATCH, DELETE | Favoris personnels ; type channel/message/page/project/task/event, autorisation de la ressource recontrôlée. |
+| `push/vapid-public-key` | GET | État de configuration, clé publique et abonnement de la session ; humain membre de l’espace. |
+| `push/subscribe` | POST, DELETE | Abonnement navigateur lié à la session ; endpoint HTTPS public, clés p256dh/auth. DELETE sans endpoint retire les abonnements de la session. |
+| `push/test` | POST | Notification de test personnelle mise en file (202), après abonnement. |
+| `search` | GET | Texte `q`, filtres `channel`, `author`, `from/until` ISO (fin exclusive), curseur `before` ; VIEW_CHANNEL et visibilité réelle des salons. |
+
+Les événements acceptent `end_at` (nullable), `timezone`, `recurrence`, `all_day`, `channel_id`, `color` hex et `reminder_minutes` (rappel de l’auteur). Les occurrences renvoient aussi `series_start_at`, `series_end_at` et `occurrence_id`. PATCH modifie toute la série.
+
+Rappels : `title`, `body`, `remind_at`, `timezone`, `recurring`, `recurring_interval` et références optionnelles `channel_id/message_id/task_id`. PATCH accepte également `state`. `pending` inclut les reportés dans le filtre GET ; `done` inclut les archivés. L’intervalle est obligatoire pour un rappel récurrent.

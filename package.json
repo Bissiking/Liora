@@ -1,6 +1,6 @@
 {
   "name": "liora",
-  "version": "0.4.5",
+  "version": "0.4.8",
   "private": true,
   "type": "module",
   "engines": {
@@ -20,10 +20,13 @@
     "format:check": "prettier --check src scripts tests *.ts *.json",
     "monitoring:configure": "tsx scripts/configure-monitoring.ts",
     "db:migrate:prod": "node dist/tools/scripts/migrate.js",
-    "db:seed:prod": "node dist/tools/scripts/seed.js"
+    "db:seed:prod": "node dist/tools/scripts/seed.js",
+    "push:keys": "tsx scripts/generate-vapid.ts",
+    "test:e2e:experience": "E2E_EXPERIENCE_ONLY=1 tsx scripts/e2e.ts"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",
+    "@js-temporal/polyfill": "^0.5.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "emojibase-data": "^17.0.0",
@@ -36,6 +39,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "web-push": "^3.6.7",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -45,6 +49,7 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^6.1.1",
     "prettier": "^3.9.6",
     "puppeteer": "^25.11.0",

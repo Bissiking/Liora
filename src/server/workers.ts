@@ -5,6 +5,10 @@ import { query, transaction } from "./db.js";
 import { emit } from "./events.js";
 import { unseal } from "./crypto.js";
 import { validateOutboundUrl } from "./network.js";
+import { envTargets } from "./monitoring.js";
+import { processReminders } from "./experience-worker.js";
+import { processPushDeliveries } from "./push.js";
+
 export async function checkMonitoring() {
   await transaction(async (db) => {
     const [lock] = await query(
@@ -13,6 +17,26 @@ export async function checkMonitoring() {
       db,
     );
     if (!lock.locked) return;
+    const dbTargets = await query("SELECT * FROM monitoring_targets", [], db);
+    const workspaces = [
+      ...new Set(dbTargets.map((t) => String(t.workspace_id))),
+    ];
+    if (!workspaces.length) {
+      const ws = await query("SELECT id FROM workspaces LIMIT 1", [], db);
+      if (ws.length) workspaces.push(ws[0].id);
+    }
+    const envT = envTargets();
+    for (const wid of workspaces) {
+      for (const et of envT) {
+        await query(
+          `INSERT INTO monitoring_targets(workspace_id,name,kind,url,state)
+           VALUES($1,$2,$3,$4,'unknown')
+           ON CONFLICT(workspace_id,name) DO UPDATE SET url=EXCLUDED.url`,
+          [wid, et.name, et.kind, et.url],
+          db,
+        );
+      }
+    }
     const targets = await query("SELECT * FROM monitoring_targets", [], db);
     for (const t of targets) {
       let state = "unknown",
@@ -27,7 +51,11 @@ export async function checkMonitoring() {
             ? "up"
             : "down";
         detail =
-          state === "up" ? "Heartbeat reçu" : "Heartbeat absent ou expiré";
+          state === "up"
+            ? "Heartbeat reçu"
+            : t.last_heartbeat
+              ? "Heartbeat expiré : vérifier l’émetteur sur Argus et sa connexion à Liora."
+              : "Aucun heartbeat reçu : configurer l’émetteur sur Argus avec un jeton de service Liora.";
       } else if (t.url) {
         const start = Date.now();
         try {
@@ -53,6 +81,7 @@ export async function checkMonitoring() {
           latency = Date.now() - start;
         }
       }
+      const prevState = t.state || "unknown";
       await query(
         "UPDATE monitoring_targets SET state=$2,latency_ms=$3,last_checked_at=now() WHERE id=$1",
         [t.id, state, latency],
@@ -63,7 +92,7 @@ export async function checkMonitoring() {
         [t.id, state, latency, detail],
         db,
       );
-      if (t.state !== state && state !== "unknown") {
+      if (prevState !== state && state !== "unknown") {
         await emit(
           t.workspace_id,
           state === "down" ? "argos.core.down" : "argos.core.recovered",
@@ -157,6 +186,30 @@ export async function processDeliveries() {
 export function startWorkers() {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout>;
+  const experienceTimers = new Set<ReturnType<typeof setTimeout>>();
+  for (const task of [processReminders, processPushDeliveries]) {
+    const run = async () => {
+      try {
+        await task();
+      } catch {
+        console.error(
+          JSON.stringify({
+            level: "error",
+            service: "experience-worker",
+            message: "Cycle failed; retry scheduled",
+          }),
+        );
+      }
+      if (!stopped) {
+        const next = setTimeout(() => {
+          experienceTimers.delete(next);
+          void run();
+        }, 15000);
+        experienceTimers.add(next);
+      }
+    };
+    void run();
+  }
   const loop = async () => {
     try {
       await checkMonitoring();
@@ -185,5 +238,6 @@ export function startWorkers() {
   return () => {
     stopped = true;
     clearTimeout(timer);
+    for (const pending of experienceTimers) clearTimeout(pending);
   };
 }

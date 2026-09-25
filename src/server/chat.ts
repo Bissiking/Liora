@@ -341,9 +341,38 @@ chatRouter.get("/search", async (req, res) => {
   await authorize(req.actor, w, "VIEW_CHANNEL");
   const q = z.string().trim().min(2).max(200).parse(req.query.q);
   const before = req.query.before ? z.uuid().parse(req.query.before) : null;
+  const channel = req.query.channel ? z.uuid().parse(req.query.channel) : null;
+  if (channel) await channelAccess(req.actor, w, channel);
+  const author = z
+    .string()
+    .trim()
+    .max(100)
+    .parse(req.query.author || "");
+  const from = req.query.from
+    ? z.iso.datetime({ offset: true }).parse(req.query.from)
+    : null;
+  const until = req.query.until
+    ? z.iso.datetime({ offset: true }).parse(req.query.until)
+    : null;
+  assert(
+    !from || !until || Date.parse(from) < Date.parse(until),
+    400,
+    "INVALID_RANGE",
+    "La fin doit suivre le début.",
+  );
   const rows = await query(
-    `SELECT m.id,m.content,m.created_at,m.channel_id,m.thread_id,c.name channel_name,COALESCE(u.name,t.name) author_name FROM messages m JOIN channels c ON c.id=m.channel_id LEFT JOIN users u ON u.id=m.user_id LEFT JOIN technical_accounts t ON t.id=m.technical_id WHERE m.workspace_id=$1 AND ${visibleChannel()} AND m.deleted_at IS NULL AND to_tsvector('simple',m.content) @@ plainto_tsquery('simple',$4) AND ($5::uuid IS NULL OR (m.created_at,m.id)<(SELECT created_at,id FROM messages WHERE id=$5 AND workspace_id=$1)) ORDER BY m.created_at DESC,m.id DESC LIMIT 50`,
-    [w, req.actor.id, await granted(req.actor, w), q, before],
+    `SELECT m.id,m.content,m.created_at,m.channel_id,m.thread_id,c.name channel_name,COALESCE(u.name,t.name) author_name FROM messages m JOIN channels c ON c.id=m.channel_id LEFT JOIN users u ON u.id=m.user_id LEFT JOIN technical_accounts t ON t.id=m.technical_id WHERE m.workspace_id=$1 AND ${visibleChannel()} AND m.deleted_at IS NULL AND to_tsvector('simple',m.content) @@ websearch_to_tsquery('simple',$4) AND ($5::uuid IS NULL OR (m.created_at,m.id)<(SELECT created_at,id FROM messages WHERE id=$5 AND workspace_id=$1)) AND ($6::uuid IS NULL OR m.channel_id=$6) AND ($7='' OR COALESCE(u.name,t.name) ILIKE '%'||$7||'%') AND ($8::timestamptz IS NULL OR m.created_at>=$8) AND ($9::timestamptz IS NULL OR m.created_at<$9) ORDER BY m.created_at DESC,m.id DESC LIMIT 50`,
+    [
+      w,
+      req.actor.id,
+      await granted(req.actor, w),
+      q,
+      before,
+      channel,
+      author,
+      from,
+      until,
+    ],
   );
   res.json({
     data: rows,

@@ -47,7 +47,17 @@ import { Favorites } from "./Favorites";
 import { Groups } from "./Groups";
 import { Members } from "./Members";
 import { playSound } from "./sound";
+import { applyPwaUpdate } from "./pwa";
 function App() {
+  const [pwaUpdate, setPwaUpdate] = useState(false);
+  useEffect(() => {
+    const ready = () => setPwaUpdate(true);
+    window.addEventListener("liora:update-ready", ready);
+    void navigator.serviceWorker?.getRegistration().then((r) => {
+      if (r?.waiting) setPwaUpdate(true);
+    });
+    return () => window.removeEventListener("liora:update-ready", ready);
+  }, []);
   const [offline, setOffline] = useState(!navigator.onLine);
   useEffect(() => {
     const on = () => setOffline(false);
@@ -58,11 +68,6 @@ function App() {
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
     };
-  }, []);
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      void Notification.requestPermission();
-    }
   }, []);
   const [invite, setInvite] = useState(() => {
     const token = new URLSearchParams(location.hash.slice(1)).get("invite");
@@ -80,6 +85,7 @@ function App() {
     window.addEventListener("hashchange", receive);
     return () => window.removeEventListener("hashchange", receive);
   }, []);
+  const [targetResource, setTargetResource] = useState<Row | null>(null);
   const [targetMessage, setTargetMessage] = useState("");
   const seenNotifications = useRef<Set<string> | null>(null);
   const [searchMessages, setSearchMessages] = useState(false);
@@ -113,6 +119,23 @@ function App() {
   const workspace = spaces.find((w) => w.id === workspaceId),
     base = `/api/v1/workspaces/${workspaceId}`,
     can = (p: string) => workspace?.permissions.includes(p) || false;
+  useEffect(() => {
+    const open = () => {
+      const params = new URLSearchParams(location.hash.slice(1));
+      const id = params.get("workspace");
+      if (
+        params.get("view") === "notifications" &&
+        spaces.some((w) => w.id === id)
+      ) {
+        setWorkspaceId(id!);
+        setView("notifications");
+        history.replaceState(null, "", location.pathname);
+      }
+    };
+    open();
+    window.addEventListener("hashchange", open);
+    return () => window.removeEventListener("hashchange", open);
+  }, [spaces]);
   const refresh = () => setRevision((n) => n + 1);
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "Connexion interrompue.");
@@ -258,25 +281,56 @@ function App() {
   useEffect(() => {
     const keyboard = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key === "k") {
+      if (e.key === "Escape") setMobile(false);
+      if (e.repeat || e.altKey || document.querySelector("dialog[open]"))
+        return;
+      if (
+        mod &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "f" &&
+        can("VIEW_CHANNEL")
+      ) {
+        e.preventDefault();
+        setSearchMessages(true);
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setMobile(true);
         document.getElementById("channel-search")?.focus();
+        return;
       }
-      if (e.key === "Escape") setMobile(false);
-      if (mod && e.key === "1") { e.preventDefault(); navigate("chat"); }
-      if (mod && e.key === "2") { e.preventDefault(); navigate("projects"); }
-      if (mod && e.key === "3") { e.preventDefault(); navigate("calendar"); }
-      if (mod && e.key === "4") { e.preventDefault(); navigate("reminders"); }
-      if (mod && e.key === "5") { e.preventDefault(); navigate("favorites"); }
-      if (mod && e.key === "6") { e.preventDefault(); navigate("notifications"); }
-      if (mod && e.key === "7") { e.preventDefault(); navigate("pages"); }
-      if (mod && e.key === ",") { e.preventDefault(); navigate("settings"); }
-      if (mod && e.key === "/") { e.preventDefault(); navigate("help"); }
+      if (
+        (e.target as HTMLElement)?.closest(
+          "input,textarea,select,[contenteditable=true]",
+        )
+      )
+        return;
+      const routes: Record<string, string> = {
+        "1": "chat",
+        "2": "projects",
+        "3": "calendar",
+        "4": "reminders",
+        "5": "favorites",
+        "6": "notifications",
+        "7": "pages",
+        ",": "settings",
+        "/": "help",
+      };
+      const route = routes[e.key];
+      if (
+        mod &&
+        route &&
+        !(route === "projects" && !can("VIEW_PROJECT")) &&
+        !(route === "pages" && !can("VIEW_PAGES"))
+      ) {
+        e.preventDefault();
+        navigate(route);
+      }
     };
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
-  }, []);
+  }, [workspace?.permissions]);
   useEffect(() => {
     if (
       workspace &&
@@ -295,6 +349,7 @@ function App() {
     }
   }, []);
   const navigate = (v: string) => {
+    setTargetResource(null);
     setView(v);
     setMobile(false);
   };
@@ -683,15 +738,6 @@ function App() {
               <span className="tiny-dot" />
             </button>
           )}
-          {can("MANAGE_MEMBERS") && (
-            <button
-              className={view === "members" ? "active" : ""}
-              onClick={() => navigate("members")}
-            >
-              <Users size={18} />
-              Membres
-            </button>
-          )}
         </nav>
         <nav className="secondary-nav" aria-label="Outils">
           <button
@@ -718,6 +764,16 @@ function App() {
             <Star size={16} />
             <span>Favoris</span>
           </button>
+          {can("MANAGE_MEMBERS") && (
+            <button
+              className={view === "members" ? "active" : ""}
+              onClick={() => navigate("members")}
+              title="Membres"
+            >
+              <Users size={16} />
+              <span>Membres</span>
+            </button>
+          )}
           <button
             className={view === "help" ? "active" : ""}
             onClick={() => navigate("help")}
@@ -917,6 +973,16 @@ function App() {
               ))}
             {view === "projects" && (
               <Projects
+                initialProject={
+                  targetResource?.target_type === "project"
+                    ? targetResource.target_id
+                    : ""
+                }
+                initialTask={
+                  targetResource?.target_type === "task"
+                    ? targetResource.target_id
+                    : ""
+                }
                 base={base}
                 can={can}
                 revision={revision}
@@ -926,6 +992,11 @@ function App() {
             )}
             {view === "pages" && (
               <Pages
+                initialPage={
+                  targetResource?.target_type === "page"
+                    ? targetResource.target_id
+                    : ""
+                }
                 base={base}
                 can={can}
                 revision={revision}
@@ -935,6 +1006,12 @@ function App() {
             )}
             {view === "calendar" && (
               <Calendar
+                initialEvent={
+                  targetResource?.target_type === "event"
+                    ? targetResource.target_id
+                    : ""
+                }
+                userId={me!.id}
                 base={base}
                 can={can}
                 revision={revision}
@@ -953,22 +1030,39 @@ function App() {
             {view === "favorites" && (
               <Favorites
                 base={base}
-                onNavigate={(type, id) => {
-                  if (type === "channel") {
-                    setChannelId(id);
+                revision={revision}
+                onNavigate={(row) => {
+                  if (
+                    row.target_type === "channel" ||
+                    row.target_type === "message"
+                  ) {
+                    setChannelId(
+                      row.target_type === "channel"
+                        ? row.target_id
+                        : row.channel_id,
+                    );
+                    setTargetMessage(
+                      row.target_type === "message" ? row.target_id : "",
+                    );
                     navigate("chat");
-                  }
+                  } else
+                    navigate(
+                      (
+                        {
+                          page: "pages",
+                          project: "projects",
+                          task: "projects",
+                          event: "calendar",
+                        } as Record<string, string>
+                      )[row.target_type],
+                    );
+                  setTargetResource(row);
                 }}
                 fail={fail}
               />
             )}
             {view === "members" && can("MANAGE_MEMBERS") && (
-              <Members
-                base={base}
-                can={can}
-                fail={fail}
-                refresh={refresh}
-              />
+              <Members base={base} can={can} fail={fail} refresh={refresh} />
             )}
             {view === "friends" && (
               <Friends
@@ -1096,6 +1190,15 @@ function App() {
           onSave={form.save}
           onClose={() => setForm(null)}
         />
+      )}
+      {pwaUpdate && (
+        <div className="pwa-update" role="status">
+          Une mise à jour est prête. Enregistrez vos modifications avant de
+          recharger.
+          <button onClick={() => void applyPwaUpdate()}>
+            Mettre à jour Liora
+          </button>
+        </div>
       )}
       {offline && (
         <div className="offline-banner" role="alert">

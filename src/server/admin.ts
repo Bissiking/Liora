@@ -445,11 +445,21 @@ adminRouter.get("/monitoring", async (req, res) => {
 adminRouter.post("/heartbeat", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
   await authorize(req.actor, w, "MANAGE_MONITORING");
-  await query(
-    "UPDATE monitoring_targets SET last_heartbeat=now() WHERE workspace_id=$1 AND kind='heartbeat'",
+  const [target] = await query(
+    `INSERT INTO monitoring_targets(workspace_id,name,kind,last_heartbeat)
+     VALUES($1,'Heartbeat Argos','heartbeat',now())
+     ON CONFLICT(workspace_id,name) DO UPDATE SET last_heartbeat=now()
+     WHERE monitoring_targets.kind='heartbeat'
+     RETURNING id,last_heartbeat`,
     [w],
   );
-  res.json({ ok: true });
+  assert(
+    target,
+    409,
+    "INVALID_TARGET",
+    "La cible Heartbeat Argos doit être de type heartbeat.",
+  );
+  res.json({ ok: true, received_at: target.last_heartbeat });
 });
 adminRouter.post("/events", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.7 — BETA — 2026-09-25
+
+- Finalisation du jalon 0.4.0 : calendrier récurrent avec fuseaux, fins de mois et journées entières ; édition de séries et permissions dédiées.
+- Worker transactionnel de rappels, report/récurrence et notifications d’événements, indépendant de la supervision Argos.
+- Favoris validés et navigables, filtres de recherche salon/auteur/dates, raccourcis préservant la saisie.
+- Web Push complet côté application : consentement, abonnements chiffrés liés à la session, file persistante, chiffrement/VAPID, retries et nettoyage.
+- PWA : icônes PNG, précache statique sans données privées, retour hors ligne et mise à jour contrôlée avec retrait des anciens caches.
+- Migration 006 additive, tests de calendrier/rappels/favoris/push et parcours navigateur 0.4. Contrats et configuration : DOCS/EXPERIENCE_0.4.md.
+
+## 0.4.6 — BETA — 2026-09-25
+
+- Heartbeat Argos : réception persistée même avant la création de la cible, accusé daté et distinction entre signal jamais reçu et expiré.
+- Émetteur autonome pour Argus, contrôle de santé préalable, refus des redirections et guide systemd.
+- Aide de configuration directement dans la supervision, lisible sur ordinateur et mobile.
+- Enregistrement du service worker déplacé dans un module pour respecter la CSP qui bloquait le script inline.
+- Versions package, fichier VERSION et affichage synchronisées (elles divergeaient entre 0.4.5 et 0.4.0). Type des groupes de membres complété pour rétablir la compilation.
+- Revue factuelle de la roadmap et de la charte, limites 0.4 et propositions dans DOCS/Idées.md. Aucun déploiement distant effectué.
+
+Les notes 0.4.0 ci-dessous décrivent l’intention historique ; la revue du 25 septembre fait autorité sur les fonctions partielles.
+
 ## 0.4.0 — BETA — 2026-09-16
 
 - Calendrier d'équipe avec création, édition, suppression et récurrence des événements.

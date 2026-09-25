@@ -1,6 +1,6 @@
 // scripts/e2e.ts
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, appendFile, writeFile } from "node:fs/promises";
+import { mkdir, appendFile, writeFile, readFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import pg from "pg";
@@ -32,6 +32,9 @@ Object.assign(process.env, {
   BOOTSTRAP_OWNER_KYROS_ID: "test-owner",
   ARGOS_BASE_URL: "",
   ARGUS_HEALTH_URL: "",
+  VAPID_PUBLIC_KEY: "",
+  VAPID_PRIVATE_KEY: "",
+  VAPID_SUBJECT: "",
 });
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
@@ -92,6 +95,7 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 const failures: string[] = [];
 let plannedRestart = false;
+let plannedOffline = false;
 page.on("pageerror", (e) => failures.push(String(e)));
 page.on("console", (m) => {
   if (
@@ -99,6 +103,7 @@ page.on("console", (m) => {
       plannedRestart &&
       /ERR_INCOMPLETE_CHUNKED_ENCODING|ERR_CONNECTION_REFUSED/.test(m.text())
     ) &&
+    !plannedOffline &&
     m.type() === "error" &&
     !m.text().includes("401") &&
     !m.text().includes("net::ERR_ABORTED")
@@ -106,19 +111,43 @@ page.on("console", (m) => {
     failures.push(m.text() + " " + (m.location().url || ""));
 });
 async function click(text: string) {
+  if (text === "Administration") {
+    if (!(await page.$("#workspace-choices")))
+      await page.click(".workspace-title");
+    await click("Paramètres de l’espace");
+    await page.waitForSelector(".admin-layout");
+    return;
+  }
+  if (text === "Aide et tutoriels") text = "Aide";
   await page.waitForFunction(
-    (t) =>
-      [...document.querySelectorAll("button")].some(
-        (b) => b.textContent?.trim() === t,
-      ),
+    (t) => {
+      return [...document.querySelectorAll("button")].some((b) =>
+        [b.textContent, b.getAttribute("aria-label"), b.title].some(
+          (label) =>
+            (label || "").trim().replaceAll("’", "'") ===
+            (t || "").trim().replaceAll("’", "'"),
+        ),
+      );
+    },
     {},
     text,
   );
   await page.evaluate((t) => {
-    const b = [...document.querySelectorAll("button")].find(
-      (b) => b.textContent?.trim() === t,
-    );
-    b?.click();
+    const buttons = [
+      ...document.querySelectorAll<HTMLButtonElement>(
+        ".admin-layout nav button",
+      ),
+      ...document.querySelectorAll<HTMLButtonElement>("button"),
+    ];
+    buttons
+      .find((b) =>
+        [b.textContent, b.getAttribute("aria-label"), b.title].some(
+          (label) =>
+            (label || "").trim().replaceAll("’", "'") ===
+            (t || "").trim().replaceAll("’", "'"),
+        ),
+      )
+      ?.click();
   }, text);
 }
 async function waitText(text: string) {
@@ -128,12 +157,260 @@ async function waitText(text: string) {
     text,
   );
 }
-try {
+async function verifyExperience() {
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.click(".topbar");
+  await page.keyboard.down("Control");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("KeyF");
+  await page.keyboard.up("Shift");
+  await page.keyboard.up("Control");
+  await page.waitForSelector(".search-filters");
+  await page.type(
+    'dialog input[placeholder="Un sujet, une décision…"]',
+    "Bienvenue",
+  );
+  const generalId = (
+    await db.query("SELECT id FROM channels WHERE name='general' LIMIT 1")
+  ).rows[0].id;
+  await page.select(".search-filters select", generalId);
+  await page.type('dialog input[placeholder="Nom affiché"]', "Argos");
+  await click("Rechercher");
+  await page.waitForSelector(".search-results button");
+  await page.click('dialog [aria-label="Fermer"]');
+  await click("Calendrier");
+  await page.waitForSelector(".calendar-grid");
+  await click("Nouvel événement");
+  await page.type('dialog input[name="title"]', "Rendez-vous récurrent 0.4");
+  await page.select('dialog select[name="recurrence"]', "daily");
+  await page.click("dialog button.primary");
+  await page.waitForSelector(".calendar-agenda-row");
+  assert.ok(
+    await page.$$eval(".calendar-agenda-row", (rows) => rows.length >= 1),
+  );
+  await page.click(".calendar-agenda-row");
+  await click("Modifier");
+  await page.$eval('dialog:last-of-type input[name="title"]', (el) => {
+    (el as HTMLInputElement).value = "";
+  });
+  await page.type(
+    'dialog:last-of-type input[name="title"]',
+    "Rendez-vous modifié",
+  );
+  await page.click("dialog:last-of-type button.primary");
+  await waitText("Rendez-vous modifié");
+  await page.click(".calendar-agenda-row");
+  await click("Ajouter aux favoris");
+  await page.waitForSelector(".calendar-grid");
+  await page.waitForSelector(".calendar-agenda-row");
+  await page.screenshot({
+    path: ".impeccable/review/experience-calendar-desktop.png",
+    fullPage: false,
+  });
+  await click("Favoris");
+  await waitText("Rendez-vous modifié");
+  await click("Ouvrir");
+  await page.waitForSelector("dialog[open]");
+  await page.click('dialog [aria-label="Fermer"]');
+  await click("Rappels");
+  await click("Nouveau rappel");
+  await page.type('dialog input[name="title"]', "Rappel réel 0.4");
+  await page.select('dialog select[name="recurring_interval"]', "monthly");
+  await page.click("dialog button.primary");
+  await waitText("Rappel réel 0.4");
+  await click("Reporter d’une heure");
+  await waitText("Reporté");
+  await click("Modifier");
+  await page.click("dialog button.primary");
+  await waitText("À venir");
+  const [r] = (
+    await db.query("SELECT * FROM reminders WHERE title='Rappel réel 0.4'")
+  ).rows;
+  await db.query(
+    "UPDATE reminders SET remind_at=now()-interval '1 minute' WHERE id=$1",
+    [r.id],
+  );
+  const { processReminders } =
+    await import("../src/server/experience-worker.js");
+  await processReminders();
+  await page.waitForFunction(() =>
+    document.body.innerText.includes("Rappel réel 0.4"),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) n FROM notifications WHERE title='Rappel réel 0.4'",
+      )
+    ).rows[0].n,
+    "1",
+  );
+  await page.screenshot({
+    path: ".impeccable/review/experience-reminders-desktop.png",
+    fullPage: false,
+  });
+  await click("Terminer");
+  await click("Terminés");
+  await waitText("Rappel réel 0.4");
+  await page.click(".profile-button");
+  await click("Apparence");
+  for (const theme of ["midnight", "forest", "ember"]) {
+    await page.select('select[name="theme"]', theme);
+    await click("Enregistrer");
+    await page.waitForFunction(
+      (t) => document.documentElement.dataset.theme === t,
+      {},
+      theme,
+    );
+  }
+  await click("Notifications");
+  await page.waitForSelector(".push-settings");
+  assert.equal(
+    await page.$eval(
+      ".push-settings button",
+      (el) => (el as HTMLButtonElement).disabled,
+    ),
+    true,
+  );
+  await page.screenshot({
+    path: ".impeccable/review/experience-push-desktop.png",
+    fullPage: false,
+  });
+  await page.select('select[name="soundVolume"]', "low");
+  await page.keyboard.press("Tab");
+  await page.click(".topbar");
+  await page.keyboard.down("Control");
+  await page.keyboard.press("Digit3");
+  await page.keyboard.up("Control");
+  await page.waitForSelector(".calendar-grid");
+  await page.setViewport({ width: 390, height: 844 });
+  await page.screenshot({
+    path: ".impeccable/review/experience-calendar-mobile.png",
+    fullPage: false,
+  });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.click('[aria-label="Ouvrir la navigation"]');
+  await click("Rappels");
+  await page.waitForSelector(".reminder-row");
+  await page.screenshot({
+    path: ".impeccable/review/experience-reminders-mobile.png",
+    fullPage: false,
+  });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
+  const cached = await page.evaluate(async () => {
+    const keys = await caches.keys();
+    const rows = await Promise.all(
+      keys.map(async (key) =>
+        (await (await caches.open(key)).keys()).map(
+          (r) => new URL(r.url).pathname,
+        ),
+      ),
+    );
+    return rows.flat();
+  });
+  assert.ok(cached.includes("/"));
+  assert.equal(
+    cached.some(
+      (path) => path.startsWith("/api/") || path.startsWith("/auth/"),
+    ),
+    false,
+  );
+  const workerTarget = browser
+    .targets()
+    .find(
+      (t) => t.type() === "service_worker" && t.url() === `${origin}/sw.js`,
+    );
+  assert.ok(workerTarget);
+  const workerNetwork = await workerTarget.createCDPSession();
+  await workerNetwork.send("Network.enable");
+  plannedOffline = true;
+  try {
+    await workerNetwork.send("Network.emulateNetworkConditions", {
+      offline: true,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    });
+    await page.setOfflineMode(true);
+    const response = await page.evaluate(async () => {
+      const r = await fetch("/api/v1/me");
+      return { status: r.status, body: await r.json() };
+    });
+    assert.equal(response.status, 503);
+    assert.equal(response.body.error.code, "OFFLINE");
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitText("hors ligne");
+    await page.screenshot({
+      path: ".impeccable/review/experience-offline.png",
+      fullPage: false,
+    });
+  } finally {
+    await workerNetwork.send("Network.emulateNetworkConditions", {
+      offline: false,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    });
+    await workerNetwork.detach();
+    await page.setOfflineMode(false);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    plannedOffline = false;
+  }
+  await page.waitForSelector(".sidebar");
+  // Exercise an actual worker update and cache turnover without changing source files.
+  const workerFile = "dist/client/sw.js";
+  const originalWorker = await readFile(workerFile, "utf8");
+  const replacement = originalWorker.replace(
+    /const CACHE_NAME = "([^"]+)"/,
+    'const CACHE_NAME = "$1-e2e"',
+  );
+  assert.notEqual(replacement, originalWorker);
+  try {
+    await writeFile(workerFile, replacement);
+    await page.evaluate(async () => {
+      await (await navigator.serviceWorker.getRegistration())!.update();
+    });
+    await page.waitForSelector(".pwa-update");
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: "domcontentloaded" }),
+      click("Mettre à jour Liora"),
+    ]);
+    await page.waitForSelector(".sidebar");
+    await page.waitForFunction(async () => {
+      const keys = (await caches.keys()).filter((k) => k.startsWith("liora-"));
+      return keys.length === 1 && keys[0].endsWith("-e2e");
+    });
+    assert.equal(
+      (await page.evaluate(() => caches.keys())).filter((k) =>
+        k.startsWith("liora-"),
+      ).length,
+      1,
+    );
+  } finally {
+    await writeFile(workerFile, originalWorker);
+  }
+  console.log(
+    "EXPERIENCE PASS: calendar create/edit/recurrence, favorites opening, reminders/snooze/delivery, themes, keyboard, responsive UI, offline shell and service-worker update.",
+  );
+}
+async function runBrowserChecks() {
   await page.emulateMediaFeatures([
     { name: "prefers-reduced-motion", value: "reduce" },
   ]);
   await page.setViewport({ width: 1440, height: 1000 });
-  await page.goto(origin, { waitUntil: "networkidle0" });
+  await page.goto(origin, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('a[href="/auth/login"]');
   await page.screenshot({
     path: ".impeccable/review/login.png",
     fullPage: false,
@@ -152,6 +429,73 @@ try {
     ),
     false,
   );
+  if (process.env.E2E_EXPERIENCE_ONLY === "1") {
+    await verifyExperience();
+    assert.deepEqual(failures, []);
+    return;
+  }
+  if (process.env.E2E_MONITORING_ONLY === "1") {
+    const workspaceId = (
+      await db.query("SELECT id FROM workspaces WHERE name='LUMA'")
+    ).rows[0].id;
+    await click("Supervision");
+    await page.waitForSelector(".heartbeat-help");
+    await waitText("Jamais reçu");
+    await page.click(".heartbeat-help summary");
+    await waitText("Une clé API Argos ne convient pas.");
+    for (const [label, width, height] of [
+      ["desktop", 1440, 1000],
+      ["mobile", 390, 844],
+    ] as const) {
+      await page.setViewport({ width, height });
+      assert.equal(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
+      if (label === "mobile")
+        await page.$eval(".monitor-target-heartbeat", (el) =>
+          el.scrollIntoView({ block: "start" }),
+        );
+      await page.screenshot({
+        path: `.impeccable/review/heartbeat-${label}.png`,
+        fullPage: true,
+      });
+    }
+    const receipt = await page.evaluate(async (id) => {
+      const response = await fetch(`/api/v1/workspaces/${id}/heartbeat`, {
+        method: "POST",
+      });
+      return { status: response.status, body: await response.json() };
+    }, workspaceId);
+    assert.equal(receipt.status, 200);
+    assert.ok(receipt.body.received_at);
+    const { checkMonitoring } = await import("../src/server/workers.js");
+    await checkMonitoring();
+    await click("Actualiser");
+    await waitText("Liora reçoit les signaux");
+    await page.screenshot({
+      path: ".impeccable/review/heartbeat-received-mobile.png",
+      fullPage: true,
+    });
+    await db.query(
+      "UPDATE monitoring_targets SET last_heartbeat=now()-interval '1 day' WHERE workspace_id=$1 AND kind='heartbeat'",
+      [workspaceId],
+    );
+    await checkMonitoring();
+    await click("Actualiser");
+    await waitText("Le dernier signal a expiré.");
+    await page.screenshot({
+      path: ".impeccable/review/heartbeat-expired-mobile.png",
+      fullPage: true,
+    });
+    assert.deepEqual(failures, []);
+    console.log(
+      "E2E MONITORING PASS: never received, authenticated receipt, recovery, expiration, 1440×1000 and 390×844.",
+    );
+    return;
+  }
   // Regression: the workspace disclosure works by mouse and keyboard.
   await page.click(".workspace-title");
   await page.waitForSelector("#workspace-choices");
@@ -355,9 +699,10 @@ try {
   await page.waitForSelector(".reactions .selected");
   await click("Amis");
   await click("Créer une invitation");
-  await page.waitForSelector('[aria-label="Lien d’invitation"]');
+  await click("Générer un lien");
+  await page.waitForSelector('input[aria-label="Lien d\'invitation"]');
   const invitation = await page.$eval(
-    '[aria-label="Lien d’invitation"]',
+    'input[aria-label="Lien d\'invitation"]',
     (el) => (el as HTMLInputElement).value,
   );
   provider.setSubject("browser-member");
@@ -368,11 +713,8 @@ try {
   provider.setSubject("test-owner");
   await friendPage.goto(invitation);
   await friendPage.waitForSelector(".invitation-page");
-  await friendPage.evaluate(() =>
-    [...document.querySelectorAll<HTMLButtonElement>("button")]
-      .find((b) => b.textContent === "Accepter l’invitation")
-      ?.click(),
-  );
+  await friendPage.waitForSelector(".invitation-page button.primary");
+  await friendPage.click(".invitation-page button.primary");
   await friendPage.waitForSelector(".composer textarea");
   await page.waitForSelector(".friends-list article");
   await page.screenshot({
@@ -594,10 +936,25 @@ try {
   );
   await click("Supervision");
   await page.waitForSelector(".monitor-target");
+  await waitText("Jamais reçu");
+  await page.click(".heartbeat-help summary");
+  await waitText("Une clé API Argos ne convient pas.");
   await page.screenshot({
     path: ".impeccable/review/monitoring.png",
     fullPage: false,
   });
+  await page.setViewport({ width: 390, height: 844 });
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+    true,
+  );
+  await page.screenshot({
+    path: ".impeccable/review/monitoring-mobile.png",
+    fullPage: true,
+  });
+  await page.setViewport({ width: 1440, height: 1000 });
   await click("Administration");
   await click("Salons");
   await page.waitForSelector(".admin-row");
@@ -764,10 +1121,16 @@ try {
     path: ".impeccable/review/dropit-desktop.png",
     fullPage: false,
   });
+  await page.goto(origin, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".sidebar");
+  await verifyExperience();
   assert.deepEqual(failures, []);
   console.log(
     "E2E PASS: Kyros, refresh of monitoring grants, member/role race, workspace menus, threads, pins, search, private channel access, DMs, messages, kanban, pages, themes, persistence, 1440×1000 and 390×844.",
   );
+}
+try {
+  await runBrowserChecks();
 } catch (e) {
   console.error("Browser QA failure:", e);
   await page

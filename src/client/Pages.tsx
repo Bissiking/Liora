@@ -195,12 +195,14 @@ const types = [
   ["integration", "Intégration"],
 ];
 export function Pages({
+  initialPage = "",
   base,
   can,
   revision,
   refresh,
   fail,
 }: {
+  initialPage?: string;
   base: string;
   can: (p: string) => boolean;
   revision: number;
@@ -232,7 +234,11 @@ export function Pages({
         if (gone) return;
         setPages(r.data);
         setSelected((old) =>
-          r.data.some((p) => p.id === old) ? old : r.data[0]?.id || "",
+          r.data.some((p) => p.id === old)
+            ? old
+            : r.data.some((p) => p.id === initialPage)
+              ? initialPage
+              : r.data[0]?.id || "",
         );
       })
       .catch(fail);

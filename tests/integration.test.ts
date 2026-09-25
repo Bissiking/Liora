@@ -8,6 +8,9 @@ import type { Server } from "node:http";
 process.env.NODE_ENV = "test";
 process.env.ARGOS_BASE_URL = "";
 process.env.ARGUS_HEALTH_URL = "";
+process.env.VAPID_PUBLIC_KEY = "";
+process.env.VAPID_PRIVATE_KEY = "";
+process.env.VAPID_SUBJECT = "";
 const origin = "http://127.0.0.1:14310";
 process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
@@ -451,6 +454,109 @@ test("monitoring failure creates one incident per transition, restore notified, 
     url: "https://127.0.0.1/",
   });
   assert.equal(r.status, 400);
+});
+test("heartbeat persists before first worker run, enforces service scope and detects expiration", async () => {
+  const b = `/api/v1/workspaces/${workspace}`;
+  const service = await call(`${b}/accounts`, "POST", {
+    name: "Heartbeat test",
+    kind: "service",
+    permissions: ["MANAGE_MONITORING"],
+  });
+  assert.equal(service.status, 201);
+  const auth = `Bearer ${service.body.token}`;
+  await db.query(
+    "DELETE FROM monitoring_checks WHERE target_id IN (SELECT id FROM monitoring_targets WHERE workspace_id=$1 AND name='Heartbeat Argos')",
+    [workspace],
+  );
+  await db.query(
+    "DELETE FROM monitoring_targets WHERE workspace_id=$1 AND name='Heartbeat Argos'",
+    [workspace],
+  );
+  assert.equal(
+    (await call(`${b}/heartbeat`, "POST", undefined, memberCookie)).status,
+    403,
+  );
+  const receipt = await call(`${b}/heartbeat`, "POST", undefined, auth);
+  assert.equal(receipt.status, 200);
+  assert.ok(Number.isFinite(Date.parse(receipt.body.received_at)));
+  const [target] = await db.query(
+    "SELECT * FROM monitoring_targets WHERE workspace_id=$1 AND name='Heartbeat Argos'",
+    [workspace],
+  );
+  assert.equal(
+    new Date(target.last_heartbeat).toISOString(),
+    receipt.body.received_at,
+  );
+  assert.equal(
+    (await call(`${b}/heartbeat`, "POST", undefined, auth)).status,
+    200,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "SELECT * FROM monitoring_targets WHERE workspace_id=$1 AND kind='heartbeat'",
+        [workspace],
+      )
+    ).length,
+    1,
+  );
+  const [other] = await db.query(
+    "INSERT INTO workspaces(name) VALUES('Heartbeat isolation') RETURNING id",
+  );
+  try {
+    assert.equal(
+      (
+        await call(
+          `/api/v1/workspaces/${other.id}/heartbeat`,
+          "POST",
+          undefined,
+          auth,
+        )
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT * FROM monitoring_targets WHERE workspace_id=$1",
+          [other.id],
+        )
+      ).length,
+      0,
+    );
+  } finally {
+    await db.query("DELETE FROM workspaces WHERE id=$1", [other.id]);
+  }
+  const { checkMonitoring } = await import("../src/server/workers.js");
+  await checkMonitoring();
+  assert.equal(
+    (
+      await db.query("SELECT state FROM monitoring_targets WHERE id=$1", [
+        target.id,
+      ])
+    )[0].state,
+    "up",
+  );
+  await db.query(
+    "UPDATE monitoring_targets SET last_heartbeat=now()-interval '1 day' WHERE id=$1",
+    [target.id],
+  );
+  await checkMonitoring();
+  assert.equal(
+    (
+      await db.query("SELECT state FROM monitoring_targets WHERE id=$1", [
+        target.id,
+      ])
+    )[0].state,
+    "down",
+  );
+  await call(`${b}/accounts/${service.body.data.id}/token`, "POST", {
+    revoke: true,
+  });
+  assert.equal(
+    (await call(`${b}/heartbeat`, "POST", undefined, auth)).status,
+    401,
+  );
 });
 test("0.2 monitoring permissions follow admin grants and revocation; private channels, search and files stay private", async () => {
   const b = `/api/v1/workspaces/${workspace}`;
@@ -1375,6 +1481,8 @@ test("0.3 timestamped Nino/Narra signatures, unmatched routes and rule cleanup",
       ).status,
       201,
     );
+    // A replay uses the same signature even if the requests cross a second boundary.
+    const signedAt = Math.floor(Date.now() / 1000);
     const send = async (severity: string, seconds = 0, invalid = false) => {
       const raw = JSON.stringify({
           type: `${provider}.item.ready`,
@@ -1382,7 +1490,7 @@ test("0.3 timestamped Nino/Narra signatures, unmatched routes and rule cleanup",
           severity,
           payload: {},
         }),
-        stamp = String(Math.floor(Date.now() / 1000) + seconds);
+        stamp = String(signedAt + seconds);
       return fetch(c.body.incoming_url, {
         method: "POST",
         headers: {
@@ -1431,6 +1539,418 @@ test("0.3 timestamped Nino/Narra signatures, unmatched routes and rule cleanup",
   }
 });
 
+test("0.4 calendar CRUD, recurring windows, human ownership and private references", async () => {
+  const b = `/api/v1/workspaces/${workspace}`;
+  const event = await call(`${b}/calendar`, "POST", {
+    title: "Monthly anchored",
+    start_at: "2024-01-31T08:00:00Z",
+    end_at: "2024-01-31T09:00:00Z",
+    timezone: "Europe/Paris",
+    recurrence: "monthly",
+  });
+  assert.equal(event.status, 201);
+  const id = event.body.data.id;
+  const result = await call(
+    `${b}/calendar?start=2026-02-01&end=2026-03-31&timezone=Europe%2FParis`,
+  );
+  const found = result.body.data.filter((e: any) => e.id === id);
+  assert.equal(found.length, 2);
+  assert.equal(found[0].start_at, "2026-02-28T08:00:00Z");
+  assert.equal(found[1].start_at, "2026-03-31T07:00:00Z");
+  const allDay = await call(`${b}/calendar`, "POST", {
+    title: "Whole day DST",
+    start_at: "2026-03-27T23:00:00Z",
+    end_at: "2026-03-28T23:00:00Z",
+    timezone: "Europe/Paris",
+    all_day: true,
+    recurrence: "daily",
+  });
+  assert.equal(allDay.status, 201);
+  const daylight = await call(
+    `${b}/calendar?start=2026-03-29&end=2026-03-29&timezone=Europe%2FParis`,
+  );
+  const daily = daylight.body.data.filter(
+    (r: any) => r.id === allDay.body.data.id,
+  );
+  assert.equal(daily.length, 1);
+  assert.equal(daily[0].start_at, "2026-03-28T23:00:00Z");
+  assert.equal(daily[0].end_at, "2026-03-29T22:00:00Z");
+  const update = await call(`${b}/calendar/${id}`, "PATCH", {
+    title: "Updated",
+    end_at: "2024-01-31T10:00:00Z",
+  });
+  assert.equal(update.status, 200);
+  assert.equal(update.body.data.end_at, "2024-01-31T10:00:00.000Z");
+  assert.equal(
+    (
+      await call(`${b}/calendar/${id}`, "PATCH", {
+        end_at: "2024-01-30T10:00:00Z",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await call(`${b}/calendar/${id}`, "PATCH", { timezone: "Not/AZone" }))
+      .status,
+    400,
+  );
+  assert.equal(
+    (await call(`${b}/calendar/${id}`, "DELETE", undefined, memberCookie))
+      .status,
+    403,
+  );
+  assert.equal(
+    (await call(`${b}/calendar?start=2020-01-01&end=2030-01-01`)).status,
+    400,
+  );
+  const privateChannel = await call(`${b}/channels`, "POST", {
+    name: "private-calendar",
+    is_private: true,
+  });
+  const hidden = await call(`${b}/calendar`, "POST", {
+    title: "Private appointment",
+    start_at: "2026-09-25T10:00:00Z",
+    channel_id: privateChannel.body.data.id,
+  });
+  assert.equal(hidden.status, 201);
+  const view = await call(
+    `${b}/calendar?start=2026-09-01&end=2026-09-30`,
+    "GET",
+    undefined,
+    memberCookie,
+  );
+  assert.equal(view.status, 200);
+  assert.equal(
+    view.body.data.some((e: any) => e.id === hidden.body.data.id),
+    false,
+  );
+  assert.equal(
+    (
+      await call(
+        `${b}/reminders`,
+        "POST",
+        {
+          title: "Forbidden",
+          remind_at: new Date().toISOString(),
+          channel_id: privateChannel.body.data.id,
+        },
+        memberCookie,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(
+        `${b}/favorites`,
+        "POST",
+        { target_type: "event", target_id: hidden.body.data.id },
+        memberCookie,
+      )
+    ).status,
+    403,
+  );
+  assert.equal((await call(`${b}/calendar/${id}`, "DELETE")).status, 200);
+});
+test("0.4 reminder workers are idempotent, recur, snooze, resume and deliver calendar reminders", async () => {
+  const b = `/api/v1/workspaces/${workspace}`;
+  const { processReminders } =
+    await import("../src/server/experience-worker.js");
+  const create = await call(`${b}/reminders`, "POST", {
+    title: "Once only",
+    body: "Private reminder",
+    remind_at: "2020-01-01T09:00:00Z",
+  });
+  assert.equal(create.status, 201);
+  const id = create.body.data.id;
+  await Promise.all([processReminders(), processReminders()]);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) n FROM notifications WHERE title='Once only'",
+      )
+    )[0].n,
+    "1",
+  );
+  assert.equal(
+    (await db.query("SELECT state FROM reminders WHERE id=$1", [id]))[0].state,
+    "done",
+  );
+  const snooze = await call(`${b}/reminders/${id}`, "PATCH", {
+    state: "snoozed",
+    remind_at: new Date(Date.now() + 3600000).toISOString(),
+  });
+  assert.equal(snooze.status, 200);
+  const pending = await call(`${b}/reminders?state=pending`);
+  assert.ok(pending.body.data.some((r: any) => r.id === id));
+  const recurring = await call(`${b}/reminders`, "POST", {
+    title: "Every month",
+    remind_at: "2020-01-31T08:00:00Z",
+    timezone: "Europe/Paris",
+    recurring: true,
+    recurring_interval: "monthly",
+  });
+  assert.equal(recurring.status, 201);
+  await processReminders(new Date("2026-09-25T10:00:00Z"));
+  const [next] = await db.query("SELECT * FROM reminders WHERE id=$1", [
+    recurring.body.data.id,
+  ]);
+  assert.equal(next.remind_at.toISOString(), "2026-09-30T07:00:00.000Z");
+  assert.equal(next.state, "pending");
+  assert.equal(
+    (
+      await call(
+        `${b}/reminders/${id}`,
+        "PATCH",
+        { title: "Other user" },
+        memberCookie,
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await call(`${b}/reminders/${id}`, "PATCH", {
+        state: "snoozed",
+        remind_at: "2020-01-01T00:00:00Z",
+      })
+    ).status,
+    400,
+  );
+  const event = await call(`${b}/calendar`, "POST", {
+    title: "Calendar reminder test",
+    start_at: new Date(Date.now() + 120000).toISOString(),
+    reminder_minutes: 0,
+  });
+  assert.equal(event.status, 201);
+  await processReminders(new Date(Date.now() + 180000));
+  await processReminders(new Date(Date.now() + 180000));
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) n FROM notifications WHERE title='Calendrier : Calendar reminder test'",
+      )
+    )[0].n,
+    "1",
+  );
+  assert.equal((await call(`${b}/reminders/${id}`, "DELETE")).status, 200);
+});
+test("0.4 favorites validate resources and mutations and exclude inaccessible resources", async () => {
+  const b = `/api/v1/workspaces/${workspace}`;
+  const create = await call(`${b}/favorites`, "POST", {
+    target_type: "channel",
+    target_id: channel,
+  });
+  assert.equal(create.status, 201);
+  const id = create.body.data.id;
+  assert.equal(
+    (
+      await call(`${b}/favorites/${id}`, "PATCH", {
+        label: "Pinned",
+        position: 2,
+      })
+    ).status,
+    200,
+  );
+  const list = await call(`${b}/favorites`);
+  assert.equal(list.body.data.find((r: any) => r.id === id).label, "Pinned");
+  assert.equal(
+    (
+      await call(`${b}/favorites`, "POST", {
+        target_type: "channel",
+        target_id: "00000000-0000-4000-8000-000000000099",
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await call(`${b}/favorites/${id}`, "DELETE", undefined, memberCookie))
+      .status,
+    404,
+  );
+  assert.equal((await call(`${b}/favorites/${id}`, "DELETE")).status, 200);
+});
+test("0.4 Web Push encrypts payloads, binds sessions, retries and rechecks permissions", async () => {
+  const webpush = (await import("web-push")).default;
+  const { createECDH } = await import("node:crypto");
+  const { buildPushRequest, processPushDeliveries } =
+    await import("../src/server/push.js");
+  const { seal } = await import("../src/server/crypto.js");
+  const saved = [
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY,
+    process.env.VAPID_SUBJECT,
+  ];
+  const keys = webpush.generateVAPIDKeys();
+  Object.assign(process.env, {
+    VAPID_PUBLIC_KEY: keys.publicKey,
+    VAPID_PRIVATE_KEY: keys.privateKey,
+    VAPID_SUBJECT: "mailto:local-test@example.com",
+  });
+  const ecdh = createECDH("prime256v1");
+  ecdh.generateKeys();
+  const subscription = {
+    endpoint: "https://example.com/push-test",
+    keys: {
+      p256dh: ecdh.getPublicKey().toString("base64url"),
+      auth: randomBytes(16).toString("base64url"),
+    },
+  };
+  const b = `/api/v1/workspaces/${workspace}`;
+  try {
+    assert.equal(
+      (
+        await call(`${b}/push/subscribe`, "POST", {
+          ...subscription,
+          endpoint: "https://127.0.0.1/push",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (await call(`${b}/push/subscribe`, "POST", subscription)).status,
+      200,
+    );
+    assert.equal(
+      (await call(`${b}/push/subscribe`, "POST", subscription)).status,
+      200,
+    );
+    assert.equal(
+      (await db.query("SELECT count(*) n FROM push_subscriptions"))[0].n,
+      "1",
+    );
+    const details = buildPushRequest(subscription, {
+      body: "Private test content",
+    });
+    assert.equal(details.headers["Content-Encoding"], "aes128gcm");
+    assert.ok(details.body);
+    assert.equal(
+      details.body!.toString().includes("Private test content"),
+      false,
+    );
+    const [sub] = await db.query("SELECT * FROM push_subscriptions");
+    assert.equal(sub.subscription.includes(subscription.endpoint), false);
+    const [notification] = await db.query(
+      "INSERT INTO notifications(workspace_id,user_id,type,title,body) VALUES($1,$2,'system','Secret title','Secret body') RETURNING id",
+      [workspace, sub.user_id],
+    );
+    let calls = 0;
+    const fake = async (_s: unknown, payload: any) => {
+      calls++;
+      assert.equal(payload.body.includes("Secret"), false);
+      assert.ok(payload.url.includes(workspace));
+      return 503;
+    };
+    await Promise.all([
+      processPushDeliveries(fake, new Date(Date.now() + 1000)),
+      processPushDeliveries(fake, new Date(Date.now() + 1000)),
+    ]);
+    assert.equal(calls, 1);
+    let [delivery] = await db.query(
+      "SELECT * FROM push_deliveries WHERE notification_id=$1",
+      [notification.id],
+    );
+    assert.equal(delivery.state, "pending");
+    assert.equal(delivery.attempts, 1);
+    await processPushDeliveries(async () => 201, new Date(Date.now() + 60000));
+    [delivery] = await db.query(
+      "SELECT * FROM push_deliveries WHERE notification_id=$1",
+      [notification.id],
+    );
+    assert.equal(delivery.state, "sent");
+    const privateChannel = await call(`${b}/channels`, "POST", {
+      name: "push-private",
+      is_private: true,
+    });
+    const [memberSession] = await db.query(
+      "SELECT id FROM user_sessions WHERE user_id=$1 LIMIT 1",
+      [memberId],
+    );
+    await db.query(
+      "INSERT INTO push_subscriptions(user_id,session_id,endpoint_hash,subscription) VALUES($1,$2,'member-test',$3)",
+      [memberId, memberSession.id, await seal(subscription)],
+    );
+    const [privateNotice] = await db.query(
+      "INSERT INTO notifications(workspace_id,user_id,type,title,channel_id) VALUES($1,$2,'message','Do not deliver',$3) RETURNING id",
+      [workspace, memberId, privateChannel.body.data.id],
+    );
+    await processPushDeliveries(
+      async () => {
+        throw Error("Must not send private content");
+      },
+      new Date(Date.now() + 1000),
+    );
+    assert.equal(
+      (
+        await db.query(
+          "SELECT state FROM push_deliveries WHERE notification_id=$1",
+          [privateNotice.id],
+        )
+      )[0].state,
+      "cancelled",
+    );
+    await db.query(
+      "INSERT INTO notifications(workspace_id,user_id,type,title) VALUES($1,$2,'system','Expired endpoint')",
+      [workspace, sub.user_id],
+    );
+    await processPushDeliveries(async () => 410, new Date(Date.now() + 1000));
+    assert.equal(
+      (await db.query("SELECT * FROM push_subscriptions WHERE id=$1", [sub.id]))
+        .length,
+      0,
+    );
+    assert.equal(
+      (await call(`${b}/push/subscribe`, "POST", subscription)).status,
+      200,
+    );
+    assert.equal(
+      (
+        await call(`${b}/push/subscribe`, "DELETE", {
+          endpoint: subscription.endpoint,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await call(`${b}/push/vapid-public-key`)).body.subscribed,
+      false,
+    );
+  } finally {
+    await db.query("DELETE FROM push_subscriptions");
+    for (const [index, name] of [
+      "VAPID_PUBLIC_KEY",
+      "VAPID_PRIVATE_KEY",
+      "VAPID_SUBJECT",
+    ].entries()) {
+      if (saved[index] === undefined) delete process.env[name];
+      else process.env[name] = saved[index];
+    }
+  }
+});
+test("0.4 search filters preserve channel access and use dates and author", async () => {
+  const b = `/api/v1/workspaces/${workspace}`;
+  const r = await call(`${b}/search?q=Bienvenue&channel=${channel}`);
+  assert.equal(r.status, 200);
+  assert.ok(r.body.data.every((m: any) => m.channel_id === channel));
+  assert.equal(
+    (await call(`${b}/search?q=Bienvenue&author=DoesNotExist`)).body.data
+      .length,
+    0,
+  );
+  assert.equal(
+    (await call(`${b}/search?q=Bienvenue&from=2099-01-01T00:00:00Z`)).body.data
+      .length,
+    0,
+  );
+  assert.equal(
+    (
+      await call(
+        `${b}/search?q=Bienvenue&from=2030-01-01T00:00:00Z&until=2020-01-01T00:00:00Z`,
+      )
+    ).status,
+    400,
+  );
+});
 test("SSE delivers durable invalidations and session revocation closes access", async () => {
   const controller = new AbortController();
   const response = await fetch(

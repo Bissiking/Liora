@@ -11,7 +11,9 @@
     "scripts/migrate.ts",
     "scripts/seed.ts",
     "scripts/configure-monitoring.ts",
+    "scripts/send-heartbeat.ts",
     "src/server",
-    "src/shared"
+    "src/shared",
+    "scripts/generate-vapid.ts"
   ]
 }

@@ -64,3 +64,7 @@ Liora doit être hébergé hors d’Argus. Configurer les cibles et heartbeat (A
 ## Vérifications
 
 `/health/live` vérifie le processus. `/health/ready` inclut PostgreSQL et la table de migrations. L’indisponibilité d’Argos ne dégrade pas ce healthcheck. Les logs JSON incluent timestamp, niveau, service, requestId, identité éventuelle et durée ; ni corps ni tokens.
+
+## Finalisation 0.4 — 0.4.7
+
+Appliquer `006_experience_complete.sql` avant de démarrer le nouveau serveur. Les workers rappels et push tournent indépendamment des contrôles Argos, à cadence nominale de 15 secondes. Web Push reste désactivé sans les trois variables `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Génération privée des clés, consentement, réabonnement et vérification sur appareils : [EXPERIENCE_0.4.md](EXPERIENCE_0.4.md).

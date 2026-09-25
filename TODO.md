@@ -2,6 +2,9 @@
 
 ## NOW
 
+- Déployer 0.4.7 avec la migration 006, configurer VAPID et vérifier réception/clic/révocation sur appareils réels.
+- Qualifier installation PWA et mise à jour sur les navigateurs et appareils cibles.
+
 - Validation Kyros réelle avec configuration d'application et compte autorisé.
 - Configurer les URLs Argus/Argos et le heartbeat depuis la machine distante.
 - Vérifier une restauration PostgreSQL + fichiers dans l'environnement cible.
@@ -17,13 +20,11 @@
 ## LATER
 
 - Application mobile native (étude de faisabilité en cours).
-- Synchronisation temps réel pour les événements calendrier.
 - Vue jour/semaine du calendrier.
-- VAPID keys pour notifications push en production.
 
 ## DONE
 
-- 0.4.0 : calendrier, rappels, favoris, raccourcis, push, thèmes avancés, hors ligne, PWA.
+- Jalon 0.4.0 finalisé dans 0.4.7 : calendrier récurrent avec fuseaux, rappels exécutés, favoris, recherche filtrée, raccourcis, chaîne Web Push, thèmes, shell hors ligne et mise à jour PWA. Qualification locale dans DOCS/VALIDATION.md ; déploiement réel distinct.
 
 - 0.3.0 : connecteurs en base, DropIt personnel, routage/automatisations, HMAC, filtres et commandes.
 

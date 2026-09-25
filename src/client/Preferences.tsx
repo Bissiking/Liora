@@ -13,6 +13,7 @@ import { api, fileData } from "./api";
 import type { User, Row, Result } from "./types";
 import { ConnectedAccounts } from "./Integrations";
 import { playSound } from "./sound";
+import { PushSettings } from "./PushSettings";
 export function Preferences({
   user,
   base,
@@ -305,6 +306,7 @@ export function Preferences({
             )}
             {tab === "notifications" && (
               <>
+                <PushSettings base={base} />
                 <label>
                   Volume des sons
                   <select

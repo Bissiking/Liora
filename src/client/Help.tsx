@@ -122,6 +122,7 @@ const guides = [
     category: "Navigation",
     steps: [
       "⌘/Ctrl + K : rechercher un salon ou ouvrir la navigation.",
+      "⌘/Ctrl + Maj + F : rechercher des messages par salon, auteur et période.",
       "⌘/Ctrl + 1 : retourner au chat.",
       "⌘/Ctrl + 2 : ouvrir Projets.",
       "⌘/Ctrl + 3 : ouvrir le Calendrier.",

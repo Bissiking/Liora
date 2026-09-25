@@ -20,7 +20,7 @@ Relier conversation, tâches et événements de l'écosystème dans des workspac
 
 ## Capabilities and Constraints
 
-Kyros SSO v4 authentifie uniquement. Autorisations locales, PostgreSQL obligatoire, bots et services distincts des humains, modules Jellyfin/demandes de médias désactivés. Les images et GIF partagés dans le chat disposent d’aperçus. Modules administrés en base, DropIt personnel, événements et règles filtrées. Version courante 0.3.0 BETA ; historique dans CHANGELOG.md.
+Kyros SSO v4 authentifie uniquement. Autorisations locales, PostgreSQL obligatoire, bots et services distincts des humains, modules Jellyfin/demandes de médias désactivés. Les images et GIF partagés dans le chat disposent d’aperçus. Modules administrés en base, DropIt personnel, événements et règles filtrées. Calendrier récurrent, rappels effectifs, favoris, recherche filtrée et Web Push sur consentement complètent le lot expérience. Version courante 0.4.7 BETA ; historique dans CHANGELOG.md.
 
 ## Evidence on Hand
 

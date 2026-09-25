@@ -1,10 +1,14 @@
-# Liora · 0.3.0 BETA
+# Liora · 0.4.7 BETA
 
 Un espace LUMA pour discuter, organiser les projets et recevoir les signaux des applications.
 
 **Avant tout développement significatif, lire [PROJECT_CHARTER.md](PROJECT_CHARTER.md).** La demande originale est conservée dans [DOCS/PROJECT_CHARTER.md](DOCS/PROJECT_CHARTER.md).
 
-## Nouveauté 0.3
+## Expérience 0.4 finalisée
+
+Calendrier récurrent avec fuseaux horaires, rappels et notifications effectifs, favoris navigables, recherche filtrée, Web Push sur consentement, thèmes et PWA avec cache privé exclu. Migration 006 et configuration VAPID : [guide 0.4](DOCS/EXPERIENCE_0.4.md).
+
+## Intégrations 0.3
 
 Modules configurés en base, connexion personnelle DropIt, événements enrichis et automatisations filtrées. [Guide de configuration](DOCS/INTEGRATIONS.md) · [Notes de version](DOCS/RELEASE_0.3.0.md).
 

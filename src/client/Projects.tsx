@@ -16,12 +16,16 @@ import type { Row, Result } from "./types";
 import { Empty, FormDialog, Modal, type Field } from "./ui";
 import { TaskExtras } from "./TaskExtras";
 export function Projects({
+  initialProject = "",
+  initialTask = "",
   base,
   can,
   revision,
   refresh,
   fail,
 }: {
+  initialProject?: string;
+  initialTask?: string;
   base: string;
   can: (p: string) => boolean;
   revision: number;
@@ -59,13 +63,28 @@ export function Projects({
         setTasks(t.data);
         setMembers(m.data);
         setProject((old) =>
-          p.data.some((x) => x.id === old) ? old : p.data[0]?.id || "",
+          p.data.some((x) => x.id === old)
+            ? old
+            : p.data.some((x) => x.id === initialProject)
+              ? initialProject
+              : p.data[0]?.id || "",
         );
         setBoard((old) =>
           b.data.some((x) => x.id === old) ? old : b.data[0]?.id || "",
         );
+        if (initialTask) {
+          const target = t.data.find((x) => x.id === initialTask);
+          const col = c.data.find((x) => x.id === target?.column_id);
+          const targetBoard = b.data.find((x) => x.id === col?.board_id);
+          if (targetBoard) {
+            setBoard(targetBoard.id);
+            setProject(targetBoard.project_id || "");
+          }
+        }
         setSelected((old) =>
-          old ? t.data.find((x) => x.id === old.id) || null : null,
+          old
+            ? t.data.find((x) => x.id === old.id) || null
+            : t.data.find((x) => x.id === initialTask) || null,
         );
       })
       .catch(fail);

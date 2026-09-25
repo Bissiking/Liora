@@ -1,4 +1,4 @@
-# Liora — charte directrice · 0.3.0 BETA
+# Liora — charte directrice · 0.4.7 BETA
 
 **Avant tout développement significatif, lire PROJECT_CHARTER.md.**
 
@@ -63,7 +63,7 @@ Surveillance indépendante de l’API Argos, de l’URL de santé Argus et d’u
 
 ## Versioning et roadmap
 
-SemVer, version courante **0.3.0 — BETA** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
+SemVer, version courante **0.4.7 — BETA** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
 
 ## Definition of Done et qualité
 
@@ -72,3 +72,13 @@ Fonction réelle, persistée, erreurs gérées, droits vérifiés, utilisable au
 ## Livraison 0.3.0 — 16 septembre 2026
 
 Le lot intégrations est implémenté : modules configurés en base, DropIt personnel en lecture de partages, GitHub/Nino/Narra, règles de routage et tâches, HMAC et commandes privées. DropIt 1.1.0 est adapté avec Kyros v4. La synchronisation PC reste un futur module LUMA séparé ; aucun moteur dans Liora. Contrat et limites : [DOCS/INTEGRATIONS.md](DOCS/INTEGRATIONS.md).
+
+## Revue du 25 septembre 2026
+
+État vérifié dans [DOCS/ETAT_DU_PROJET.md](DOCS/ETAT_DU_PROJET.md). Le socle 0.1–0.3 est implémenté ; le lot 0.4 est désormais implémenté dans 0.4.7 (récurrences, rappels, émission Web Push, favoris et PWA). Les résultats locaux et les validations externes sont distingués dans DOCS/VALIDATION.md. Ne pas assimiler présence d’une interface et livraison complète. Les idées classées CORE/FEATURE/FUTURE/EXPERIMENTAL sont dans [DOCS/Idées.md](DOCS/Idées.md). Les exigences originales sont conservées. Le heartbeat exige un émetteur sur Argus ; guide et limites dans [DOCS/ARGOS.md](DOCS/ARGOS.md).
+
+## Expérience 0.4 — décision du 25 septembre 2026
+
+Les séries conservent un fuseau IANA et un ancrage ; modifier une série concerne toutes ses occurrences. CREATE_CALENDAR_EVENT autorise la création humaine, l’auteur gère ses événements, MANAGE_CALENDAR gère ceux des autres sans contourner l’accès à un salon privé. Les rappels sont personnels, transactionnels et replanifiés depuis l’ancrage après interruption. Le rappel d’un événement concerne son auteur.
+
+Web Push utilise un consentement par appareil et un abonnement chiffré lié à la session. File transactionnelle, contrôle des droits au moment de l’envoi, contenu générique, expiration et retries bornés. Les clés VAPID restent dans le déploiement, avec la clé maîtresse. Le cache PWA exclut API, authentification et fichiers privés ; aucune mutation n’est stockée hors ligne. Guide : [DOCS/EXPERIENCE_0.4.md](DOCS/EXPERIENCE_0.4.md).

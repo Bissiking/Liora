@@ -1874,3 +1874,11 @@ Version initiale :
 ## Livraison 0.3.0 — 16 septembre 2026
 
 Le lot intégrations est implémenté : modules configurés en base, DropIt personnel en lecture de partages, GitHub/Nino/Narra, règles de routage et tâches, HMAC et commandes privées. DropIt 1.1.0 est adapté avec Kyros v4. La synchronisation PC reste un futur module LUMA séparé ; aucun moteur dans Liora. Contrat et limites : [INTEGRATIONS.md](INTEGRATIONS.md).
+
+## Revue d’implémentation — 25 septembre 2026
+
+Ce cahier des charges original est conservé. Son état d’avancement, les écarts et les validations restantes sont consignés dans [ETAT_DU_PROJET.md](ETAT_DU_PROJET.md) et la [roadmap](../ROADMAP.md). La revue initiale portait sur 0.4.6 BETA et constatait un lot 0.4 partiel ; ce constat est remplacé par la finalisation 0.4.7 ci-dessous. Les propositions sont dans [Idées.md](Idées.md).
+
+## Finalisation du jalon 0.4 — 25 septembre 2026
+
+Les lacunes relevées dans la revue précédente ont été traitées dans la version de maintenance **0.4.7** : récurrences avec fuseaux, rappels déclenchés et replanifiés, mutations corrigées, favoris contrôlés et navigables, recherche filtrée, émission Web Push et cache PWA versionné. Le cahier des charges original ci-dessus est conservé. [Guide de fonctionnement](EXPERIENCE_0.4.md), [état actualisé](ETAT_DU_PROJET.md) et [preuves de validation](VALIDATION.md). L’installation et la réception push réelles restent des vérifications propres au déploiement.

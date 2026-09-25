@@ -1,10 +1,22 @@
 // src/client/Reminders.tsx
-import { useEffect, useState, useCallback } from "react";
-import { Bell, Plus, Clock, Check, Trash2, RotateCcw } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Bell,
+  Plus,
+  Check,
+  Trash2,
+  RotateCcw,
+  Pencil,
+  Archive,
+} from "lucide-react";
 import { api } from "./api";
 import type { Row, Result } from "./types";
 import { Empty, FormDialog, type Field } from "./ui";
-
+import {
+  localDateTime,
+  instantFromLocal,
+  recurrenceLabels,
+} from "../shared/schedule";
 export function Reminders({
   base,
   revision,
@@ -16,151 +28,205 @@ export function Reminders({
   refresh: () => void;
   fail: (e: unknown) => void;
 }) {
-  const [reminders, setReminders] = useState<Row[]>([]);
-  const [filter, setFilter] = useState<"all" | "pending" | "done">("all");
+  const [rows, setRows] = useState<Row[]>([]),
+    [filter, setFilter] = useState("all"),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState("");
   const [form, setForm] = useState<{
     title: string;
     fields: Field[];
     save: (d: Record<string, string>) => Promise<void>;
   } | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await api<Result>(`${base}/reminders?state=${filter}`);
-      setReminders(r.data);
-    } catch (e) {
-      fail(e);
-    }
-  }, [base, filter, fail]);
-
   useEffect(() => {
-    void load();
-  }, [load, revision]);
-
-  const createReminder = () =>
+    setLoading(true);
+  }, [base, filter]);
+  useEffect(() => {
+    let gone = false;
+    setError("");
+    void api<Result>(`${base}/reminders?state=${filter}`)
+      .then((r) => {
+        if (!gone) setRows(r.data);
+      })
+      .catch((e) => {
+        if (!gone) {
+          setRows([]);
+          setError(e.message);
+        }
+      })
+      .finally(() => {
+        if (!gone) setLoading(false);
+      });
+    return () => {
+      gone = true;
+    };
+  }, [base, revision, filter]);
+  const edit = (r?: Row) => {
+    const timezone =
+      r?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     setForm({
-      title: "Nouveau rappel",
+      title: r ? "Modifier le rappel" : "Nouveau rappel",
       fields: [
-        { key: "title", label: "Titre" },
-        { key: "body", label: "Note", required: false },
-        { key: "remind_at", label: "Rappeler le (AAAA-MM-JJ HH:MM)" },
+        { key: "title", label: "Titre", value: r?.title },
         {
-          key: "recurring",
-          label: "Récurrent",
-          options: [
-            { value: "false", label: "Non" },
-            { value: "true", label: "Oui" },
-          ],
+          key: "body",
+          label: "Note",
+          type: "textarea",
+          required: false,
+          value: r?.body,
         },
         {
+          key: "remind_at",
+          label: "Rappeler le",
+          type: "datetime-local",
+          value: localDateTime(
+            r?.remind_at || new Date(Date.now() + 3600000),
+            timezone,
+          ),
+        },
+        { key: "timezone", label: "Fuseau horaire", value: timezone },
+        {
           key: "recurring_interval",
-          label: "Intervalle",
-          required: false,
-          options: [
-            { value: "", label: "—" },
-            { value: "daily", label: "Quotidien" },
-            { value: "weekly", label: "Hebdomadaire" },
-            { value: "monthly", label: "Mensuel" },
-          ],
+          label: "Répétition",
+          value: r?.recurring ? r.recurring_interval || "none" : "none",
+          options: Object.entries(recurrenceLabels)
+            .filter(([value]) => value !== "yearly")
+            .map(([value, label]) => ({ value, label })),
         },
       ],
       save: async (d) => {
-        await api(`${base}/reminders`, "POST", {
-          ...d,
-          body: d.body || "",
-          recurring: d.recurring === "true",
-          recurring_interval: d.recurring_interval || null,
-        });
-        setForm(null);
+        await api(
+          `${base}/reminders${r ? `/${r.id}` : ""}`,
+          r ? "PATCH" : "POST",
+          {
+            title: d.title,
+            body: d.body,
+            timezone: d.timezone,
+            remind_at: instantFromLocal(d.remind_at, d.timezone),
+            recurring: d.recurring_interval !== "none",
+            recurring_interval:
+              d.recurring_interval === "none" ? null : d.recurring_interval,
+            ...(r ? { state: "pending" } : {}),
+          },
+        );
         refresh();
       },
     });
-
-  const pending = reminders.filter((r) => r.state === "pending");
-  const done = reminders.filter((r) => r.state === "done" || r.state === "dismissed");
-
+  };
+  const change = (r: Row, body: unknown) =>
+    void api(`${base}/reminders/${r.id}`, "PATCH", body)
+      .then(refresh)
+      .catch(fail);
   return (
-    <div className="page">
+    <div className="page reminders-page">
       <header className="page-heading">
         <div>
           <h1>Rappels</h1>
-          <p>Vos rappels personnels et récurrents.</p>
+          <p>
+            Une notification dans Liora à l’échéance, et sur vos appareils si
+            vous les avez activés.
+          </p>
         </div>
-        <button className="primary" onClick={createReminder}>
+        <button className="primary" onClick={() => edit()}>
           <Plus size={16} />
           Nouveau rappel
         </button>
       </header>
       <div className="section-toolbar">
-        {(["all", "pending", "done"] as const).map((f) => (
+        {[
+          ["all", "Tous"],
+          ["pending", "En cours"],
+          ["done", "Terminés"],
+        ].map(([f, label]) => (
           <button
             key={f}
+            aria-pressed={filter === f}
             className={filter === f ? "active" : ""}
             onClick={() => setFilter(f)}
           >
-            {f === "all" ? "Tous" : f === "pending" ? "En cours" : "Terminés"}
+            {label}
           </button>
         ))}
       </div>
-      {!reminders.length ? (
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+      {loading ? (
+        <p role="status">Chargement des rappels…</p>
+      ) : !rows.length ? (
         <Empty title="Aucun rappel">
-          Créez un rappel pour ne rien oublier.
+          Créez votre premier rappel ou choisissez un autre filtre.
         </Empty>
       ) : (
-        reminders.map((r) => (
+        rows.map((r) => (
           <article className="reminder-row" key={r.id}>
-            <Bell size={18} className={r.state === "done" ? "muted" : ""} />
+            <Bell size={18} />
             <div className="reminder-main">
-              <strong className={r.state === "done" ? "muted" : ""}>
-                {r.title}
-              </strong>
+              <strong>{r.title}</strong>
               {r.body && <p>{r.body}</p>}
               <small>
-                <Clock size={11} />{" "}
-                {new Date(r.remind_at).toLocaleString("fr-FR")}
-                {r.recurring && ` · ${r.recurring_interval}`}
+                {new Date(r.remind_at).toLocaleString("fr-FR", {
+                  timeZone: r.timezone,
+                })}{" "}
+                · {r.timezone}
+                {r.recurring
+                  ? ` · ${recurrenceLabels[r.recurring_interval as keyof typeof recurrenceLabels]}`
+                  : ""}
+              </small>
+              <small>
+                {
+                  (
+                    {
+                      pending: "À venir",
+                      snoozed: "Reporté",
+                      done: r.last_fired_at ? "Notification créée" : "Terminé",
+                      dismissed: "Archivé",
+                    } as Record<string, string>
+                  )[r.state]
+                }
               </small>
             </div>
             <div className="row-actions">
-              {r.state === "pending" && (
-                <button
-                  onClick={() =>
-                    void api(`${base}/reminders/${r.id}`, "PATCH", {
-                      state: "done",
-                    })
-                      .then(refresh)
-                      .catch(fail)
-                  }
-                >
-                  <Check size={13} />
+              {["pending", "snoozed"].includes(r.state) && (
+                <button onClick={() => change(r, { state: "done" })}>
+                  <Check size={14} />
                   Terminer
                 </button>
               )}
-              {r.state === "pending" && (
-                <button
-                  onClick={() => {
-                    const next = new Date(r.remind_at);
-                    next.setHours(next.getHours() + 1);
-                    void api(`${base}/reminders/${r.id}`, "PATCH", {
-                      state: "snoozed",
-                      remind_at: next.toISOString(),
-                    })
-                      .then(refresh)
-                      .catch(fail);
-                  }}
-                >
-                  <RotateCcw size={13} />
-                  Reporter 1h
-                </button>
+              {r.state !== "dismissed" && (
+                <>
+                  <button
+                    onClick={() =>
+                      change(r, {
+                        state: "snoozed",
+                        remind_at: new Date(Date.now() + 3600000).toISOString(),
+                      })
+                    }
+                  >
+                    <RotateCcw size={14} />
+                    Reporter d’une heure
+                  </button>
+                  <button onClick={() => edit(r)}>
+                    <Pencil size={14} />
+                    Modifier
+                  </button>
+                  <button onClick={() => change(r, { state: "dismissed" })}>
+                    <Archive size={14} />
+                    Archiver
+                  </button>
+                </>
               )}
               <button
+                className="icon-button"
+                aria-label={`Supprimer le rappel ${r.title}`}
                 onClick={() =>
                   void api(`${base}/reminders/${r.id}`, "DELETE")
                     .then(refresh)
                     .catch(fail)
                 }
               >
-                <Trash2 size={13} />
+                <Trash2 size={16} />
               </button>
             </div>
           </article>

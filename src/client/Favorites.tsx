@@ -1,80 +1,195 @@
 // src/client/Favorites.tsx
-import { useEffect, useState, useCallback } from "react";
-import { Star, Hash, FileText, LayoutGrid, Calendar, Trash2 } from "lucide-react";
-import { api } from "./api";
+import { useEffect, useState } from "react";
+import { Star, Plus, Trash2 } from "lucide-react";
+import { api, collection } from "./api";
 import type { Row, Result } from "./types";
-import { Empty } from "./ui";
-
-const TYPE_ICONS: Record<string, typeof Hash> = {
-  channel: Hash,
-  page: FileText,
-  task: LayoutGrid,
-  event: Calendar,
-  message: Hash,
+import { Empty, Modal } from "./ui";
+const labels: Record<string, string> = {
+  channel: "Salon",
+  page: "Page",
+  project: "Projet",
+  task: "Tâche",
+  event: "Événement",
+  message: "Message",
 };
-
 export function Favorites({
   base,
+  revision,
   onNavigate,
   fail,
 }: {
   base: string;
-  onNavigate: (type: string, id: string) => void;
+  revision: number;
+  onNavigate: (row: Row) => void;
   fail: (e: unknown) => void;
 }) {
-  const [favorites, setFavorites] = useState<Row[]>([]);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await api<Result>(`${base}/favorites`);
-      setFavorites(r.data);
-    } catch (e) {
-      fail(e);
-    }
-  }, [base, fail]);
-
+  const [favorites, setFavorites] = useState<Row[]>([]),
+    [loading, setLoading] = useState(true),
+    [adding, setAdding] = useState(false),
+    [type, setType] = useState("channel"),
+    [targets, setTargets] = useState<Row[]>([]),
+    [target, setTarget] = useState(""),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [localRevision, setLocalRevision] = useState(0);
   useEffect(() => {
-    void load();
-  }, [load]);
-
-  const remove = (id: string) =>
-    void api(`${base}/favorites/${id}`, "DELETE")
-      .then(() => setFavorites((old) => old.filter((f) => f.id !== id)))
-      .catch(fail);
-
+    setLoading(true);
+  }, [base]);
+  useEffect(() => {
+    let gone = false;
+    void api<Result>(`${base}/favorites`)
+      .then((r) => {
+        if (!gone) setFavorites(r.data);
+      })
+      .catch((e) => {
+        if (!gone) {
+          setFavorites([]);
+          fail(e);
+        }
+      })
+      .finally(() => {
+        if (!gone) setLoading(false);
+      });
+    return () => {
+      gone = true;
+    };
+  }, [base, revision, localRevision]);
+  useEffect(() => {
+    if (!adding) return;
+    let gone = false;
+    setError("");
+    setTargets([]);
+    setTarget("");
+    const resource = {
+      channel: "channels",
+      page: "pages",
+      project: "projects",
+      task: "tasks",
+      event: "calendar",
+    }[type];
+    void collection(
+      `${base}/${resource}${type === "event" ? `?start=${new Date().toISOString().slice(0, 10)}&end=${new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10)}` : ""}`,
+    )
+      .then((r) => {
+        if (!gone) {
+          const rows = [
+            ...new Map(
+              r.data.filter((x) => !x.archived).map((x) => [x.id, x]),
+            ).values(),
+          ];
+          setTargets(rows);
+          setTarget(rows[0]?.id || "");
+        }
+      })
+      .catch((e) => {
+        if (!gone) setError(e.message);
+      });
+    return () => {
+      gone = true;
+    };
+  }, [base, adding, type]);
   return (
     <div className="page favorites-page">
       <header className="page-heading">
         <div>
           <h1>Favoris</h1>
-          <p>Vos raccourcis vers les éléments importants.</p>
+          <p>
+            Vos raccourcis privés. Seules les ressources auxquelles vous avez
+            encore accès apparaissent ici.
+          </p>
         </div>
+        <button className="primary" onClick={() => setAdding(true)}>
+          <Plus size={16} />
+          Ajouter un favori
+        </button>
       </header>
-      {!favorites.length ? (
+      {loading ? (
+        <p role="status">Chargement des favoris…</p>
+      ) : !favorites.length ? (
         <Empty title="Aucun favori">
-          Ajoutez des favoris depuis les channels, pages ou projets.
+          Ajoutez un salon, une page, un projet, une tâche ou un événement.
         </Empty>
       ) : (
-        favorites.map((f) => {
-          const Icon = TYPE_ICONS[f.target_type] || Hash;
-          return (
-            <article className="favorite-row" key={f.id}>
-              <Icon size={18} />
-              <div>
-                <strong>{f.label || f.target_name || f.target_type}</strong>
-                <small>{f.target_type}</small>
-              </div>
-              <button
-                onClick={() => onNavigate(f.target_type, f.target_id)}
+        favorites.map((f) => (
+          <article className="favorite-row" key={f.id}>
+            <Star size={18} />
+            <div>
+              <strong>{f.label || f.target_name}</strong>
+              <small>{labels[f.target_type]}</small>
+            </div>
+            <button onClick={() => onNavigate(f)}>Ouvrir</button>
+            <button
+              className="icon-button"
+              aria-label={`Retirer ${f.label || f.target_name} des favoris`}
+              onClick={() =>
+                void api(`${base}/favorites/${f.id}`, "DELETE")
+                  .then(() => setLocalRevision((n) => n + 1))
+                  .catch(fail)
+              }
+            >
+              <Trash2 size={16} />
+            </button>
+          </article>
+        ))
+      )}
+      {adding && (
+        <Modal title="Ajouter un favori" onClose={() => setAdding(false)}>
+          <form
+            className="form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setBusy(true);
+              setError("");
+              void api(`${base}/favorites`, "POST", {
+                target_type: type,
+                target_id: target,
+              })
+                .then(() => {
+                  setAdding(false);
+                  setLocalRevision((n) => n + 1);
+                })
+                .catch((e) => setError(e.message))
+                .finally(() => setBusy(false));
+            }}
+          >
+            <label>
+              Type
+              <select value={type} onChange={(e) => setType(e.target.value)}>
+                {Object.entries(labels)
+                  .filter(([k]) => k !== "message")
+                  .map(([k, l]) => (
+                    <option key={k} value={k}>
+                      {l}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Élément
+              <select
+                required
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
               >
-                Ouvrir
-              </button>
-              <button className="icon-button" onClick={() => remove(f.id)}>
-                <Trash2 size={14} />
-              </button>
-            </article>
-          );
-        })
+                <option value="">Choisir un élément</option>
+                {targets.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title || t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {type === "event" && <p>Événements des 90 prochains jours.</p>}
+            {error && (
+              <p role="alert" className="error">
+                {error}
+              </p>
+            )}
+            <button className="primary" disabled={busy || !target}>
+              Ajouter
+            </button>
+          </form>
+        </Modal>
       )}
     </div>
   );

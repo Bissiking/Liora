@@ -62,7 +62,10 @@ export function Monitoring({
       </div>
       <div className="monitor-targets">
         {targets.map((t, i) => (
-          <section className="monitor-target" key={t.id}>
+          <section
+            className={`monitor-target monitor-target-${t.kind}`}
+            key={t.id}
+          >
             <header>
               {t.kind === "heartbeat" ? <Radio /> : <Server />}
               <h2>{t.name}</h2>
@@ -76,13 +79,54 @@ export function Monitoring({
               </span>
             </header>
             <div className="monitor-reading">
-              <strong>{t.latency_ms !== null ? `${t.latency_ms}` : "—"}</strong>
+              <strong>
+                {t.kind === "heartbeat"
+                  ? t.last_heartbeat
+                    ? t.state === "down"
+                      ? "Expiré"
+                      : "Reçu"
+                    : "Jamais reçu"
+                  : t.latency_ms !== null
+                    ? `${t.latency_ms}`
+                    : "—"}
+              </strong>
               <span>
                 {t.kind === "heartbeat"
                   ? "heartbeat authentifié"
                   : "ms · dernier contrôle"}
               </span>
             </div>
+            {t.kind === "heartbeat" && (
+              <div className="heartbeat-help">
+                <p>
+                  {!t.last_heartbeat
+                    ? "Aucun signal envoyé par Argus n’a été enregistré. Les contrôles HTTP réussis ne remplacent pas ce signal."
+                    : t.state === "down"
+                      ? "Le dernier signal a expiré. Vérifiez le service d’envoi sur Argus, son jeton et sa connexion à Liora."
+                      : "Liora reçoit les signaux envoyés par Argus. Leur arrêt déclenchera une alerte après expiration."}
+                </p>
+                <details>
+                  <summary>Configurer l’envoi depuis Argus</summary>
+                  <ol>
+                    <li>
+                      Dans le menu de l’espace → Paramètres de l’espace → Bots
+                      et services, créez un service avec la permission
+                      MANAGE_MONITORING.
+                    </li>
+                    <li>
+                      Sur Argus, configurez l’émetteur décrit dans DOCS/ARGOS.md
+                      avec son jeton Liora. Une clé API Argos ne convient pas.
+                    </li>
+                    <li>
+                      Planifiez un envoi toutes les 60 secondes. La carte sera
+                      actualisée au prochain contrôle après réception.
+                    </li>
+                  </ol>
+                  <p>Endpoint de cet espace :</p>
+                  <code>POST {base}/heartbeat</code>
+                </details>
+              </div>
+            )}
             <div
               className="uptime"
               aria-label="Historique des 30 derniers contrôles"
@@ -159,8 +203,9 @@ export function Monitoring({
       )}
       <p className="operational-note">
         Les états présentés proviennent des contrôles de Liora. Sans URL
-        configurée, une cible HTTP reste « Non configuré ». Un heartbeat absent
-        est signalé comme indisponible.
+        configurée, une cible HTTP reste « Non configuré ». Le heartbeat exige
+        un envoi périodique depuis Argus ; son absence reste une alerte, même
+        lorsque les deux contrôles HTTP réussissent.
       </p>
     </div>
   );

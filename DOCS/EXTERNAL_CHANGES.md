@@ -38,3 +38,11 @@ Modifications confinées au dépôt Liora : permissions de supervision, navigati
 Liora porte sa propre adaptation sous la version 0.1.0. Aucun commit, tag, fichier de configuration ou secret d’un dépôt externe n’a été modifié.
 
 Toute future modification externe doit ajouter ici une entrée : dépôt, ancienne/nouvelle version, fichiers, comportement, compatibilité, tests et procédure de déploiement/retour arrière. Ajouter aussi un résumé sous DOCS du dépôt modifié.
+
+## 25 septembre 2026 — heartbeat et revue 0.4.6
+
+Aucun dépôt externe modifié, aucun secret créé sur un service distant. Liora fournit un émetteur autonome à installer sur Argus et une procédure systemd dans ARGOS.md. Le timer n’a pas été installé ni exécuté sur Argus pendant cette intervention. Les changements locaux déjà présents sur les intégrations et la synchronisation des cibles ont été conservés.
+
+## 25 septembre 2026 — finalisation expérience 0.4.7
+
+Modifications limitées à Liora. Dépendances ajoutées : `@js-temporal/polyfill` (calculs horaires) et `web-push` (protocole/chiffrement), avec types de développement. Aucun dépôt ou service Kyros/Argos/DropIt/Nino/Narra modifié. Les tests push utilisent un transport contrôlé ; aucune notification envoyée à un destinataire externe pendant cette intervention.

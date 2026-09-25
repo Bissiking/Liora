@@ -1,6 +1,8 @@
 // src/shared/permissions.ts
 export const permissions = [
   "VIEW_WORKSPACE",
+  "CREATE_CALENDAR_EVENT",
+  "MANAGE_CALENDAR",
   "MANAGE_WORKSPACE",
   "MANAGE_MEMBERS",
   "MANAGE_ROLES",

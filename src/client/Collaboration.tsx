@@ -196,14 +196,44 @@ export function SearchMessages({
     [cursor, setCursor] = useState<string | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
-    [searched, setSearched] = useState("");
+    [searched, setSearched] = useState(""),
+    [channels, setChannels] = useState<Row[]>([]),
+    [channel, setChannel] = useState(""),
+    [author, setAuthor] = useState(""),
+    [from, setFrom] = useState(""),
+    [until, setUntil] = useState(""),
+    [submitted, setSubmitted] = useState("");
+  useEffect(() => {
+    let gone = false;
+    void collection(`${base}/channels`)
+      .then((r) => {
+        if (!gone) setChannels(r.data);
+      })
+      .catch((e) => {
+        if (!gone) setError(e.message);
+      });
+    return () => {
+      gone = true;
+    };
+  }, [base]);
   async function search(more = false) {
     setBusy(true);
     setError("");
     try {
+      const params = new URLSearchParams({ q });
+      if (channel) params.set("channel", channel);
+      if (author.trim()) params.set("author", author.trim());
+      if (from) params.set("from", new Date(`${from}T00:00:00`).toISOString());
+      if (until) {
+        const end = new Date(`${until}T00:00:00`);
+        end.setDate(end.getDate() + 1);
+        params.set("until", end.toISOString());
+      }
+      const filters = more ? submitted : params.toString();
       const r = await api<Result>(
-        `${base}/search?q=${encodeURIComponent(more ? searched : q)}${more && cursor ? `&before=${cursor}` : ""}`,
+        `${base}/search?${filters}${more && cursor ? `&before=${cursor}` : ""}`,
       );
+      if (!more) setSubmitted(filters);
       setRows((old) => (more ? [...old, ...r.data] : r.data));
       setCursor(r.nextCursor || null);
       if (!more) setSearched(q);
@@ -234,13 +264,56 @@ export function SearchMessages({
               placeholder="Un sujet, une décision…"
             />
           </label>
+          <div className="search-filters">
+            <label>
+              Salon
+              <select
+                value={channel}
+                onChange={(e) => setChannel(e.target.value)}
+              >
+                <option value="">Tous les salons accessibles</option>
+                {channels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Auteur
+              <input
+                value={author}
+                maxLength={100}
+                onChange={(e) => setAuthor(e.target.value)}
+                placeholder="Nom affiché"
+              />
+            </label>
+            <label>
+              Du
+              <input
+                type="date"
+                value={from}
+                max={until || undefined}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </label>
+            <label>
+              Au, inclus
+              <input
+                type="date"
+                value={until}
+                min={from || undefined}
+                onChange={(e) => setUntil(e.target.value)}
+              />
+            </label>
+          </div>
           <button className="primary" disabled={busy}>
             Rechercher
           </button>
         </form>
         <p className="muted">
-          La recherche porte sur les mots entiers des salons auxquels vous avez
-          accès.
+          Utilisez des guillemets pour une expression exacte et un signe moins
+          pour exclure un mot. Les dates suivent le fuseau de votre appareil.
         </p>
         {error && (
           <p role="alert" className="error">

@@ -49,6 +49,7 @@ export type Row = {
   revoked: boolean;
   allow_tasks: boolean;
   role_id: string;
+  group_ids: string[];
   role_name: string;
   is_owner: boolean;
   kyros_user_id: string;
@@ -82,6 +83,12 @@ export type Row = {
   source: string;
   payload: Record<string, unknown>;
   start_at: string;
+  timezone: string;
+  end_at: string | null;
+  series_start_at: string;
+  series_end_at: string | null;
+  occurrence_id: string;
+  last_fired_at: string | null;
   end: string;
   all_day: boolean;
   recurrence: string;

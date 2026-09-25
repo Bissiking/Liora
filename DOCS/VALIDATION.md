@@ -1,4 +1,31 @@
-# Validation — 0.3.0 BETA
+# Validation — 0.4.7 BETA
+
+## Finalisation du jalon 0.4.0 — 25 septembre 2026
+
+Version de maintenance **0.4.7**, validation locale macOS/Node 24.19.0, Chrome headless via Puppeteer et PostgreSQL jetable. Cette section remplace le constat de 0.4 partielle et de parcours E2E obsolète consigné plus bas dans l’historique 0.4.6.
+
+| Contrôle exécuté                      | Résultat et portée                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                            | **38/38 réussis**. Calendrier, changements d’heure Europe/Paris, fin de mois/année bissextile, journées entières, mutations, isolation, rappels concurrents/replanification/report, favoris et filtres de recherche. Tests heartbeat et intégrations existants conservés.                                                                                                                            |
+| Web Push dans les tests d’intégration | Abonnement chiffré, VAPID et chiffrement aes128gcm réel, création transactionnelle des livraisons, préférences et accès revérifiés, contenu générique, session révoquée, retry et suppression 410. Transport injecté : **aucun envoi vers un fournisseur push réel**.                                                                                                                                |
+| `npm run build`                       | Réussi : TypeScript, client Vite, serveur et outils compilés. Syntaxe du service worker généré vérifiée pendant le build. Avertissement de taille sur les bundles principal (~570 kB minifié) et emojis (~805 kB) ; optimisation du chargement encore possible.                                                                                                                                      |
+| `npm run test:e2e:experience`         | Réussi : recherche salon/auteur, calendrier créé/modifié/récurrent, favori ouvrant la série, rappel créé/reporté/modifié/déclenché/terminé, thèmes Minuit/Forêt/Braise, état push non configuré, raccourcis, écrans 1440×1000 et 390×844 sans débordement horizontal.                                                                                                                                |
+| PWA dans Chrome                       | Cache statique sans API/auth, vraie coupure réseau de la page **et** du worker, API 503 explicite, rechargement du shell hors ligne puis retour réseau. Nouveau worker installé, action de mise à jour, rechargement et suppression effective de l’ancien cache. Flux SSE exclus du worker pour permettre son remplacement.                                                                          |
+| `npm run test:e2e` complet            | **Réussi sur le build 0.4.7**, sans erreur console inattendue : Kyros de test, changement de droits en direct, navigation/admin, fils/épingles, salons privés/DMs, invitations/amis, réactions/mentions/images, groupes, DropIt/GitHub de test, Kanban/pages, persistance après redémarrage, puis totalité du parcours expérience 0.4. Les anciens sélecteurs de menu/invitation ont été actualisés. |
+| Migration 006                         | Appliquée sur `liora_test` et `liora_e2e`, après les migrations 001–005 inchangées. Aucune migration de la base personnelle ou distante effectuée.                                                                                                                                                                                                                                                   |
+| Présentation                          | Inspections desktop/mobile : agenda, rappels et réglages push. Correction des cellules hors mois, navigation secondaire, menu mobile masqué et actualisations sans disparition de liste. Captures synthétiques dans `.impeccable/review/experience-*.png`, ignorées par Git.                                                                                                                         |
+| Format et dépendances                 | Prettier vérifié sur les nouvelles surfaces source ; `npm audit --omit=dev` : **0 vulnérabilité signalée** à cette date. `git diff --check` réussi.                                                                                                                                                                                                                                                  |
+
+Le détecteur Impeccable a été exécuté une fois sur les surfaces modifiées : 1 avertissement principal sur une ancienne bordure de calendrier, retirée (déjà neutralisée par le style récent), et 218 conseils CSS de palette/échelle, majoritairement existants. Aucun constat TSX ; ces contrôles ne constituent pas un audit complet d’accessibilité. Pas de refonte de la palette de l’application dans ce lot.
+
+### Conditions de mise en service
+
+- Sauvegarder puis appliquer **006_experience_complete.sql** avant le démarrage du nouveau code.
+- Générer/configurer des clés **VAPID** stables et un contact opérateur selon [EXPERIENCE_0.4.md](EXPERIENCE_0.4.md). Vérifier consentement, réception application fermée, clic, désactivation et révocation sur les appareils cibles. Aucun test sur iPhone/Android physique ni FCM/APNs réel effectué ici.
+- Installer l’émetteur heartbeat sur **Argus** et constater réception, expiration puis retour. La santé HTTP d’Argos/Argus ne prouve pas ce flux sortant.
+- Kyros et DropIt utilisent des fixtures locales dans les parcours ; leurs comptes/instances réels, le déploiement HTTPS et une restauration complète restent à qualifier dans l’environnement cible.
+
+Aucun déploiement, tag ni publication effectué. Les changements préexistants de l’espace de travail sont conservés. La qualification locale de la 0.4 ne vaut pas validation STABLE 1.0.
 
 ## Résultats 0.3.0 — 16 septembre 2026
 
@@ -92,3 +119,14 @@ Le détecteur mécanique a été exécuté une fois : aucun signal bloquant, 185
 - Dockerfile et Compose fournis ; build d’image et déploiement Docker non exécutés.
 - Restauration PostgreSQL locale vérifiée ; restauration complète des pièces jointes et exercice de reprise en environnement cible restent à réaliser.
 - Pas de test de charge ni audit de sécurité indépendant. Les fonctions reportées sont listées dans ROADMAP.md.
+
+## Revue et correctif 0.4.6 — 25 septembre 2026
+
+- `npm test` : **30 tests réussis**, dont émetteur local (santé, authentification, refus de redirection, accusé de réception), création du heartbeat avant premier worker, expiration, cloisonnement par espace et révocation du service. Un test existant de rejeu signé a été stabilisé : les deux envois réutilisent le même horodatage au lieu de dépendre d’un passage de seconde.
+- `npm run build` : réussi, incluant TypeScript, Vite, serveur et outils. Avertissement Vite sur un bundle > 500 kB (données emojis notamment) ; aucune optimisation de ce bundle dans ce lot. Un champ `group_ids` manquant dans le type client bloquait initialement la compilation et a été ajouté.
+- `E2E_MONITORING_ONLY=1 npm run test:e2e` : réussi sur serveur compilé, PostgreSQL jetable et Kyros de test, via Chrome/Puppeteer. Scénarios jamais reçu, réception authentifiée, rétablissement, expiration, aide de configuration et absence de débordement à 1440×1000 / 390×844. Captures inspectées dans `.impeccable/review/heartbeat-*.png` (ignorées par Git).
+- La première passe navigateur a révélé un script inline de service worker bloqué par la CSP. Déplacement vers `src/client/pwa.ts`, rebuild puis reprise ciblée sans erreur console. Ceci ne qualifie pas l’ensemble du mode hors ligne ni Web Push.
+- `npm run test:e2e` complet : **non validé** ; il s’arrête avant la supervision car il cherche l’ancien bouton « Administration ». Le parcours actuel passe par le menu d’espace. Les autres parcours complets restent à actualiser et relancer ; la passe ciblée n’est pas présentée comme leur remplacement.
+- `git diff --check` : réussi. Inspection mécanique de la surface : pas de nouveau problème sur les éléments heartbeat ; les avertissements globaux du CSS existant ne sont pas une certification d’accessibilité.
+
+Aucune installation du timer sur Argus, aucun heartbeat depuis ce serveur, aucune validation Kyros/DropIt de production ni restauration de sauvegarde pendant cette intervention. Les changements locaux préexistants sont conservés. Les écarts 0.4 recensés alors dans ETAT_DU_PROJET.md ont depuis été traités en 0.4.7 ; voir les résultats actuels en tête de ce document.

@@ -826,6 +826,40 @@ a.primary:hover {
   background: #2e4436;
   border-color: #506f56;
 }
+.message-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+.message-date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #2a3a30;
+  border: 1px solid #4a5d4f;
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.message-date-badge:hover {
+  background: #354a3a;
+  border-color: var(--accent);
+}
+.message-date-badge:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.date-badge-icon {
+  font-size: 11px;
+}
+.date-badge-text {
+  font-weight: 550;
+}
 .emoji-picker {
   position: absolute;
   right: 0;
@@ -872,6 +906,40 @@ a.primary:hover {
   align-items: center;
   gap: 1px;
   padding: 3px 9px 8px;
+}
+.date-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-right: 8px;
+}
+.date-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: #2a3a30;
+  border: 1px solid #4a5d4f;
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.date-pill:hover {
+  background: #354a3a;
+  border-color: var(--accent);
+}
+.date-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.date-pill-icon {
+  font-size: 11px;
+}
+.date-pill-text {
+  font-weight: 550;
 }
 .composer-hint {
   font-size: 9px;

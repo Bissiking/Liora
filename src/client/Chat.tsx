@@ -33,6 +33,8 @@ import {
   replyPreview,
 } from "./MessageContent";
 import { EmojiPicker } from "./EmojiPicker";
+import { detectDateTimes, formatDateTimeForDisplay, formatDateOnlyForDisplay } from "../shared/date-detection.client";
+import { instantFromLocal } from "../shared/schedule";
 export function Chat({
   base,
   channel,
@@ -65,6 +67,17 @@ export function Chat({
     [access, setAccess] = useState(false);
   const [messages, setMessages] = useState<Row[]>([]),
     [draft, setDraft] = useState(""),
+    [detectedDates, setDetectedDates] = useState<Array<{
+      originalText: string;
+      start: Date;
+      end?: Date;
+    }>>([]),
+    [detectDebounce, setDetectDebounce] = useState<NodeJS.Timeout | null>(null),
+    [eventFromDate, setEventFromDate] = useState<{
+      start: Date;
+      end?: Date;
+      originalText: string;
+    } | null>(null),
     [busy, setBusy] = useState(false),
     [reply, setReply] = useState<Row | null>(null),
     [edit, setEdit] = useState<Row | null>(null),
@@ -147,6 +160,12 @@ export function Chat({
         content: encodeMentions(draft.trim(), members),
         reply_to: reply?.id || null,
         attachment_ids: attachments.map((a) => a.id),
+      }).then((res: any) => {
+        if (res.detectedDates?.length) {
+          setNotice(
+            `${res.detectedDates.length} date(s) détectée(s) dans votre message.`,
+          );
+        }
       });
       setDraft("");
       setReply(null);
@@ -423,6 +442,12 @@ export function Chat({
                   channel={channel.id}
                   members={[...members, ...(m.mentions || [])]}
                   previews={user.preferences.linkPreviews !== false}
+                  detectedDates={m.detectedDates || []}
+                  onDateClick={(d) => setEventFromDate({
+                    ...d,
+                    start: typeof d.start === 'string' ? new Date(d.start) : d.start,
+                    end: d.end && typeof d.end === 'string' ? new Date(d.end) : d.end,
+                  })}
                 />
                 <button className="thread-link" onClick={() => setThread(m)}>
                   <MessageSquare size={14} />
@@ -583,7 +608,16 @@ export function Chat({
                 value={draft}
                 maxLength={8000}
                 rows={2}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setDraft(value);
+                  if (detectDebounce) clearTimeout(detectDebounce);
+                  const timeout = setTimeout(async () => {
+                    const dates = await detectDateTimes(value);
+                    setDetectedDates(dates);
+                  }, 300);
+                  setDetectDebounce(timeout);
+                }}
                 onKeyDown={(e) => {
                   if (
                     e.key === "Enter" &&
@@ -597,6 +631,33 @@ export function Chat({
                 }}
               />
               <div className="composer-toolbar">
+                {detectedDates.length > 0 && (
+                  <div className="date-pills" aria-label="Dates détectées">
+                    {detectedDates.map((d, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className="date-pill"
+                        onClick={() => setEventFromDate({
+                          ...d,
+                          start: typeof d.start === 'string' ? new Date(d.start) : d.start,
+                          end: d.end && typeof d.end === 'string' ? new Date(d.end) : d.end,
+                        })}
+                        aria-label={`Créer un événement pour ${formatDateTimeForDisplay(d.start)}`}
+                      >
+                        <span className="date-pill-icon" aria-hidden="true">📅</span>
+                        <span className="date-pill-text">
+                          {formatDateTimeForDisplay(d.start)}
+                          {d.end &&
+                            ` – ${d.end.toLocaleTimeString("fr-FR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <input
                   type="file"
                   ref={file}
@@ -793,6 +854,94 @@ export function Chat({
             refresh();
           }}
           onClose={() => setEdit(null)}
+        />
+      )}
+      {eventFromDate && (
+        <FormDialog
+          title="Créer un événement"
+          fields={[
+            { key: "title", label: "Titre", required: true },
+            {
+              key: "description",
+              label: "Description",
+              type: "textarea",
+              required: false,
+            },
+            {
+              key: "start_at",
+              label: "Début",
+              type: "datetime-local",
+              value: eventFromDate.start.toISOString().slice(0, 16),
+            },
+            {
+              key: "end_at",
+              label: "Fin (facultatif)",
+              type: "datetime-local",
+              required: false,
+              value: eventFromDate.end?.toISOString().slice(0, 16) || "",
+            },
+            { key: "timezone", label: "Fuseau", value: Intl.DateTimeFormat().resolvedOptions().timeZone },
+            {
+              key: "all_day",
+              label: "Toute la journée",
+              value: "false",
+              options: [
+                { value: "false", label: "Non" },
+                { value: "true", label: "Oui" },
+              ],
+            },
+            {
+              key: "recurrence",
+              label: "Répétition",
+              value: "none",
+              options: [
+                { value: "none", label: "Aucune" },
+                { value: "daily", label: "Quotidien" },
+                { value: "weekly", label: "Hebdomadaire" },
+                { value: "monthly", label: "Mensuel" },
+                { value: "yearly", label: "Annuel" },
+              ],
+            },
+            {
+              key: "reminder_minutes",
+              label: "Rappel (auteur uniquement)",
+              required: false,
+              options: [
+                { value: "", label: "Aucun" },
+                { value: "0", label: "À l'heure" },
+                { value: "15", label: "15 min avant" },
+                { value: "60", label: "1h avant" },
+                { value: "1440", label: "La veille" },
+              ],
+            },
+          ]}
+          onSave={async (d) => {
+            const allDay = d.all_day === "true";
+            const from = allDay ? `${d.start_at.slice(0, 10)}T00:00` : d.start_at;
+            let to = d.end_at
+              ? allDay
+                ? `${d.end_at.slice(0, 10)}T00:00`
+                : d.end_at
+              : "";
+            if (allDay && !to) {
+              const next = new Date(`${d.start_at.slice(0, 10)}T12:00`);
+              next.setDate(next.getDate() + 1);
+              to = next.toISOString().slice(0, 16);
+            }
+            await api(`${base}/calendar`, "POST", {
+              title: d.title,
+              description: d.description,
+              start_at: instantFromLocal(from, d.timezone),
+              end_at: to ? instantFromLocal(to, d.timezone) : null,
+              timezone: d.timezone,
+              all_day: allDay,
+              recurrence: d.recurrence,
+              reminder_minutes: d.reminder_minutes === "" ? null : Number(d.reminder_minutes),
+            });
+            setEventFromDate(null);
+            setNotice("Événement créé dans le calendrier.");
+          }}
+          onClose={() => setEventFromDate(null)}
         />
       )}
     </div>

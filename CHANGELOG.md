@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.8 — BETA — 2026-10-02
+
+- Détection de dates en langage naturel dans le chat (chrono-node + parseur FR personnalisé) : formats « 22/01/2027 à 15h », « 22 janvier », « demain 14h », « lundi prochain 10h », « dans 2 jours 16h », « ce week-end », heures seules « 15h ».
+- Pills cliquables sous le compositeur pendant la saisie, badges 📅 sur les messages envoyés (API `detectedDates`).
+- Création d’événement calendrier pré-rempli depuis un clic date/heure (même formulaire que le calendrier, permissions `CREATE_CALENDAR_EVENT`).
+- Fix coercion Zod `all_day` / `reminder_minutes` pour compatibilité FormData.
+
 ## 0.4.7 — BETA — 2026-09-25
 
 - Finalisation du jalon 0.4.0 : calendrier récurrent avec fuseaux, fins de mois et journées entières ; édition de séries et permissions dédiées.

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import type { Row } from "./types";
+import { formatDateTimeForDisplay } from "../shared/date-detection";
 export function displayMentions(
   text: string,
   members: Pick<Row, "id" | "name" | "kyros_user_id">[],
@@ -103,12 +104,20 @@ export function MessageContent({
   channel,
   members = [],
   previews = false,
+  detectedDates = [],
+  onDateClick,
 }: {
   text: string;
   base: string;
   channel: string;
   members?: Pick<Row, "id" | "name" | "kyros_user_id">[];
   previews?: boolean;
+  detectedDates?: Array<{
+    originalText: string;
+    start: Date;
+    end?: Date;
+  }>;
+  onDateClick?: (date: { originalText: string; start: Date; end?: Date }) => void;
 }) {
   const urls = [...new Set(text.match(/https?:\/\/[^\s<>]+/g) || [])].slice(
     0,
@@ -133,6 +142,29 @@ export function MessageContent({
             ),
           )}
       </div>
+      {detectedDates.length > 0 && (
+        <div className="message-dates" aria-label="Dates détectées">
+          {detectedDates.map((d, i) => (
+            <button
+              key={i}
+              type="button"
+              className="message-date-badge"
+              onClick={() => onDateClick?.(d)}
+              aria-label={`Créer un événement pour ${formatDateTimeForDisplay(d.start)}`}
+            >
+              <span className="date-badge-icon" aria-hidden="true">📅</span>
+              <span className="date-badge-text">
+                {formatDateTimeForDisplay(d.start)}
+                {d.end &&
+                  ` – ${d.end.toLocaleTimeString("fr-FR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       {urls.map((url) => {
         let u: URL;
         try {

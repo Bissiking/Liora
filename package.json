@@ -27,7 +27,9 @@
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",
     "@js-temporal/polyfill": "^0.5.1",
+    "chrono-node": "^2.7.6",
     "cookie-parser": "^1.4.7",
+    "date-fns": "^4.1.0",
     "dotenv": "^17.4.2",
     "emojibase-data": "^17.0.0",
     "express": "^5.2.1",

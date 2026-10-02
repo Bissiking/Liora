@@ -7,6 +7,7 @@ import { assert } from "./errors.js";
 import { emit, audit } from "./events.js";
 import { channelAccess, granted, visibleChannel } from "./access.js";
 import emojiData from "emojibase-data/fr/data.json" with { type: "json" };
+import { detectDateTimes, type DetectedDateTime } from "../shared/date-detection.js";
 const nativeEmojis = new Set(
   emojiData
     .flatMap((e) => [e.emoji, ...(e.skins || []).map((s) => s.emoji)])
@@ -29,7 +30,7 @@ export async function sendMessage(
   db: DB,
   thread: string | null = null,
   attachments: string[] = [],
-) {
+): Promise<{ message: any; detectedDates: DetectedDateTime[] }> {
   const [ch] = await query(
     "SELECT * FROM channels WHERE id=$1 AND workspace_id=$2 AND NOT archived",
     [channel, workspace],
@@ -133,7 +134,8 @@ export async function sendMessage(
     ],
     db,
   );
-  return message;
+  const detectedDates = detectDateTimes(content);
+  return { message, detectedDates };
 }
 export const chatRouter = Router({ mergeParams: true });
 chatRouter.use("/messages/:id", async (req, _res, next) => {
@@ -168,6 +170,7 @@ chatRouter.get("/channels/:channel/messages", async (req, res) => {
           [workspace, ids],
         )
       : [];
+    row.detectedDates = detectDateTimes(row.content);
   }
   res.json({
     data: rows.reverse(),
@@ -186,19 +189,21 @@ chatRouter.post("/channels/:channel/messages", async (req, res) => {
   );
   if (ch?.type === "announcement")
     await authorize(req.actor, workspace, "MANAGE_CHANNEL");
-  res.status(201).json({
-    data: await transaction((db) =>
-      sendMessage(
-        workspace,
-        channel,
-        req.actor,
-        input.content,
-        input.reply_to ?? null,
-        db,
-        input.thread_id ?? null,
-        input.attachment_ids,
-      ),
+  const result = await transaction((db) =>
+    sendMessage(
+      workspace,
+      channel,
+      req.actor,
+      input.content,
+      input.reply_to ?? null,
+      db,
+      input.thread_id ?? null,
+      input.attachment_ids,
     ),
+  );
+  res.status(201).json({
+    data: result.message,
+    detectedDates: result.detectedDates,
   });
 });
 chatRouter.get("/messages/:id", async (req, res) => {
@@ -207,6 +212,7 @@ chatRouter.get("/messages/:id", async (req, res) => {
     "SELECT m.*,u.name author_name,u.avatar author_avatar,COALESCE((SELECT json_agg(json_build_object('emoji',r.emoji,'actor_id',r.actor_id)) FROM message_reactions r WHERE message_id=m.id),'[]') reactions FROM messages m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=$1 AND m.workspace_id=$2",
     [req.params.id, w],
   );
+  if (m) m.detectedDates = detectDateTimes(m.content);
   res.json({ data: m });
 });
 chatRouter.patch("/messages/:id", async (req, res) => {
@@ -374,6 +380,9 @@ chatRouter.get("/search", async (req, res) => {
       until,
     ],
   );
+  for (const row of rows) {
+    row.detectedDates = detectDateTimes(row.content);
+  }
   res.json({
     data: rows,
     nextCursor: rows.length === 50 ? rows.at(-1)?.id : null,

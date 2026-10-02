@@ -25,11 +25,11 @@ const fields = {
   start_at: z.iso.datetime({ offset: true }),
   end_at: z.iso.datetime({ offset: true }).nullable(),
   timezone: timezoneSchema,
-  all_day: z.boolean(),
+  all_day: z.coerce.boolean(),
   recurrence: z.enum(["none", "daily", "weekly", "monthly", "yearly"]),
   channel_id: z.uuid().nullable(),
   color: z.string().regex(/^(#[0-9a-fA-F]{6})?$/),
-  reminder_minutes: z.number().int().min(0).max(10080).nullable(),
+  reminder_minutes: z.coerce.number().int().min(0).max(10080).nullable(),
 };
 const eventSchema = z.object(fields).strict();
 function validateDates(row: Record<string, any>) {

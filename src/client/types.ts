@@ -101,6 +101,11 @@ export type Row = {
   target_id: string;
   target_name: string;
   label: string;
+  detectedDates?: Array<{
+    originalText: string;
+    start: Date;
+    end?: Date;
+  }>;
 };
 export type User = {
   avatar?: string;

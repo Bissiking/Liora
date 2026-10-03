@@ -34,7 +34,12 @@ import { pushRouter } from "./push.js";
 import { themeIds } from "../shared/themes.js";
 import { personalRouter } from "./personal.js";
 export { VERSION };
-export function createApp() {
+
+export interface AppSecurityOptions {
+  scriptHashes?: string[];
+}
+
+export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.use(
@@ -45,7 +50,7 @@ export function createApp() {
           ? {
               directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'"],
+                scriptSrc: ["'self'", ...scriptHashes],
                 styleSrc: ["'self'"],
                 imgSrc: ["'self'", "data:", "https://tile.openstreetmap.org"],
                 connectSrc: ["'self'"],
@@ -57,6 +62,13 @@ export function createApp() {
           : false,
     }),
   );
+  app.use((_req, res, next) => {
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(self), payment=()",
+    );
+    next();
+  });
   app.use((req, res, next) => {
     req.requestId = randomUUID();
     res.setHeader("X-Request-Id", req.requestId);

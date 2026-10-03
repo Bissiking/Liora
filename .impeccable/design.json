@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-03T10:36:46.494723Z",
+  "generatedAt": "2026-10-03T11:09:41.305317Z",
   "title": "Design System: Liora",
   "extensions": {
     "colorMeta": {
@@ -675,7 +675,7 @@
       "name": "Épingle de lieu visité",
       "kind": "custom",
       "refersTo": "navigation-active",
-      "description": "Marqueur SVG Visité avec libellé accessible, dans le parcours recherche géographique → détail → À essayer/Visité ; ajout manuel dans un panneau, au clic/drag ou centre clavier.",
+      "description": "Marqueur SVG Visité avec libellé accessible, dans le parcours recherche libre d’enseigne, camping, musée, ville ou adresse → détail → À essayer/Visité ; ajout manuel dans un panneau, au clic/drag ou centre clavier. Géométrie conservée.",
       "html": "<button class=\"ds-place-marker\" aria-label=\"Lieu · Visité\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m9 12 2 2 4-4\"/><circle cx=\"12\" cy=\"12\" r=\"9\"/></svg></button>",
       "css": ".ds-place-marker{width:30px;height:30px;padding:0;display:grid;place-items:center;background:var(--accent,#b8dfb4);color:var(--accent-ink,#213a26);border:2px solid var(--accent,#b8dfb4);border-radius:50% 50% 50% 3px;box-shadow:0 2px 5px #0003;cursor:pointer;}.ds-place-marker:hover,.ds-place-marker:active{background:var(--accent-hover,var(--accent,#b8dfb4));}.ds-place-marker:focus-visible{outline:2px solid var(--focus,var(--accent,#b8dfb4));outline-offset:3px;}"
     },
@@ -690,7 +690,7 @@
   ],
   "narrative": {
     "northStar": "Le poste de travail LUMA",
-    "overview": "Le poste de travail LUMA conserve la sidebar et les index contextuels de 0.4.9. La 0.5.0 ajoute trois univers construits : Atelier (Georgia, ivoire et angles fins), Orbital (cobalt, surfaces arrondies et ombre légère), Terminal (monospace et angles droits). Six palettes classiques demeurent. La galerie isole explicitement couleurs, polices et rayons de chaque miniature.\n\nCascade : styles.css, ux.css, themes/index.css puis release-050.css. Réglages guidés, messagerie personnelle et carte/collection réutilisent les tokens ; les sélections de réglages utilisent un trait de 1 px, les priorités warning et les marqueurs des SVG. Captures 050 locales avec tuiles synthétiques, sans certification OSM/GPS. Détecteur exécuté une fois, 0 antipattern et 30 avis de documentation ; verdict ship limité aux cinq corrections examinées.\n\nSuivi Mes lieux : recherche géographique explicite par ville/adresse/Burger King, résultat puis À essayer/Visité directement. Ajout manuel dans un panneau inline, emplacement cliqué/déplaçable ou placé au centre au clavier ; date pour Visité uniquement, notes/partage et coordonnées avancées repliés. Pied sticky et panneau avant la carte sur mobile. Revue finale ship sans correction matérielle sur neuf captures valides ; tuiles simulées et fixtures Photon, sans qualification géographique réelle.",
+    "overview": "Le poste de travail LUMA conserve la sidebar et les index contextuels de 0.4.9. La 0.5.0 ajoute trois univers construits : Atelier (Georgia, ivoire et angles fins), Orbital (cobalt, surfaces arrondies et ombre légère), Terminal (monospace et angles droits). Six palettes classiques demeurent. La galerie isole explicitement couleurs, polices et rayons de chaque miniature.\n\nCascade : styles.css, ux.css, themes/index.css puis release-050.css. Réglages guidés, messagerie personnelle et carte/collection réutilisent les tokens ; les sélections de réglages utilisent un trait de 1 px, les priorités warning et les marqueurs des SVG. Captures 050 locales avec tuiles synthétiques, sans certification OSM/GPS. Détecteur exécuté une fois, 0 antipattern et 30 avis de documentation ; verdict ship limité aux cinq corrections examinées.\n\nSuivi Mes lieux : recherche libre d’enseignes, lieux, villes et adresses, au plus 20 résultats dans l’ordre fournisseur, sans rayon systématique ; villes et adresses elles-mêmes enregistrables. MacDo/McDo/McDonalds deviennent McDonald’s. Autour de moi et zone affichée utilisent le texte courant ou restaurant si vide, avec proximité 15 km maximum, tri par distance et distances affichées uniquement dans ce mode. Résultat puis À essayer/Visité directement. Ajout manuel dans un panneau, emplacement cliqué/déplaçable ou centre clavier, nom sans choix de type ; Burger King historique conservé par le nom, autres lieux Lieu libre. Date pour Visité uniquement, notes/partage et coordonnées avancées repliés, suivi privé par défaut. Pied sticky et panneau avant carte sur mobile. Revue ship sans correction matérielle sur sept captures examinées, avec tuiles synthétiques et fixtures Photon. MacDo Rennes et Camping Rennes ont séparément renvoyé 20 résultats réels chacun en lecture seule, sans écriture en base ni certification géographique globale.",
     "keyCharacteristics": [
       "Sidebar globale textuelle et index contextuels.",
       "Surfaces mates et états teintés par le thème.",
@@ -718,7 +718,7 @@
       "Do isoler police et rayons des miniatures.",
       "Do utiliser warning/danger avec un état écrit.",
       "Do garder les repères de sélection fins à 1 px.",
-      "Do garder Mes lieux en parcours recherche → résultat → état direct, avec ajout manuel dans un panneau et placement accessible."
+      "Do garder Mes lieux en recherche libre → résultat → état direct, ordre fournisseur et villes/adresses sélectionnables ; réserver rayon et tri par distance aux actions de proximité explicites."
     ],
     "donts": [
       "Don't réintroduire un rail d’icônes séparé.",

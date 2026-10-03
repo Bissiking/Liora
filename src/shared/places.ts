@@ -1,4 +1,6 @@
 // src/shared/places.ts
+export const categoryForPlaceName = (name: string) =>
+  /\bburger\s*king\b/i.test(name) ? "burger-king" : "place";
 export type PlaceSearchItem = {
   id: string;
   category: string;

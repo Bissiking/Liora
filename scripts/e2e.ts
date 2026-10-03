@@ -902,13 +902,7 @@ async function verify050() {
   await page.waitForSelector(".place-list-row");
   await click("Ajouter manuellement");
   await page.type('input[name="name"]', "Lieu libre · ajout mobile de test");
-  assert.equal(
-    await page.$eval(
-      'select[name="category"]',
-      (el) => (el as HTMLSelectElement).value,
-    ),
-    "place",
-  );
+  assert.equal(await page.$('select[name="category"]'), null);
   await page.screenshot({
     path: ".impeccable/review/050-add-mobile.png",
     fullPage: false,

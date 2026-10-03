@@ -3,6 +3,7 @@ import { z } from "zod";
 import { HttpError } from "./errors.js";
 import { VERSION } from "../shared/version.js";
 import type { PlaceSearchItem, PlaceSearchResponse } from "../shared/places.js";
+import { categoryForPlaceName } from "../shared/places.js";
 const photon = z.object({
   features: z
     .array(
@@ -20,7 +21,6 @@ const photon = z.object({
     .max(100),
 });
 type Feature = z.infer<typeof photon>["features"][number];
-const burger = /\bburger\s*king\b/i;
 const text = (v: unknown) => (typeof v === "string" ? v : "");
 function address(p: Record<string, unknown>) {
   const street = [text(p.housenumber), text(p.street)]
@@ -240,7 +240,7 @@ export class PlaceSearch {
         "Lieu sans nom";
       const p = {
         id: `osm:${text(f.properties.osm_type)}:${f.properties.osm_id}`,
-        category: burger.test(name) ? "burger-king" : "place",
+        category: categoryForPlaceName(name),
         name: name.slice(0, 120),
         address:
           address(f.properties) || `À proximité de ${area.label}`.slice(0, 300),

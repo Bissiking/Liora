@@ -18,6 +18,7 @@ import { api } from "./api";
 import { Avatar, Empty } from "./ui";
 import { HelpHint } from "./HelpHint";
 import type { PlaceSearchItem, PlaceSearchResponse } from "../shared/places";
+import { categoryForPlaceName } from "../shared/places";
 type Place = PlaceSearchItem & {
   state?: "wishlist" | "visited";
   visibility?: string;
@@ -454,7 +455,7 @@ export function Places() {
       else {
         if (!point) throw Error("Placez d’abord un point sur la carte.");
         const r = await api<{ data: Place }>("/api/v1/places", "POST", {
-          category: editor.category,
+          category: categoryForPlaceName(editor.name),
           name: editor.name,
           address: editor.address,
           ...point,
@@ -733,24 +734,6 @@ export function Places() {
                   >
                     {point ? "Ajuster sur la carte" : "Placer sur la carte"}
                   </button>
-                  {categories.length > 1 && (
-                    <label>
-                      Type de lieu
-                      <select
-                        name="category"
-                        value={editor.category}
-                        onChange={(e) =>
-                          setEditor({ ...editor, category: e.target.value })
-                        }
-                      >
-                        {categories.map((c) => (
-                          <option key={c.key} value={c.key}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
                   <label>
                     Nom du lieu
                     <input
@@ -1154,7 +1137,7 @@ export function Places() {
                   <span>
                     <strong>{p.name}</strong>
                     <small>{p.address || "Adresse non renseignée"}</small>
-                    {p.distance_m !== undefined && filter === "search" && (
+                    {p.distance_m !== undefined && filter === "search" && lastSearch.current.nearby && (
                       <small>
                         {new Intl.NumberFormat("fr-FR", {
                           maximumFractionDigits: 1,

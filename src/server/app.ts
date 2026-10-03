@@ -42,6 +42,9 @@ export interface AppSecurityOptions {
 export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
   const app = express();
   app.disable("x-powered-by");
+  // Liora is deployed behind a private reverse proxy (for example Nginx Proxy Manager).
+  // Trust forwarded client information only when the direct peer is local/private.
+  app.set("trust proxy", "loopback, linklocal, uniquelocal");
   app.use(
     helmet({
       referrerPolicy: { policy: "strict-origin-when-cross-origin" },

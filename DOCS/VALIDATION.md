@@ -1,5 +1,14 @@
 # Validation — 0.5.0 BETA
 
+## Recherche libre — extension 0.5.0 du 3 octobre 2026
+
+- `npm run check` : **56/56 tests**, TypeScript strict et build client/serveur/outils. Neuf tests de recherche couvrent alias MacDo/McDo, cache commun des alias, séparation libre/proximité, villes/adresses conservées, restaurants/campings/musées, ordre fournisseur, distance/rayon, réponses invalides, erreurs/cooldown et compatibilité Burger King. Le test d’intégration recherche et enregistre McDonald’s sous Lieu libre avec deux comptes, sans écriture pendant la découverte et sans contourner les droits humains.
+- Migration **008_place_search.sql** appliquée uniquement aux bases jetables de qualification, après la 007 inchangée. Elle ajoute Lieu libre sans supprimer ni modifier les lieux et suivis existants.
+- Essais externes en lecture seule via `PlaceSearch` : « MacDo Rennes » renvoie vingt résultats, dont McDonald’s Rennes Villejean ; « Camping Rennes » renvoie vingt résultats, dont Camping municipal des Gayeulles. Aucun ajout en base. La recherche libre conserve au plus vingt résultats dans la pertinence du fournisseur, y compris les correspondances distantes ; `nearby=1` seul impose 15 km et trie par distance. Ces essais ne qualifient ni exhaustivité ni disponibilité permanente.
+- Le parcours ciblé ajoute et relit McDonald’s À essayer et un camping Visité, recherche un musée sur mobile, conserve les suivis Burger King et les ajouts manuels sans coordonnées. Une erreur Leaflet de fin de zoom après changement d’écran a été détectée : les zooms sont désormais synchrones pour éviter le callback après destruction de la carte. Les erreurs navigateur restent bloquantes et comportent leur pile d’appel.
+
+Chrome headless/Puppeteer, desktop 1440×1000 et mobile 390×844. Données, Photon, tuiles et position de navigateur simulés dans les E2E ; les essais Photon réels ci-dessus sont séparés. Aucun déploiement ni migration de la base personnelle. Appliquer 007/008 avant mise en service, voir [RELEASE_0.5.0.md](RELEASE_0.5.0.md).
+
 ## Recherche et ajout des lieux — correction 0.5.0 du 3 octobre 2026
 
 Qualification locale sur le serveur compilé, PostgreSQL jetable et Chrome headless/Puppeteer. Aucune donnée de la base personnelle modifiée, aucune nouvelle migration après 007.

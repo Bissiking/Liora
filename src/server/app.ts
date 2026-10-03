@@ -387,7 +387,7 @@ export const errorHandler: express.ErrorRequestHandler = (
     code = "INTERNAL_ERROR",
     message = "Une erreur est survenue. Réessayez.";
   if (error instanceof KyrosTokenError) {
-    status = error.retryable ? 503 : 401;
+    status = error.status ?? (error.retryable ? 503 : 401);
     code = error.code;
     message = error.message;
   } else if (error instanceof HttpError) {

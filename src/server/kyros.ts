@@ -1,6 +1,7 @@
 // src/server/kyros.ts — adapted from the local Drivio v4 client
 import { createHash, randomBytes } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
+import { HttpError } from "./errors.js";
 
 export type KyrosTokenResponse = {
   access_token: string;
@@ -16,6 +17,7 @@ export class KyrosTokenError extends Error {
     message: string,
     public readonly code: string,
     public readonly retryable: boolean,
+    public readonly status?: number,
   ) {
     super(message);
     this.name = "KyrosTokenError";
@@ -27,8 +29,17 @@ export function getKyrosConfig() {
   const clientId = process.env.KYROS_CLIENT_ID;
   const appUrl = process.env.APP_URL?.replace(/\/$/, "");
   if (!baseUrl || !clientId || !appUrl) {
-    throw new Error(
-      "Configuration Kyros incomplète. Vérifiez KYROS_BASE_URL, KYROS_CLIENT_ID et APP_URL.",
+    const missing = [
+      !baseUrl && "KYROS_BASE_URL",
+      !clientId && "KYROS_CLIENT_ID",
+      !appUrl && "APP_URL",
+    ]
+      .filter(Boolean)
+      .join(", ");
+    throw new HttpError(
+      500,
+      "KYROS_CONFIG_INVALID",
+      `Configuration Kyros incomplète : ${missing} non défini(s).`,
     );
   }
   return {
@@ -72,30 +83,47 @@ export async function createAuthorizationRequest(
   challenge: string,
 ) {
   const config = getKyrosConfig();
-  const response = await fetch(`${config.baseUrl}/par`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_id: config.clientId,
-      client_secret: config.clientSecret || undefined,
-      redirect_uri: config.redirectUri,
-      scope: config.scopes,
-      state,
-      code_challenge: challenge,
-      code_challenge_method: "S256",
-      ...handshake(),
-    }),
-    cache: "no-store",
-    signal: requestSignal(),
-  });
-  const payload = (await response.json()) as {
+  let response: Response;
+  try {
+    response = await fetch(`${config.baseUrl}/par`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        client_id: config.clientId,
+        client_secret: config.clientSecret || undefined,
+        redirect_uri: config.redirectUri,
+        scope: config.scopes,
+        state,
+        code_challenge: challenge,
+        code_challenge_method: "S256",
+        ...handshake(),
+      }),
+      cache: "no-store",
+      signal: requestSignal(),
+    });
+  } catch {
+    throw new KyrosTokenError(
+      "Kyros est temporairement indisponible.",
+      "network_error",
+      true,
+    );
+  }
+  const payload = (await response
+    .json()
+    .catch(() => ({}))) as {
     request_uri?: string;
   } & KyrosErrorPayload;
   if (!response.ok || !payload.request_uri) {
-    throw new Error(
-      payload.error_description ??
-        payload.error ??
-        "Kyros a refusé la requête PAR.",
+    const retryable =
+      response.status >= 500 || response.status === 429 || !payload.error;
+    throw new KyrosTokenError(
+      `Kyros a refusé la demande de connexion (${payload.error ?? response.status}) : ${payload.error_description ?? payload.error ?? "aucune request_uri"}`.slice(
+        0,
+        300,
+      ),
+      payload.error ?? "par_rejected",
+      retryable,
+      retryable ? 503 : 502,
     );
   }
   const authorize = new URL(`${config.baseUrl}/authorize`);

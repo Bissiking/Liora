@@ -1,8 +1,12 @@
 // src/client/MessageContent.tsx
 import { useEffect, useState } from "react";
+import { CalendarDays } from "lucide-react";
 import { api } from "./api";
 import type { Row } from "./types";
-import { formatDateTimeForDisplay } from "../shared/date-detection";
+import {
+  formatDateTimeForDisplay,
+  formatDateOnlyForDisplay,
+} from "../shared/date-detection";
 export function displayMentions(
   text: string,
   members: Pick<Row, "id" | "name" | "kyros_user_id">[],
@@ -116,8 +120,16 @@ export function MessageContent({
     originalText: string;
     start: Date;
     end?: Date;
+    allDay?: boolean;
+    timezone?: string;
   }>;
-  onDateClick?: (date: { originalText: string; start: Date; end?: Date }) => void;
+  onDateClick?: (date: {
+    originalText: string;
+    start: Date;
+    end?: Date;
+    allDay?: boolean;
+    timezone?: string;
+  }) => void;
 }) {
   const urls = [...new Set(text.match(/https?:\/\/[^\s<>]+/g) || [])].slice(
     0,
@@ -150,15 +162,18 @@ export function MessageContent({
               type="button"
               className="message-date-badge"
               onClick={() => onDateClick?.(d)}
-              aria-label={`Créer un événement pour ${formatDateTimeForDisplay(d.start)}`}
+              aria-label={`Créer un événement pour ${d.allDay ? formatDateOnlyForDisplay(d.start, d.timezone) : formatDateTimeForDisplay(d.start, d.timezone)}`}
             >
-              <span className="date-badge-icon" aria-hidden="true">📅</span>
+              <CalendarDays size={15} aria-hidden="true" />
               <span className="date-badge-text">
-                {formatDateTimeForDisplay(d.start)}
+                {d.allDay
+                  ? formatDateOnlyForDisplay(d.start, d.timezone)
+                  : formatDateTimeForDisplay(d.start, d.timezone)}
                 {d.end &&
-                  ` – ${d.end.toLocaleTimeString("fr-FR", {
+                  ` – ${new Date(d.end).toLocaleTimeString("fr-FR", {
                     hour: "2-digit",
                     minute: "2-digit",
+                    timeZone: d.timezone,
                   })}`}
               </span>
             </button>

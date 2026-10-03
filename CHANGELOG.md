@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0 — BETA — 2026-10-03
+
+- Trois thèmes structurants : Atelier, Orbital et Terminal, avec catalogue et variables organisés.
+- Dates détectées françaises, plages et durées, fuseau et référence stables après rechargement.
+- Carte personnelle en recherche libre : enseignes, restaurants, campings, musées, villes et adresses via Photon/OpenStreetMap ; alias MacDo/McDo reconnus. Ajout direct À essayer / Visité, notes privées et partage volontaire des visites. Ajout manuel dans un panneau avec point sur la carte ; coordonnées réservées aux options avancées. Les suivis Burger King existants sont conservés.
+- Conversations durables entre amis, y compris destinataire hors ligne et sans espace commun.
+- Projets : tableau/liste, filtres, options contextuelles et corrections de sélection/rattachement/positions/droits.
+- Calendrier Mois/Agenda ; administration et préférences guidées ; aide enrichie pour tous les nouveaux parcours.
+- Migrations 007/008 additives ; API personnelle isolée des permissions d’espace. La 008 ajoute le type Lieu libre au catalogue.
+- [Périmètre et qualification](DOCS/RELEASE_0.5.0.md).
+
+## 0.4.9 — BETA — 2026-10-03
+
+- Refonte globale UX : accueil personnel, navigation regroupée et index contextuel des conversations.
+- Commande rapide au clavier, navigation mobile basse et tiroirs dédiés.
+- Réception filtrée avec marquage en lot, recherche des pages et sauvegarde explicite des préférences.
+- Hiérarchie, contrôles, lisibilité et responsive harmonisés sur les écrans du produit, avec les six thèmes conservés.
+- Correction du packaging navigateur de chrono-node et synchronisation des versions.
+- Parcours et limites : [RELEASE_0.4.9.md](DOCS/RELEASE_0.4.9.md).
+
 ## 0.4.8 — BETA — 2026-10-02
 
 - Détection de dates en langage naturel dans le chat (chrono-node + parseur FR personnalisé) : formats « 22/01/2027 à 15h », « 22 janvier », « demain 14h », « lundi prochain 10h », « dans 2 jours 16h », « ce week-end », heures seules « 15h ».

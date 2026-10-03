@@ -1,6 +1,10 @@
 # État du projet Liora
 
-Revue du 25 septembre 2026, code local en 0.4.7 BETA. Références : [cahier des charges original](PROJECT_CHARTER.md), [charte d’implémentation](../PROJECT_CHARTER.md), [roadmap](../ROADMAP.md). Cette revue confronte les exigences aux sources, migrations et tests ; elle ne certifie pas le déploiement ni chaque parcours de la charte.
+Revue historique du 25 septembre 2026, complétée le 3 octobre 2026 : code local en 0.5.0 BETA. Références : [cahier des charges original](PROJECT_CHARTER.md), [charte d’implémentation](../PROJECT_CHARTER.md), [roadmap](../ROADMAP.md). Cette revue confronte les exigences aux sources, migrations et tests ; elle ne certifie pas le déploiement ni chaque parcours de la charte.
+
+## Livraison 0.5.0 — 3 octobre 2026
+
+Espace personnel (lieux et amis), thèmes structurants, dates françaises stables et parcours projets/calendrier/réglages remaniés. Recherche libre de lieux, migrations 007/008 et 56 tests locaux. Périmètre précis et limites : [RELEASE_0.5.0.md](RELEASE_0.5.0.md). Qualification navigateur locale : [VALIDATION.md](VALIDATION.md). Les constats ci-dessous conservent la revue historique ; les conditions actuelles de mise en service exigent aussi les migrations 007/008. Aucun déploiement ni service réel certifié.
 
 ## Conclusion
 

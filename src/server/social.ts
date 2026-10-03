@@ -29,7 +29,7 @@ socialRouter.get("/friends", async (req, res) => {
   );
   res.json({
     data: await query(
-      `SELECT u.id,u.name,u.avatar,CASE WHEN u.status<>'invisible' AND COALESCE((u.preferences->>'presence')::boolean,true) AND EXISTS(SELECT 1 FROM user_sessions s WHERE s.user_id=u.id AND s.expires_at>now() AND s.last_seen_at>now()-interval '2 minutes') THEN u.status ELSE 'offline' END status FROM friendships f JOIN users u ON u.id=CASE WHEN f.user_a=$1 THEN f.user_b ELSE f.user_a END WHERE (f.user_a=$1 OR f.user_b=$1) AND NOT u.disabled ORDER BY u.name`,
+      `SELECT u.id,u.name,u.avatar,(SELECT count(*)::int FROM friend_messages fm WHERE fm.sender_id=u.id AND fm.recipient_id=$1 AND fm.read_at IS NULL) unread_count,(SELECT content FROM friend_messages fm WHERE (fm.sender_id=u.id AND fm.recipient_id=$1) OR (fm.sender_id=$1 AND fm.recipient_id=u.id) ORDER BY fm.created_at DESC,fm.id DESC LIMIT 1) last_message,CASE WHEN u.status<>'invisible' AND COALESCE((u.preferences->>'presence')::boolean,true) AND EXISTS(SELECT 1 FROM user_sessions s WHERE s.user_id=u.id AND s.expires_at>now() AND s.last_seen_at>now()-interval '2 minutes') THEN u.status ELSE 'offline' END status FROM friendships f JOIN users u ON u.id=CASE WHEN f.user_a=$1 THEN f.user_b ELSE f.user_a END WHERE (f.user_a=$1 OR f.user_b=$1) AND NOT u.disabled ORDER BY u.name`,
       [req.actor.id],
     ),
   });
@@ -172,7 +172,8 @@ socialRouter.post("/invitations/token/:token/accept", async (req, res) => {
         db,
       );
       if (r) {
-        for (const p of r.permissions) await authorize(actor, i.workspace_id, p);
+        for (const p of r.permissions)
+          await authorize(actor, i.workspace_id, p);
         await query(
           "INSERT INTO workspace_members(workspace_id,user_id,role_id) VALUES($1,$2,$3)",
           [i.workspace_id, req.actor.id, i.join_role],

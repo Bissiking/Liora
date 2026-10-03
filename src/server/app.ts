@@ -31,12 +31,15 @@ import { calendarRouter } from "./calendar.js";
 import { remindersRouter } from "./reminders.js";
 import { favoritesRouter } from "./favorites.js";
 import { pushRouter } from "./push.js";
+import { themeIds } from "../shared/themes.js";
+import { personalRouter } from "./personal.js";
 export { VERSION };
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
   app.use(
     helmet({
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
       contentSecurityPolicy:
         process.env.NODE_ENV === "production"
           ? {
@@ -44,7 +47,7 @@ export function createApp() {
                 defaultSrc: ["'self'"],
                 scriptSrc: ["'self'"],
                 styleSrc: ["'self'"],
-                imgSrc: ["'self'", "data:"],
+                imgSrc: ["'self'", "data:", "https://tile.openstreetmap.org"],
                 connectSrc: ["'self'"],
                 fontSrc: ["'self'"],
                 objectSrc: ["'none'"],
@@ -147,7 +150,13 @@ export function createApp() {
   app.use("/auth", authRouter);
   app.use("/api/webhooks", webhookRouter);
   app.use("/api/v1", authenticate);
-  app.use("/api/v1", socialRouter, avatarRouter, integrationCallback);
+  app.use(
+    "/api/v1",
+    socialRouter,
+    personalRouter,
+    avatarRouter,
+    integrationCallback,
+  );
   app.get("/api/v1/me", async (req, res) => {
     assert(
       req.actor.kind === "human",
@@ -179,7 +188,7 @@ export function createApp() {
         status: z.enum(["available", "busy", "away", "invisible"]),
         preferences: z
           .object({
-            theme: z.enum(["dark", "light", "dusk", "midnight", "forest", "ember"]).default("dark"),
+            theme: z.enum(themeIds).default("dark"),
             density: z.enum(["comfortable", "compact"]).default("comfortable"),
             fontSize: z.enum(["normal", "large"]).default("normal"),
             mentions: z.boolean().default(true),

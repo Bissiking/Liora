@@ -1,4 +1,5 @@
 // src/client/Admin.tsx
+import { HelpHint, adminHelp } from "./HelpHint";
 import { VERSION } from "../shared/version";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -116,12 +117,13 @@ export function Admin({
     };
   }, [base, tab, workspace.permissions.join(",")]);
   useEffect(() => {
-    void collection(`${base}/roles`)
-      .then((r) => {
-        setRoles(r.data);
-        setPermissions(r.permissions || []);
-      })
-      .catch(fail);
+    if (can("MANAGE_ROLES") || can("MANAGE_MEMBERS"))
+      void collection(`${base}/roles`)
+        .then((r) => {
+          setRoles(r.data);
+          setPermissions(r.permissions || []);
+        })
+        .catch(fail);
     if (can("VIEW_CHANNEL"))
       void Promise.all([
         collection(`${base}/channels`),
@@ -302,21 +304,35 @@ export function Admin({
         <div className="admin-nav-heading">
           Administration<span>{VERSION} · BETA</span>
         </div>
-        {tabs
-          .filter(
+        {[
+          ["Équipe et accès", ["overview", "members", "groups", "roles"]],
+          ["Contenus", ["channels", "categories", "attachments", "emojis"]],
+          ["Connexions", ["connectors", "accounts", "webhooks", "outbound"]],
+          ["Contrôle de l’espace", ["audit", "flags", "settings"]],
+        ].map(([group, keys]) => {
+          const visible = tabs.filter(
             (t) =>
-              can(t[3]) && (t[0] !== "connectors" || can("MANAGE_WEBHOOK")),
-          )
-          .map(([key, label, Icon]) => (
-            <button
-              key={key}
-              className={tab === key ? "active" : ""}
-              onClick={() => setTab(key)}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
+              (keys as string[]).includes(t[0]) &&
+              can(t[3]) &&
+              (t[0] !== "connectors" || can("MANAGE_WEBHOOK")),
+          );
+          return visible.length ? (
+            <div className="settings-nav-group" key={group as string}>
+              <span>{group}</span>
+              {visible.map(([key, label, Icon]) => (
+                <button
+                  key={key}
+                  className={tab === key ? "active" : ""}
+                  aria-current={tab === key ? "page" : undefined}
+                  onClick={() => setTab(key)}
+                >
+                  <Icon size={16} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null;
+        })}
       </nav>
       <section className="admin-panel">
         <header className="page-heading">
@@ -331,6 +347,11 @@ export function Admin({
             </button>
           )}
         </header>
+        <HelpHint
+          title={adminHelp[tab]?.title || "Comment utiliser cette page ?"}
+        >
+          {adminHelp[tab]?.text}
+        </HelpHint>
         {tab === "connectors" ? (
           <Integrations base={base} fail={fail} />
         ) : tab === "groups" ? (

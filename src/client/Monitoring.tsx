@@ -39,7 +39,7 @@ export function Monitoring({
     <div className="page monitoring-page">
       <header className="page-heading">
         <div>
-          <h1>Garder un œil sur le gardien.</h1>
+          <h1>Supervision</h1>
           <p>
             Liora surveille Argus et Argos, indépendamment de leur
             infrastructure.

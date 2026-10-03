@@ -1,0 +1,21 @@
+/* Layout tokens shared by every theme. A theme overrides variables, not component markup. */
+:root {
+  --font-body: "Manrope Variable", sans-serif;
+  --font-heading: var(--font-body);
+  --font-meta: var(--font-body);
+  --radius-control: 7px;
+  --radius-panel: 12px;
+  --radius-card: 9px;
+  --space-page: 28px;
+  --space-row: 14px;
+  --nav-width: 260px;
+  --heading-weight: 750;
+  --panel-shadow: none;
+  --border-style: solid;
+  --selection: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  --danger: #f79494;
+  --success: #8ddaab;
+  --warning: #ebc17a;
+  --focus: var(--accent);
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, var(--text));
+}

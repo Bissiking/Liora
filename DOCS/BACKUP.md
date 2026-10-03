@@ -2,6 +2,8 @@
 
 Sauvegarder ensemble PostgreSQL, le répertoire UPLOAD_DIR et la configuration chiffrée hors dépôt. SESSION_SECRET est indispensable pour relire les tokens de sessions et secrets d’envoi ; perdre cette clé impose reconnexion et recréation des secrets. Les clés Kyros privées restent chez Kyros.
 
+La 0.5.0 ajoute des données personnelles à inclure dans la sauvegarde PostgreSQL : `friend_messages`, `place_categories`, `places` et `place_entries`. Vérifier en restauration l’historique entre amis, les notes et la confidentialité des visites, avec deux identités distinctes.
+
 ## Sauvegarde manuelle
 
 Planifier selon le volume et tester les restaurations. Ne jamais publier les fichiers obtenus : ils contiennent des données privées et des tokens chiffrés.

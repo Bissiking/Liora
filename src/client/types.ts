@@ -1,6 +1,8 @@
 // src/client/types.ts
 export type Row = {
   id: string;
+  unread_count?: number;
+  last_message?: string;
   event_types?: string[];
   avatar?: string;
   author_avatar?: string;
@@ -105,6 +107,8 @@ export type Row = {
     originalText: string;
     start: Date;
     end?: Date;
+    allDay?: boolean;
+    timezone?: string;
   }>;
 };
 export type User = {

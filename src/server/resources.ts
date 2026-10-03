@@ -240,7 +240,7 @@ resourceRouter.all("/:resource{/:id}", async (req, res, next) => {
       await authorize(req.actor, workspace, "MANAGE_BOARD");
       await authorize(req.actor, workspace, "MANAGE_TASK");
     }
-    if (resource === "boards")
+    if (resource === "boards" || resource === "columns")
       await authorize(req.actor, workspace, "MANAGE_TASK");
     await transaction(async (db) => {
       const [target] = await query(
@@ -449,6 +449,46 @@ resourceRouter.all("/:resource{/:id}", async (req, res, next) => {
         db,
       );
       assert(m, 400, "INVALID_ASSIGNEE", "Responsable absent de cet espace.");
+    }
+    // Validate links explicitly so invalid workspace references are client errors, not FK failures.
+    for (const [field, table] of [
+      ["project_id", "projects"],
+      ["board_id", "boards"],
+      ["column_id", "board_columns"],
+      ["category_id", "categories"],
+    ]) {
+      if (!body[field]) continue;
+      const [linked] = await query(
+        `SELECT * FROM ${table} WHERE id=$1 AND workspace_id=$2`,
+        [body[field], workspace],
+        db,
+      );
+      assert(
+        linked,
+        409,
+        "INVALID_REFERENCE",
+        "La ressource liée n’appartient pas à cet espace.",
+      );
+      if (method === "POST" && (table === "projects" || table === "boards"))
+        assert(
+          !linked.archived,
+          409,
+          "ARCHIVED_TARGET",
+          "Restaurez le projet ou le tableau avant d’ajouter du contenu.",
+        );
+    }
+    if (resource === "tasks" && body.column_id) {
+      const [target] = await query(
+        "SELECT b.archived,p.archived project_archived FROM board_columns c JOIN boards b ON b.id=c.board_id LEFT JOIN projects p ON p.id=b.project_id WHERE c.id=$1 AND c.workspace_id=$2",
+        [body.column_id, workspace],
+        db,
+      );
+      assert(
+        target && !target.archived && !target.project_archived,
+        409,
+        "ARCHIVED_TARGET",
+        "Restaurez le projet ou le tableau avant d’y ajouter ou déplacer une tâche.",
+      );
     }
     const values = keys.map((k) =>
       config.json?.includes(k) ? JSON.stringify(body[k]) : body[k],

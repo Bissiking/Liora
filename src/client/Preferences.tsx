@@ -13,6 +13,8 @@ import { api, fileData } from "./api";
 import type { User, Row, Result } from "./types";
 import { ConnectedAccounts } from "./Integrations";
 import { playSound } from "./sound";
+import { themes } from "../shared/themes";
+import { HelpHint, preferenceHelp } from "./HelpHint";
 import { PushSettings } from "./PushSettings";
 export function Preferences({
   user,
@@ -29,7 +31,11 @@ export function Preferences({
       location.hash.startsWith("#connected=dropit") ? "connections" : "profile",
     ),
     [sessions, setSessions] = useState<Row[]>([]),
-    [saved, setSaved] = useState(false);
+    [saved, setSaved] = useState(false),
+    [saving, setSaving] = useState(false),
+    [chosenTheme, setChosenTheme] = useState(
+      String(user.preferences.theme || "dark"),
+    );
   useEffect(() => {
     if (location.hash.startsWith("#connected=dropit"))
       history.replaceState(null, "", location.pathname);
@@ -39,6 +45,9 @@ export function Preferences({
   }, []);
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setSaved(false);
     const d = new FormData(e.currentTarget),
       prefs = {
         theme: "dark",
@@ -82,6 +91,8 @@ export function Preferences({
       setTimeout(() => setSaved(false), 3000);
     } catch (e) {
       fail(e);
+    } finally {
+      setSaving(false);
     }
   }
   const sections = [
@@ -100,6 +111,7 @@ export function Preferences({
           <button
             key={key}
             className={tab === key ? "active" : ""}
+            aria-current={tab === key ? "page" : undefined}
             onClick={() => setTab(key)}
           >
             <Icon size={17} />
@@ -119,7 +131,10 @@ export function Preferences({
       </nav>
       <section className="settings-panel">
         <h1>{sections.find((s) => s[0] === tab)?.[1]}</h1>
-        <p className="muted">Votre espace, à votre manière.</p>
+        <p className="muted">Vos réglages personnels, sur tous vos espaces.</p>
+        <HelpHint title={preferenceHelp[tab].title}>
+          {preferenceHelp[tab].text}
+        </HelpHint>
         {tab === "connections" ? (
           <ConnectedAccounts base={base} fail={fail} />
         ) : tab === "sessions" ? (
@@ -156,7 +171,12 @@ export function Preferences({
             ))}
           </div>
         ) : (
-          <form className="form" onSubmit={save} key={tab}>
+          <form
+            className="form"
+            onSubmit={save}
+            key={tab}
+            onChange={() => setSaved(false)}
+          >
             {tab === "profile" && (
               <>
                 <label>
@@ -219,20 +239,34 @@ export function Preferences({
             )}
             {tab === "appearance" && (
               <>
-                <label>
-                  Thème
-                  <select
-                    name="theme"
-                    defaultValue={String(user.preferences.theme || "dark")}
-                  >
-                    <option value="dark">Graphite</option>
-                    <option value="light">Papier</option>
-                    <option value="dusk">Crépuscule</option>
-                    <option value="midnight">Minuit</option>
-                    <option value="forest">Forêt</option>
-                    <option value="ember">Braise</option>
-                  </select>
-                </label>
+                <fieldset className="theme-gallery">
+                  <legend>Choisissez votre univers</legend>
+                  {themes.map((t) => (
+                    <label
+                      key={t.id}
+                      className={`theme-choice ${chosenTheme === t.id ? "selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="theme"
+                        value={t.id}
+                        checked={chosenTheme === t.id}
+                        onChange={() => setChosenTheme(t.id)}
+                      />
+                      <span className="theme-preview" data-theme={t.id}>
+                        <span className="theme-preview-nav" />
+                        <span className="theme-preview-content">
+                          <strong>Aa</strong>
+                          <span />
+                          <span />
+                          <i />
+                        </span>
+                      </span>
+                      <strong>{t.name}</strong>
+                      <small>{t.description}</small>
+                    </label>
+                  ))}
+                </fieldset>
                 <label>
                   Densité
                   <select
@@ -331,14 +365,17 @@ export function Preferences({
               </>
             )}
             {tab === "integrations" && <PersonalIntegrations fail={fail} />}
-            <button className="primary">
-              <Save size={16} />
-              {saved ? "Préférences enregistrées" : "Enregistrer"}
-            </button>
-            <p className="muted">
-              Vos préférences sont enregistrées sur votre compte. Les sons
-              nécessitent une interaction avec le navigateur.
-            </p>
+            <footer className="settings-save">
+              <button className="primary" disabled={saving}>
+                <Save size={16} />
+                {saving ? "Enregistrement…" : "Enregistrer"}
+              </button>
+              <p className="muted" role="status">
+                {saved
+                  ? "Préférences enregistrées sur votre compte."
+                  : "Enregistrez pour appliquer vos modifications."}
+              </p>
+            </footer>
           </form>
         )}
       </section>

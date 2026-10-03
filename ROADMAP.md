@@ -1,6 +1,6 @@
 # Roadmap Liora
 
-Revue du 25 septembre 2026 · version de maintenance **0.4.7 BETA**. « Implémenté » ne vaut pas validation du déploiement. Bilan avec preuves et limites : [état du projet](DOCS/ETAT_DU_PROJET.md). Propositions : [Idées](DOCS/Idées.md).
+Revue du 3 octobre 2026 · version courante **0.5.0 BETA**. « Implémenté » ne vaut pas validation du déploiement. Bilan avec preuves et limites : [état du projet](DOCS/ETAT_DU_PROJET.md). Propositions : [Idées](DOCS/Idées.md).
 
 ## 0.1.0 — ALPHA
 
@@ -47,7 +47,15 @@ Récepteur heartbeat corrigé, accusé de réception daté, émetteur autonome �
 
 Voir [notes 0.4.0](DOCS/RELEASE_0.4.0.md).
 
-## 0.5 — BETA · médias optionnels
+### 0.4.9 — refonte UX globale
+
+Accueil personnel, navigation regroupée par usage, index contextuel des salons, commande rapide, boîte de réception filtrable, recherche des pages et navigation mobile basse. Écrans et réglages harmonisés ; API, permissions et thèmes préservés. [Périmètre et qualification](DOCS/RELEASE_0.4.9.md).
+
+## 0.5.0 — BETA · espace personnel et expérience
+
+Thèmes structurants et tokens extensibles, dates françaises stables, carte avec recherche libre de lieux/enseignes/adresses, ajout direct À essayer / Visité et partage volontaire, messagerie durable entre amis sans espace commun. Projets/tableau/liste et filtres, calendrier Mois/Agenda, réglages guidés et aide enrichie. Migrations 007/008. [Notes et limites](DOCS/RELEASE_0.5.0.md).
+
+## Jalon suivant — médias optionnels
 
 Jellyfin et demandes films/séries seulement derrière feature flags. Aucun lien/page/bouton d’usage aujourd’hui. Ne pas déverrouiller un flag avant implémentation et tests.
 

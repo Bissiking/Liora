@@ -1,2 +1,2 @@
 // src/shared/version.ts
-export const VERSION = "0.4.7";
+export const VERSION = "0.5.0";

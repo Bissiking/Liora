@@ -209,6 +209,7 @@ export function Pages({
   refresh: () => void;
   fail: (e: unknown) => void;
 }) {
+  const [pageQuery, setPageQuery] = useState("");
   const [pages, setPages] = useState<Row[]>([]),
     [selected, setSelected] = useState(""),
     [blocks, setBlocks] = useState<Block[]>([]),
@@ -332,21 +333,40 @@ export function Pages({
             </button>
           )}
         </header>
-        {pages.map((p) => (
-          <button
-            key={p.id}
-            className={selected === p.id ? "active" : ""}
-            disabled={dirty && selected !== p.id}
-            onClick={() => {
-              setSelected(p.id);
-              setDirty(false);
-              setError("");
-            }}
-          >
-            <FileText size={16} />
-            {p.title}
-          </button>
-        ))}
+        <input
+          type="search"
+          aria-label="Rechercher une page"
+          placeholder="Trouver une page…"
+          value={pageQuery}
+          onChange={(e) => setPageQuery(e.target.value)}
+        />
+        {pageQuery &&
+          !pages.some((p) =>
+            p.title
+              .toLocaleLowerCase("fr")
+              .includes(pageQuery.toLocaleLowerCase("fr")),
+          ) && <p className="muted">Aucune page ne correspond.</p>}
+        {pages
+          .filter((p) =>
+            p.title
+              .toLocaleLowerCase("fr")
+              .includes(pageQuery.toLocaleLowerCase("fr")),
+          )
+          .map((p) => (
+            <button
+              key={p.id}
+              className={selected === p.id ? "active" : ""}
+              disabled={dirty && selected !== p.id}
+              onClick={() => {
+                setSelected(p.id);
+                setDirty(false);
+                setError("");
+              }}
+            >
+              <FileText size={16} />
+              {p.title}
+            </button>
+          ))}
       </aside>
       <section className="document">
         {page ? (

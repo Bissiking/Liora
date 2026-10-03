@@ -1,5 +1,5 @@
 // src/shared/date-detection.client.ts
-// Client-side only wrapper - re-exports from shared (which is now pure TS, no chrono-node dependency)
+// Shared French parser used by the browser and API.
 
 export {
   detectDateTimes,

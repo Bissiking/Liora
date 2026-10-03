@@ -3,6 +3,80 @@ import { useState } from "react";
 import { BookOpen, Search } from "lucide-react";
 const guides = [
   {
+    title: "Trouver mon chemin dans Liora",
+    category: "Commencer",
+    steps: [
+      "L’accueil réunit vos raccourcis et ce qui demande votre attention. La boîte de réception conserve les notifications de l’espace.",
+      "Mon espace regroupe les outils personnels. Mes lieux et vos conversations entre amis restent accessibles même sans espace de travail.",
+      "Projets, pages et calendrier servent à l’équipe. Les rubriques visibles dépendent de vos permissions dans l’espace sélectionné.",
+      "Ouvrez la recherche rapide avec le bouton Rechercher ou le raccourci clavier indiqué. Les réglages personnels se trouvent dans Préférences ; ceux de l’équipe dans Administration.",
+    ],
+  },
+  {
+    title: "Mes lieux : à essayer et déjà visités",
+    category: "Mon espace",
+    steps: [
+      "Ouvrez Mes lieux et recherchez une enseigne, un camping, un musée, une ville ou une adresse. Ajoutez une ville pour préciser, par exemple « MacDo Rennes ». Validez avec Rechercher ou Entrée : les résultats OpenStreetMap apparaissent sur la carte et dans la liste. La couverture dépend des lieux référencés ; la liste n’est pas exhaustive.",
+      "Choisissez un lieu et cliquez sur À essayer ou Visité : son nom, son adresse et son emplacement sont repris automatiquement. Notes, date et partage permet ensuite de compléter votre suivi ; les notes restent toujours privées.",
+      "Si un lieu manque, utilisez Ajouter manuellement, placez un point sur la carte puis indiquez son nom. Les coordonnées sont facultatives, dans Coordonnées avancées. La date de visite n’apparaît que pour un lieu Visité.",
+      "Moi uniquement garde la visite privée. Mes amis la montre à vos amis ; Tous les membres de Liora la montre à tout membre connecté. Les lieux du catalogue, leur nom et leur adresse sont communs.",
+      "Ouvrez une adresse pour consulter les personnes qui ont partagé une visite avec vous. La liste ne révèle jamais les visites privées ni les notes.",
+      "Ma collection recentre la carte sur vos adresses. Autour de moi demande l’autorisation du navigateur, puis recherche votre texte dans un rayon de 15 km ; celle-ci n’est pas enregistrée dans votre profil. Rechercher dans cette zone utilise le centre de la carte. Sans texte, ces deux actions cherchent des restaurants.",
+    ],
+  },
+  {
+    title: "Écrire à un ami hors ligne",
+    category: "Mon espace",
+    steps: [
+      "Dans Amis, choisissez Écrire à côté de la personne. La conversation est personnelle et ne nécessite pas d’espace en commun.",
+      "Vous devez être connecté à Internet pour envoyer. Votre ami peut être hors ligne : le message est conservé et l’attendra à son retour.",
+      "Envoyé signifie que Liora a enregistré le message. Lu signifie que votre ami a ouvert la conversation. Un compteur indique les messages non lus dans Amis.",
+      "Si l’envoi échoue, votre texte reste dans la zone de saisie pour réessayer. Retirer une personne des amis ferme l’accès à la conversation ; cela ne supprime pas les messages stockés.",
+      "Le réglage Personne dans Préférences → Confidentialité et chat bloque les nouveaux messages privés, même ceux des amis.",
+    ],
+  },
+  {
+    title: "Comprendre les dates détectées",
+    category: "Conversations",
+    steps: [
+      "Écrivez par exemple demain à 14h, après-demain à 10h, dans 3 jours à 10h30, 12/10/2026 à 14h ou du 12 au 14 octobre 2026.",
+      "Les horaires adjacents sont rattachés à leur date. Une durée comme à 14h pendant 2 heures propose aussi une heure de fin. Une date sans horaire propose une journée entière.",
+      "Les expressions relatives restent attachées à la date d’envoi et au fuseau de l’auteur. Elles ne changent pas quand vous relisez le message plus tard.",
+      "Les dates impossibles et les horaires ambigus lors d’un changement d’heure ne sont pas proposés. Certaines formulations restent ambiguës : vérifiez toujours la proposition.",
+      "Cliquez sur une date pour ouvrir le formulaire de création, puis vérifiez le titre, les horaires et le fuseau. Aucun événement n’est créé automatiquement.",
+    ],
+  },
+  {
+    title: "Choisir un univers visuel",
+    category: "Préférences",
+    steps: [
+      "Dans Préférences → Apparence, choisissez un aperçu. Atelier utilise des titres sérif et des lignes nettes ; Orbital adoucit les surfaces ; Terminal utilise une typographie monospace et des angles droits.",
+      "Les six palettes classiques restent disponibles. La densité et la taille du texte s’appliquent indépendamment du thème.",
+      "Enregistrez pour appliquer votre choix à votre compte. Les réglages ne modifient pas le thème des autres membres.",
+    ],
+  },
+  {
+    title: "Organiser et filtrer mes projets",
+    category: "Projets",
+    steps: [
+      "Choisissez un projet, puis un tableau. Sans projet regroupe les tableaux qui ne sont pas encore rattachés à un projet.",
+      "Passez du tableau à la liste selon votre manière de travailler. Combinez recherche, priorité, responsable et échéance ; Effacer les filtres rétablit toutes les tâches.",
+      "Les options du projet permettent de modifier sa description et de l’archiver. Les options du tableau permettent aussi de le déplacer vers un autre projet.",
+      "Créez une tâche depuis sa colonne. Pour la déplacer au clavier, ouvrez-la et changez sa colonne. Les mises à jour détectent les modifications concurrentes.",
+      "Restaurez un projet ou tableau archivé avant d’y ajouter ou déplacer une tâche. Les suppressions définitives restent soumises aux permissions et à confirmation.",
+    ],
+  },
+  {
+    title: "Parcourir mon calendrier",
+    category: "Calendrier",
+    steps: [
+      "La vue Mois donne une vue d’ensemble. La vue Agenda liste les rendez-vous et s’ouvre par défaut sur un petit écran.",
+      "Choisissez un jour pour afficher ses événements. Un nouvel événement commence sur le jour choisi ; vérifiez l’horaire proposé avant de l’enregistrer.",
+      "Aujourd’hui revient au mois courant. Les flèches parcourent les mois. La recherche filtre les titres de la période affichée.",
+      "Les événements récurrents sont modifiés à l’échelle de la série. Le fuseau et les horaires restent visibles dans le détail.",
+    ],
+  },
+  {
     title: "Connecter DropIt et partager mes fichiers",
     category: "Intégrations",
     steps: [
@@ -39,7 +113,7 @@ const guides = [
     steps: [
       "Ouvrez Amis dans la navigation. Cliquez sur Créer une invitation.",
       "Copiez le lien et envoyez-le à la personne de votre choix. Il est valable sept jours et utilisable une fois.",
-      "Après connexion Kyros, votre ami accepte le lien. Un administrateur peut cocher l’autorisation de rejoindre l’espace ; sinon la personne doit déjà en être membre.",
+      "Après connexion Kyros, votre ami accepte le lien. Un administrateur peut cocher l’autorisation de rejoindre l’espace ; sinon l’amitié est créée sans accès à l’espace.",
       "Le lien peut être révoqué depuis Invitations envoyées. Accepter le lien ajoute chacun à la liste d’amis de l’autre.",
     ],
   },
@@ -121,8 +195,9 @@ const guides = [
     title: "Raccourcis clavier",
     category: "Navigation",
     steps: [
-      "⌘/Ctrl + K : rechercher un salon ou ouvrir la navigation.",
+      "⌘/Ctrl + K : ouvrir la commande rapide pour rejoindre une rubrique ou un salon.",
       "⌘/Ctrl + Maj + F : rechercher des messages par salon, auteur et période.",
+      "⌘/Ctrl + 0 : retrouver l’accueil et vos priorités.",
       "⌘/Ctrl + 1 : retourner au chat.",
       "⌘/Ctrl + 2 : ouvrir Projets.",
       "⌘/Ctrl + 3 : ouvrir le Calendrier.",

@@ -1,4 +1,4 @@
-# Liora — charte directrice · 0.4.7 BETA
+# Liora — charte directrice · 0.5.0 BETA
 
 **Avant tout développement significatif, lire PROJECT_CHARTER.md.**
 
@@ -63,7 +63,7 @@ Surveillance indépendante de l’API Argos, de l’URL de santé Argus et d’u
 
 ## Versioning et roadmap
 
-SemVer, version courante **0.4.7 — BETA** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
+SemVer, version courante **0.5.0 — BETA** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
 
 ## Definition of Done et qualité
 
@@ -82,3 +82,11 @@ Le lot intégrations est implémenté : modules configurés en base, DropIt pers
 Les séries conservent un fuseau IANA et un ancrage ; modifier une série concerne toutes ses occurrences. CREATE_CALENDAR_EVENT autorise la création humaine, l’auteur gère ses événements, MANAGE_CALENDAR gère ceux des autres sans contourner l’accès à un salon privé. Les rappels sont personnels, transactionnels et replanifiés depuis l’ancrage après interruption. Le rappel d’un événement concerne son auteur.
 
 Web Push utilise un consentement par appareil et un abonnement chiffré lié à la session. File transactionnelle, contrôle des droits au moment de l’envoi, contenu générique, expiration et retries bornés. Les clés VAPID restent dans le déploiement, avec la clé maîtresse. Le cache PWA exclut API, authentification et fichiers privés ; aucune mutation n’est stockée hors ligne. Guide : [DOCS/EXPERIENCE_0.4.md](DOCS/EXPERIENCE_0.4.md).
+
+## Refonte UX — décision du 3 octobre 2026
+
+La 0.4.9 recompose les parcours autour d’un accueil personnel et de quatre groupes de navigation. Salons contextuels, commande rapide et navigation mobile basse. Les API et permissions restent celles du socle ; les six thèmes et les préférences sont conservés. Direction construite dans DESIGN.md ; périmètre dans DOCS/RELEASE_0.4.9.md.
+
+## Espace personnel et expérience 0.5.0 — décision du 3 octobre 2026
+
+Thèmes structurants, détection française de dates ancrée au message, carte personnelle À essayer / Visité, conversations durables entre amis indépendantes des espaces. Les lieux sont communs, les suivis et notes personnels ; visibilité des visites privée par défaut, partage volontaire aux amis ou aux membres connectés. À la demande de l’utilisateur, la recherche Photon/OpenStreetMap est libre : enseignes, campings, musées, villes et adresses, sans filtre Burger King. La catégorie historique Burger King est conservée, Lieu libre ajouté par migration 008. Recherche et ajout manuel alimentent le catalogue sur une action explicite. Les coordonnées restent avancées, et les suggestions ne sont pas importées automatiquement. Projets filtrables et vue liste, calendrier Mois / Agenda, administration et préférences guidées, aide enrichie. Voir DOCS/RELEASE_0.5.0.md. Les médias optionnels sont reportés au jalon suivant.

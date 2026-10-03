@@ -36,7 +36,6 @@ export default defineConfig({
       },
     },
   ],
-  build: { outDir: "dist/client", assetsInlineLimit: 0, rollupOptions: { external: ["chrono-node"] } },
-  optimizeDeps: { exclude: ["chrono-node"] },
+  build: { outDir: "dist/client", assetsInlineLimit: 0 },
   ssr: { external: ["chrono-node"] },
 });

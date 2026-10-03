@@ -1,6 +1,6 @@
 ---
 name: Liora
-description: Carnet de liaison numérique, compact et calme, pour l’équipe LUMA.
+description: Poste de travail calme et structuré pour l’équipe LUMA.
 colors:
   bg: "#171d23"
   surface: "#20272e"
@@ -12,9 +12,6 @@ colors:
   accent: "#b8dfb4"
   accent-ink: "#213a26"
   hover: "#303a42"
-  primary-hover: "#cbe8c8"
-  nav-active: "#303d38"
-  nav-active-text: "#d0e6cd"
   light-bg: "#f5f5ef"
   light-surface: "#fff"
   light-surface-2: "#e8ebe2"
@@ -25,8 +22,6 @@ colors:
   light-accent: "#365f3d"
   light-accent-ink: "#fff"
   light-hover: "#dee5d8"
-  light-primary-hover: "#294c30"
-  light-active: "#dce8d7"
   dusk-bg: "#191a30"
   dusk-surface: "#25263f"
   dusk-surface-2: "#30314d"
@@ -37,34 +32,120 @@ colors:
   dusk-accent: "#d5bcff"
   dusk-accent-ink: "#352548"
   dusk-hover: "#393650"
-  dusk-rail: "#151629"
-  dusk-nav-active: "#39304e"
-  dusk-nav-active-text: "#eadcff"
+  midnight-bg: "#0d1117"
+  midnight-surface: "#161b22"
+  midnight-surface-2: "#1c2128"
+  midnight-side: "#0d1117"
+  midnight-text: "#e6edf3"
+  midnight-muted: "#a2acb9"
+  midnight-line: "#30363d"
+  midnight-accent: "#58a6ff"
+  midnight-accent-ink: "#0d1117"
+  midnight-hover: "#21262d"
+  forest-bg: "#0f1a0f"
+  forest-surface: "#162016"
+  forest-surface-2: "#1c281c"
+  forest-side: "#0f1a0f"
+  forest-text: "#d4e8d4"
+  forest-muted: "#a2b6a2"
+  forest-line: "#2a3e2a"
+  forest-accent: "#7dcea0"
+  forest-accent-ink: "#0f1a0f"
+  forest-hover: "#1e2e1e"
+  ember-bg: "#1a0f0f"
+  ember-surface: "#201616"
+  ember-surface-2: "#281c1c"
+  ember-side: "#1a0f0f"
+  ember-text: "#e8d4d4"
+  ember-muted: "#c2a5a5"
+  ember-line: "#3e2a2a"
+  ember-accent: "#e07060"
+  ember-accent-ink: "#1a0f0f"
+  ember-hover: "#2e1e1e"
+  nav-active: "color-mix(in srgb, var(--accent) 12%, var(--side))"
+  selection: "color-mix(in srgb, var(--accent) 13%, var(--surface))"
+  primary-hover: "color-mix(in srgb, var(--accent) 88%, var(--text))"
+  light-active: "#dce8d7"
+  light-primary-hover: "#294c30"
+  dusk-channel-active: "#39304e"
+  dusk-channel-active-text: "#eadcff"
   dusk-avatar: "#453c5b"
   dusk-primary-hover: "#e4d2ff"
+  midnight-local-active: "#1c2333"
+  midnight-local-active-text: "#79c0ff"
+  forest-local-active: "#1e3020"
+  forest-local-active-text: "#a8e6b0"
+  ember-local-active: "#301e1e"
+  ember-local-active-text: "#f0a898"
+  danger: "#f79494"
+  success: "#8ddaab"
+  warning: "#ebc17a"
+  focus: "var(--accent)"
+  accent-hover: "color-mix(in srgb, var(--accent) 88%, var(--text))"
+  atelier-bg: "#f2efe6"
+  atelier-surface: "#faf8f2"
+  atelier-surface-2: "#eae5d9"
+  atelier-side: "#e8e3d7"
+  atelier-text: "#292a26"
+  atelier-muted: "#61645a"
+  atelier-line: "#c9c5b9"
+  atelier-accent: "#375844"
+  atelier-accent-ink: "#fffdf5"
+  atelier-hover: "#ded9cb"
+  atelier-danger: "#9e2937"
+  atelier-success: "#29633e"
+  atelier-warning: "#805914"
+  orbit-bg: "#eaf0f8"
+  orbit-surface: "#fff"
+  orbit-surface-2: "#f1f5fb"
+  orbit-side: "#f8faff"
+  orbit-text: "#202b42"
+  orbit-muted: "#596883"
+  orbit-line: "#cbd6e8"
+  orbit-accent: "#2d50c8"
+  orbit-accent-ink: "#fff"
+  orbit-hover: "#e3ebfa"
+  orbit-danger: "#a12540"
+  orbit-success: "#206d43"
+  orbit-warning: "#815512"
+  terminal-bg: "#111714"
+  terminal-surface: "#18211b"
+  terminal-surface-2: "#212c24"
+  terminal-side: "#141d17"
+  terminal-text: "#e3eee4"
+  terminal-muted: "#a4b7a7"
+  terminal-line: "#415648"
+  terminal-accent: "#b3e095"
+  terminal-accent-ink: "#15200f"
+  terminal-hover: "#2a3b2c"
+  light-danger: "#a92d3d"
+  light-success: "#236b40"
+  light-warning: "#855e1b"
+  dusk-danger: "#a92d3d"
+  dusk-success: "#236b40"
+  dusk-warning: "#855e1b"
 typography:
   display:
     fontFamily: '"Manrope Variable", sans-serif'
-    fontSize: "clamp(40px, 5.2vw, 77px)"
+    fontSize: "52px"
     fontWeight: 550
-    lineHeight: 1.15
+    lineHeight: 1.2
     letterSpacing: "-0.035em"
   headline:
     fontFamily: '"Manrope Variable", sans-serif'
-    fontSize: "27px"
-    fontWeight: 650
-    letterSpacing: "-0.03em"
-  help-title:
-    fontSize: "30px"
-    lineHeight: 1.2
-  help-step:
-    fontSize: "14px"
-    lineHeight: 1.85
-  emoji:
     fontSize: "26px"
-    lineHeight: 1.2
+    fontWeight: 650
+    lineHeight: 1.3
+    letterSpacing: "-0.03em"
+  home-title:
+    fontSize: "30px"
+    fontWeight: 650
+    lineHeight: 1.3
+  channel-title:
+    fontSize: "20px"
+    fontWeight: 650
   conversation-title:
-    fontSize: "25px"
+    fontSize: "22px"
     fontWeight: 600
     lineHeight: 1.4
   body:
@@ -72,27 +153,66 @@ typography:
     fontSize: "14px"
   message:
     fontSize: "14px"
-    lineHeight: 1.85
+    lineHeight: 1.8
   button:
-    fontSize: "12px"
+    fontSize: "13px"
     fontWeight: 600
-  channel:
+  navigation:
     fontSize: "13px"
     fontWeight: 500
+  help-title:
+    fontSize: "30px"
+    lineHeight: 1.2
+  emoji:
+    fontSize: "26px"
+    lineHeight: 1.2
+  atelier-heading:
+    fontFamily: 'Georgia, "Times New Roman", serif'
+    fontWeight: 500
+  atelier-meta:
+    fontFamily: "Georgia, serif"
+  terminal-body:
+    fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace'
+    fontSize: "14px"
+  terminal-heading:
+    fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", monospace'
+    fontWeight: 650
+  heading-default:
+    fontFamily: '"Manrope Variable", sans-serif'
+    fontWeight: 750
 rounded:
   compact: "5px"
+  field: "7px"
   control: "7px"
-  card: "10px"
+  card: "9px"
   container: "12px"
   dialog: "13px"
+  atelier-control: "3px"
+  atelier-panel: "3px"
+  atelier-card: "2px"
+  orbit-control: "18px"
+  orbit-panel: "22px"
+  orbit-card: "18px"
+  terminal-control: "0px"
+  terminal-panel: "0px"
+  terminal-card: "0px"
 spacing:
   control-gap: "8px"
-  form-gap: "13px"
+  form-gap: "20px"
   card-inset: "16px"
-  layout-gap: "20px"
-  page-inset: "38px"
-  reading-mobile-inset: "24px"
-  reading-inset: "40px"
+  page-vertical: "36px"
+  page-horizontal: "40px"
+  page-mobile-horizontal: "20px"
+  home-gap: "48px"
+  theme-page: "28px"
+  theme-row: "14px"
+  atelier-page: "34px"
+  atelier-row: "18px"
+  orbit-page: "32px"
+  orbit-row: "18px"
+  terminal-page: "24px"
+  terminal-row: "12px"
+  personal-mobile-page: "18px"
 components:
   button:
     backgroundColor: "{colors.surface}"
@@ -100,10 +220,12 @@ components:
     typography: "{typography.button}"
     rounded: "{rounded.control}"
     padding: "9px 13px"
+    height: "36px"
   button-primary:
     backgroundColor: "{colors.accent}"
     textColor: "{colors.accent-ink}"
-    rounded: "{rounded.control}"
+    typography: "{typography.button}"
+    rounded: "{rounded.field}"
     padding: "11px 16px"
   button-primary-hover:
     backgroundColor: "{colors.primary-hover}"
@@ -114,182 +236,218 @@ components:
   input:
     backgroundColor: "{colors.bg}"
     textColor: "{colors.text}"
-    rounded: "{rounded.control}"
+    rounded: "{rounded.field}"
     padding: "11px 12px"
+    width: "100%"
   tag:
     textColor: "{colors.muted}"
     rounded: "{rounded.compact}"
     padding: "5px 9px"
   navigation-active:
     backgroundColor: "{colors.nav-active}"
-    textColor: "{colors.nav-active-text}"
-  help-topic-active:
-    backgroundColor: "{colors.hover}"
-    textColor: "{colors.accent}"
+    textColor: "{colors.text}"
+    typography: "{typography.navigation}"
     rounded: "{rounded.control}"
-    padding: "12px"
-  emoji-button:
-    typography: "{typography.emoji}"
-    padding: "7px 2px"
-    backgroundColor: "transparent"
-  group-members:
-    rounded: "{rounded.card}"
-    padding: "16px"
+    padding: "9px 12px"
   monitoring-card:
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.container}"
     padding: "22px"
+  task-card:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.card}"
+    padding: "16px"
+  composer:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.container}"
+  settings-navigation-active:
+    backgroundColor: "{colors.selection}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.control}"
+    padding: "11px 12px"
+  friend-message:
+    backgroundColor: "{colors.surface-2}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.card}"
+    padding: "12px 16px"
+  theme-preview:
+    backgroundColor: "{colors.bg}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.container}"
+    height: "82px"
 ---
 
 # Design System: Liora
 
 ## Overview
 
-**Creative North Star: "Le carnet de liaison numérique"**
+**Creative North Star: "Le poste de travail LUMA"**
 
-Un carnet de liaison numérique pour le studio : un index étroit, un fil de conversation continu et une table de travail. Le graphite, le texte ivoire et la sauge structurent un environnement calme et compact ; les séparateurs fins et les alignements portent la hiérarchie. Papier et Crépuscule déclinent ce même carnet, respectivement en papier chaud et sauge foncée, puis en bleu nuit et lavande.
+Un espace de travail quotidien, calme et lisible, où les priorités personnelles et le travail collectif partagent une navigation textuelle. Les surfaces mates, les traits fins et les alignements communs portent la hiérarchie. La marque Liora, sa sauge et Manrope sont conservées ; les six palettes classiques gardent cette même grammaire. Atelier, Orbital et Terminal prolongent le poste de travail avec leur propre typographie, géométrie et rythme.
 
-Mode de conception : Operate, construction directe en code, choisie dans le cadre de la délégation explicite du brief. Ce document fusionne la direction initiale avec les extensions construites en 0.2.1, d’après `src/client/styles.css`, les composants React et les captures de revue desktop/mobile, aide, amis, Crépuscule, emojis, lecture de page, groupes et board mobile. Il décrit le système construit ; les tokens de couleur correspondent aux variables du thème ou aux états effectivement présents dans le CSS.
+Ce document fusionne le poste de travail 0.4.9 et son extension 0.5.0, construits en code en mode Operate. La cascade importe `styles.css`, puis `ux.css`, `themes/index.css` (tokens, palettes, univers), puis `release-050.css`. Les six palettes ont quitté le CSS global pour `themes/palettes.css` ; la composition globale de la 0.4.9 demeure. Les composants React font autorité pour les interactions ; `Places.tsx` importe `places.css` pour la recherche et l’éditeur de lieux. Aucune maquette raster n’a été approuvée. Le détail des parcours de l’accueil demeure dans `.impeccable/surfaces/workspace.md`.
+
+Les captures locales 0.4.9 (`.impeccable/review/ux-*.png`) et 0.5.0 (`050-*.png`) documentent les surfaces desktop/mobile. Les contrôles et E2E utilisent PostgreSQL et des identités de test avec Chrome headless/Puppeteer. La carte utilise des tuiles SVG synthétiques dans ces preuves : ni fond OSM réel ni GPS n’y sont certifiés. Le détecteur 0.5.0 a été exécuté une fois (0 antipattern, 30 avis de documentation obsolète). Le verdict final **ship** clôt les cinq corrections examinées ; il ne constitue pas une certification générale d’accessibilité ou des fournisseurs réels. Résultats et limites : `DOCS/VALIDATION.md` et `DOCS/RELEASE_0.5.0.md`.
 
 **Key Characteristics:**
 
-- Navigation compacte et contenu central lisible.
-- Surfaces mates, séparateurs fins et accent sauge ou lavande selon le thème.
-- Manrope variable auto-hébergée et chiffres tabulaires pour les mesures.
-- États exprimés en mots ; tiroir de navigation sur mobile.
-
-### Historique de direction
-
-La direction initiale consignait sept pistes : régie studio, carnet de production, bulletin d’équipe, signalétique d’atelier, dossier de bibliothèque, tableau d’expédition et carnet de liaison numérique. La septième a été retenue. Les confrontations conceptuelles consignées étaient : affiche de parc (écartée, discipline de palette), catalogue (compétitif en densité mais moins lisible), tensegrité (écartée, états explicites), nuage (écarté, repos visuel), spectrogramme (compétitif sur l’alignement mais trop abstrait), terminal (écarté, continuité du transcript). Les invariants retenus sont la densité ordonnée, peu de couleurs, les états en mots, les alignements fixes et l’historique continu. Cette trace décrit des décisions de conception, sans constituer une preuve de prototypes comparatifs rendus.
+- Une sidebar globale textuelle ; les index de contenu restent propres à leur rubrique.
+- Surfaces mates et sélection teintée par l’accent du thème.
+- Manrope auto-hébergée dans les palettes classiques, Georgia pour les titres Atelier et monospace système pour Terminal.
+- Navigation basse et tiroirs indépendants sur mobile ; états et erreurs écrits.
 
 ## Colors
 
-Une sauge lumineuse sur des gris graphite, avec des textes ivoire et gris bleuté. Les tokens du frontmatter sont normatifs ; les variantes `light-*` correspondent aux substitutions du thème Papier et `dusk-*` à celles de Crépuscule. Les trois thèmes conservent typographie, densité, rayons et structure.
+Le thème Graphite associe des neutres froids, un texte ivoire et une sauge lumineuse. Les primitives du frontmatter sont extraites de `themes/tokens.css`, `palettes.css`, `worlds.css` et de la composition existante ; chaque préfixe de thème décrit les substitutions réelles, sans convertir les couleurs dans un autre espace.
 
 ### Primary
 
-- **Sauge** (`accent`) : action principale, espace actif, liens, focus et disponibilité.
-- **Encre végétale** (`accent-ink`) : texte des actions sur fond sauge.
-- **Sauge de survol** (`primary-hover`) : retour visuel du bouton principal sombre. Le thème clair emploie son propre survol sombre avec texte blanc.
-
-- **Lavande** (`dusk-accent`) : accent de Crépuscule, repris par les actions principales, le bouton d’envoi et le focus. Son encre et son survol sont propres à ce thème.
+- **Sauge** (`accent`) et **encre végétale** (`accent-ink`) : actions principales, liens et focus en Graphite.
+- **Sauge foncée** (`light-accent`) : actions et liens sur le Papier clair.
+- **Lavande** (`dusk-accent`), **bleu de Minuit** (`midnight-accent`), **vert de Forêt** (`forest-accent`) et **terre cuite de Braise** (`ember-accent`) : accents des préférences correspondantes.
+- Chaque thème possède une encre d’accent pour le texte des commandes pleines. Le logo garde son identité sauge.
 
 ### Neutral
 
-- **Graphite** (`bg`) : fond principal du travail.
-- **Feuillets** (`surface`, `surface-2`, `side`) : contrôles, panneaux, navigation et niveaux secondaires.
-- **Ivoire** (`text`) et **gris de lecture** (`muted`) : contenu principal et informations secondaires.
-- **Trait** (`line`) et **survol** (`hover`) : séparations et états des contrôles.
-- **Sélection de navigation** (`nav-active`, `nav-active-text`) : salon ou rubrique courante.
+- **Fond de travail** (`bg`) : zone principale ; **surface** et **surface secondaire** (`surface`, `surface-2`) : contrôles, composeur et conteneurs.
+- **Fond d’index** (`side`) : sidebar et index locaux ; **trait** (`line`) : frontières et séparateurs.
+- **Texte** et **texte secondaire** (`text`, `muted`) : contenu et métadonnées.
+- **Survol**, **sélection de navigation** et **sélection de texte** (`hover`, `nav-active`, `selection`) : états interactifs. Les deux sélections sont des mélanges CSS avec les variables du thème.
 
-Crépuscule superpose bleu nuit, feuillets indigo et texte lilas clair ; le rail et le bandeau sont plus sombres, la sélection des salons et de la navigation est prune, les avatars ont leur propre fond. Le logo conserve sa sauge. Les tokens décrivent les substitutions réellement présentes, sans affirmer que chaque couleur locale historique est remplacée.
+Graphite (`dark`), Papier (`light`), Crépuscule (`dusk`), Minuit (`midnight`), Forêt (`forest`) et Braise (`ember`) conservent la structure. Atelier (`atelier`) associe ivoire et vert éditorial ; Orbital (`orbit`) associe surfaces claires et cobalt ; Terminal (`terminal`) associe vert sombre et accent lumineux. Papier est une palette claire dédiée. Le CSS historique contient encore des couleurs locales : avatars, cartes de tâche, états d’erreur et sélections de salon. Les règles de compatibilité de Crépuscule/Minuit/Forêt/Braise gardent leurs sélections locales dans les salons ; Papier impose son état actif avec `!important`. Les survols principaux de Papier et Crépuscule gardent également leurs règles spécifiques. Le mélange `primary-hover` décrit le survol général de `ux.css`, sans prétendre remplacer ces exceptions.
 
-La palette claire utilise un papier légèrement chaud et une sauge foncée. Certaines pièces gardent une identité sombre, notamment le rail des espaces ; les substitutions réelles du CSS font autorité. Les états d’erreur et d’indisponibilité utilisent des tons terre cuite locaux, accompagnés de texte.
+Les états sémantiques utilisent `danger`, `success` et `warning`. Les priorités haute/urgente emploient `warning`, les erreurs et commandes destructives `danger` ; les mots restent présents. La sélection générale est un mélange d’accent et de surface à (13 %). Les miniatures de galerie montrent volontairement leurs propres couleurs, polices et rayons, indépendamment du thème actif : cette coexistence de palettes est une exception intentionnelle.
+
+**The Theme Rule.** Réutiliser les variables du thème pour les nouvelles surfaces et contrôles ; accompagner les couleurs de statut d’un état écrit.
 
 ## Typography
 
-**Display Font / Body Font:** Manrope Variable, avec repli sans-serif, importée via `@fontsource-variable/manrope` et servie avec l’application.
+**Display Font / Body Font:** Manrope Variable, repli sans-serif, importée via `@fontsource-variable/manrope` et servie avec l’application.
 
-Une seule famille donne de la continuité au produit. Le corps de base et les messages sont à 14 px ; le fil utilise une interligne ample et une largeur maximale de 75 caractères. L’option « grande » porte le texte des messages et du composeur à 15 px.
+Manrope relie navigation, conversation et formulaires dans les palettes classiques et Orbital. Atelier conserve le corps Manrope et utilise Georgia sur les titres ; Terminal utilise la monospace système sur corps et titres. Les variables `font-heading` et `heading-weight` pilotent la hiérarchie, avec des graisses locales plus spécifiques conservées. `font-meta` est déclaré, sans application universelle aux métadonnées existantes. Le corps de travail est à (14 px), les boutons courants à (13 px). Les paragraphes généraux conservent une interligne de (1.7), le transcript une interligne de (1.8), une largeur maximale de (75ch) et les retours à la ligne composés. La préférence de grande taille porte les messages à (15 px).
 
 ### Hierarchy
 
-- **Display** : titre de connexion, échelle fluide ; passe à 45 px sur mobile.
-- **Headline** : titre de page courant ; titres de salon plus compacts à 18 px, puis 17 px sur mobile.
-- **Conversation title** : entrée dans un salon ; 24 px sur mobile.
-- **Help title / Help step** : titre de guide à 30 px, réduit à 25 px sur mobile ; étapes à 14 px et interligne 1.85.
-- **Emoji** : glyphes Unicode à 26 px ; leur dessin dépend de la police emoji native du système.
-- **Body / Message** : contenu de travail. Les paragraphes généraux ont une interligne de 1.7 ; les messages suivent leur token propre.
-- **Button / Channel** : commandes compactes et index des salons.
-- **Métadonnées** : principalement 10–12 px ; certains détails secondaires restent à 8–9 px. Les horaires de messages et les mesures utilisent des chiffres tabulaires. Cette extraction ne constitue pas une certification globale d’accessibilité.
+- **Display** : titre de connexion (52 px), réduit à (36 px) et interligne (1.25) sur mobile.
+- **Headline** : titres de pages (26 px, graisse 650), réduits à (24 px) sur mobile. Les titres des panneaux de réglages/administration conservent (26 px).
+- **Home title** : salutation de l’accueil (30 px), puis (28 px) sur mobile.
+- **Channel title / Conversation title** : titre du salon (20 px), puis (18 px) sur mobile ; introduction du fil (22 px).
+- **Body / Message** : texte de travail. Les documents limitent la lecture à (75ch) ; les introductions courantes à (65ch).
+- **Button / Navigation** : contrôles courants et navigation (13 px) ; navigation globale mobile (14 px). Le salon conserve des entrées à (12 px) sur desktop, (14 px) sur mobile.
+- **Help title / Emoji** : titres de guide (30 px), puis (25 px) jusqu’à 700 px ; glyphes Unicode (26 px), dessinés par la police emoji native.
+- **Métadonnées** : généralement (11–12 px), avec quelques badges locaux plus petits. Horaires et mesures utilisent des chiffres tabulaires.
+
+Les champs mobiles ordinaires passent à (16 px). Certains sélecteurs de formulaires héritent de règles plus spécifiques à (14 px) ; le composeur et la commande rapide ont leurs règles mobiles à (16 px). Cette extraction décrit la cascade réelle.
 
 ## Layout
 
-L’application occupe la hauteur dynamique de la fenêtre (`100dvh`). Desktop : rail des espaces de 66 px, index de 235 px, contenu flexible et contexte de 239 px. Le bandeau supérieur mesure 62 px. Le transcript défile indépendamment du composeur, conservé au bas du salon.
+Le shell remplit la hauteur dynamique (`100dvh`) et garde les zones défilantes dans leur contexte. Desktop : une sidebar globale de (232 px), un contenu flexible et un bandeau de (58 px). Il n’y a plus de rail séparé pour les espaces. Le sélecteur d’espace, la recherche rapide, les groupes Mon espace / Équipe / Gestion / Réglages et le profil vivent dans cette sidebar.
 
-- À partir de 1500 px, l’index passe à 254 px et le contexte à 270 px ; les marges du transcript et du composeur passent à 38 px.
-- Jusqu’à 1200 px, le contexte disparaît, les cibles de supervision se rangent sur une colonne et les marges courantes diminuent.
-- Jusqu’à 900 px, le rail mesure 55 px et l’index 212 px ; les sous-navigations de pages, préférences et administration deviennent horizontales.
-- Jusqu’à 700 px, le rail disparaît, l’index devient un tiroir fixe de 260 px avec voile, et le contenu prend toute la largeur. Le bandeau mesure 55 px. Les pages utilisent 19 px de marge horizontale.
+Dans les conversations, un index local de (206 px) précède le fil et le composeur. Le contexte à droite conserve sa largeur héritée (239 px), portée à (270 px) à partir de 1500 px. Le transcript défile indépendamment du composeur. Les autres pages conservent un cadre centré (1400 px maximum) et une séparation nette entre titre et contenu. La marge de page est maintenant pilotée par `space-page` : (28 px) dans les palettes classiques, (34 px) Atelier, (32 px) Orbital, (24 px) Terminal. Les valeurs de marges 0.4.9 du frontmatter décrivent l’héritage ; les tokens `theme-page` et propres aux univers portent la composition actuelle.
 
-Les pages courantes sont centrées avec une largeur maximale de 1500 px. Le board conserve des colonnes et un défilement horizontal ; sur mobile elles mesurent entre 265 et 280 px. La préférence de densité compacte réduit l’espacement vertical des messages.
+L’accueil emploie deux colonnes (`minmax(0, 1.65fr)` / `minmax(0, 1fr)`) séparées de (48 px), avec des rubriques divisées par des traits. Les préférences et l’administration passent en 0.5.0 à une grille avec index latéral de (220 px), contenu flexible et écart de (32 px). Jusqu’à (1100 px), l’index passe à (180 px), l’écart à (24 px). Les panneaux n’ont plus de limite propre ; les formulaires directs gardent (560 px). Les champs occupent la largeur de leur conteneur, avec `min-width: 0` pour permettre le repli.
 
-L’aide suit une composition de lecture : index secondaire de 280 px sur fond de navigation, recherche et sujets à gauche ; article de 850 px maximum avec 40 px de marge interne. À 700 px et moins, l’index passe au-dessus de l’article, les sujets deviennent une rangée horizontale défilante (180 px minimum par sujet) et l’article prend 24 px de marge. Le flux vertical porte alors toute la lecture.
+- Entre (769 px) et (1250 px), la sidebar passe à (212 px), l’index des salons à (186 px), le contexte disparaît et la marge de page suit désormais les tokens de thème.
+- Jusqu’à (768 px), la navigation globale devient un tiroir de largeur `min(310px, calc(100vw - 40px))`. Le panneau Salons est un tiroir distinct avec son propre voile. Le dock de (64 px), augmenté de la safe area, propose Accueil / Conversations / Projets / Réception / Menu selon les permissions.
+- Sur mobile, l’accueil passe à une colonne. Jusqu’à (760 px), les palettes classiques prennent (18 px) de marge de page ; les overrides des trois univers gardent leurs marges propres, tandis que les réglages utilisent toujours (18 px). Les rubriques des préférences et de l’administration défilent horizontalement à ce seuil (760 px). Le composeur reste au-dessus du dock et les actions de message sont visibles sous leur contenu.
+- Le Kanban défile horizontalement dans son cadre, avec colonnes mobiles `min(290px, calc(100vw - 56px))` et alignement de défilement. Il ne doit pas élargir toute la page.
+- Les pages d’équipe possèdent un index de (230 px). Sur mobile, cet index et son filtre restent visibles au-dessus du document, dans un bloc défilant de (190 px maximum).
 
-Sur mobile, chaque message répartit avatar et contenu sur deux colonnes (29 px et largeur restante). La rangée d’actions vient sous le contenu, dans sa colonne, avec retour à la ligne, espacement de 5 px et boutons d’au moins 36 × 36 px. Les commandes du board, les amis et le bloc d’invitation peuvent se replier sur plusieurs lignes.
+L’aide conserve son index de (280 px) et un article de (850 px maximum) avec (40 px) de marge interne. Son adaptation héritée se déclenche jusqu’à (700 px) : index au-dessus, sujets en rangée défilante et marge d’article de (24 px). Ce seuil est distinct de celui du shell.
 
 ## Elevation & Depth
 
-La profondeur vient surtout des changements de ton et des traits de séparation. Les surfaces de travail restent sans ombre. Le CSS conserve une ombre pour le petit sélecteur historique (`0 8px 24px #0005`) et celle de la boîte de dialogue (`0 20px 90px #0007`). Le catalogue Unicode actuel emploie le dialogue natif et son voile, comme les autres fenêtres modales. Le dialogue et le tiroir mobile possèdent un voile sombre distinct.
+La profondeur vient des tons, bordures et séparateurs. Les palettes classiques, Atelier et Terminal restent plates ; Orbital utilise la seule ombre de panneau (`0 6px 20px #2035600a`) sur les surfaces qui consomment `panel-shadow`. Les marqueurs et commandes de carte gardent leurs ombres utilitaires (`0 2px 5px #0003` et `0 2px 5px #0002`). Les sélections des réglages et tâches Atelier portent un repère de (1 px), sans bande épaisse. Les dialogues utilisent une ombre (`0 20px 90px #0007`) et un voile ; les deux tiroirs mobiles possèdent des voiles distincts. Le CSS conserve une ombre (`0 8px 24px #0005`) pour un ancien petit sélecteur ; le catalogue Unicode actuel emploie un dialogue.
 
-Les changements de fond et de bordure des boutons durent 0.16 s. Le tiroir se déplace en 0.22 s avec une décélération `cubic-bezier(0.22, 1, 0.36, 1)`. La préférence `prefers-reduced-motion: reduce` coupe transitions, animations et défilement animé.
+Les transitions de fond/bordure des contrôles durent (160 ms). Le tiroir global mobile s’ouvre en (180 ms, ease-out). Le panneau Salons utilise un affichage direct. `prefers-reduced-motion: reduce` supprime transitions, animations et défilement animé.
 
 ## Shapes
 
-Les angles sont adoucis sans devenir des pilules : petits tags et boutons d’icône, contrôles, cartes, puis conteneurs suivent les rayons du frontmatter. Le composeur et les cartes de tâche utilisent le rayon carte ; les colonnes et cartes de supervision utilisent le rayon conteneur. Les avatars et boutons d’espace sont des carrés arrondis. Les bordures ordinaires font 1 px. Les icônes Lucide ont un trait de 1.75 ; leur taille varie selon le contrôle.
+Les tokens classiques définissent contrôles (7 px), cartes (9 px) et panneaux (12 px). Atelier resserre ces angles à (3 / 2 / 3 px), Orbital les ouvre à (18 / 18 / 22 px), Terminal les rend droits (0 px). La sidebar Orbital a un rayon spécifique (24 px) et une marge de (12 px), annulés jusqu’à (760 px). Les cartes Terminal gardent un contour pointillé ; les tâches Atelier un trait d’accent de (1 px).
+
+Quelques composants historiques plus spécifiques, dont boutons principaux, boutons d’icône et composeur, gardent leurs rayons locaux. Les miniatures réinitialisent explicitement police et trois rayons avant d’appliquer leur propre univers ; sélectionner Terminal ne rend donc pas tous les aperçus monospace et carrés. Les bordures ordinaires font (1 px), les icônes Lucide (1.75). Les marqueurs de carte utilisent des SVG de (18 px), avec trait de (2 px), dans une épingle de (30 × 30 px).
 
 ## Components
 
 ### Buttons
 
-Le bouton courant associe surface, bordure et texte ; le bouton principal utilise sauge et encre avec une graisse de 750. Le survol change le fond et la bordure. Un bouton désactivé passe à 0.45 d’opacité et utilise le curseur d’indisponibilité. Le bouton d’icône reste transparent au repos. Le focus clavier global utilise un contour sauge de 2 px, décalé de 3 px.
+Commande secondaire bordée sur surface ; commande principale sur accent avec encre du thème et graisse (750). Les boutons courants ont un minimum de (36 px) sur desktop et (44 px) sur mobile. Les outils des messages et du composeur conservent des exceptions mobiles à (36 px). Le bouton d’icône est transparent au repos. Le survol change fond/bordure ; le focus clavier utilise un contour d’accent de (2 px), décalé de (3 px). Un contrôle désactivé passe à (0.45) d’opacité.
 
 ### Chips
 
-Le tag général a un contour fin, une graisse de 650 et un texte de 10 px. Les étiquettes de tâche, le badge bot et les réactions sont des variantes locales plus compactes. Les réactions sélectionnées ont un fond et un contour végétaux.
+Le tag descriptif associe contour fin, texte secondaire et graisse (650). Les badges de tâche, bot et réactions conservent leurs variantes locales. Une réaction sélectionnée possède un fond et un contour ; le dock et la sidebar affichent les comptes reçus, sans indicateur inventé.
 
 ### Cards / Containers
 
-Les cartes de tâche portent un titre-action, des étiquettes et un pied d’informations ; elles offrent un curseur de déplacement. Les cartes de supervision regroupent nom, état, mesure, historique et date du dernier contrôle. Leur contour visuel provient du fond, sans ombre décorative.
+Les rubriques ordinaires s’organisent par séparateurs. Les conteneurs mats servent aux états vides de l’accueil, au lien projets, aux tâches et à la supervision. Une carte de tâche garde son titre-action, ses étiquettes et son pied d’informations ; la supervision associe cible, état écrit, mesure et historique. Le fond porte la hiérarchie ; Orbital applique son ombre de panneau aux cartes de tâche. Les tags et priorités réutilisent sélection, texte et warning plutôt que des verts locaux.
 
 ### Inputs / Fields
 
-Les champs utilisent le fond principal, une bordure fine et la couleur de texte du thème. Leur bordure prend l’accent au focus ; les placeholders emploient le texte secondaire. Les formulaires utilisent des libellés visibles, et les erreurs de formulaire sont annoncées via `role="alert"`. Les dialogues natifs défilent intérieurement et gardent leur en-tête visible.
+Fond de travail, bordure fine, texte du thème, placeholders secondaires ; la bordure prend l’accent au focus. Les libellés restent visibles ; les formulaires annoncent leurs erreurs. Les rubriques disposent d’une aide contextuelle déroulante, avec question visible et signe + / −. Les formulaires de préférences disposent d’une barre d’enregistrement sticky avec état occupé et résultat annoncé. Les dialogues défilent intérieurement et conservent leur en-tête.
 
 ### Navigation
 
-Le rail identifie les workspaces par monogrammes. L’index rassemble recherche, rubriques et groupes de salons. L’élément courant est teinté de sauge ; le profil reste en pied de navigation. Le tiroir mobile conserve cet index. Les boutons de navigation sont alignés à gauche, avec icône puis libellé.
+La sidebar regroupe les destinations sous des intitulés explicites ; chaque entrée aligne icône et texte, avec accent sur l’icône active. Les permissions reçues filtrent destinations et commande rapide. Le profil reste en pied de navigation. Les index des salons, des documents et de l’aide restent contextuels. Sur mobile, Menu ouvre le tiroir global et Salons ouvre l’index de conversation ; leurs voiles et boutons de fermeture sont indépendants.
+
+### Commande rapide
+
+⌘/Ctrl K ouvre « Aller à… ». La recherche locale ignore casse et accents, filtre les rubriques et salons disponibles, puis permet le choix par ↑ / ↓ et l’ouverture par Entrée ; Échap ferme le dialogue. Les résultats affichent leur contexte. La recherche de messages garde son action et son raccourci distincts (⌘/Ctrl Maj F).
 
 ### Transcript et composeur
 
-Les messages forment une liste continue avec avatar, auteur, heure et texte. Les séparateurs de date traversent le fil. Les actions se révèlent au survol ou au focus à l’intérieur du message ; elles restent visibles en rangée sous le contenu sur mobile. Le composeur est un conteneur bordé avec zone de saisie, outils et bouton d’envoi. Les raccourcis sont expliqués sous la saisie. Les mentions affichent les noms des membres ; les résumés résolvent ces noms avant de tronquer le texte.
+Le fil continu conserve avatar, auteur, heure, texte et repères de date. Les actions apparaissent au survol ou au focus sur desktop, restent visibles sur mobile et se replient sans sortir du contenu. Le composeur est un conteneur bordé, avec saisie, outils et envoi. Les aperçus d’images et de liens restent dans le flux avec les styles existants ; les noms des mentions sont résolus avant de tronquer un résumé.
 
-Les images partagées apparaissent dans le fil, avec 12 px de séparation, une largeur maximale de 420 px et une hauteur d’image plafonnée à 340 px, sans rogner l’image. Leur contour fin et leur rayon carte suivent le carnet. Les aperçus de liens sont des blocs bordés limités à 480 px, avec 14 px de marge interne, titre et métadonnées secondaires. Le lien textuel reste présent.
+### Réception et états
 
-### Aide et lecture des pages
+La réception expose Non lues / Toutes / Lues, avec état sélectionné souligné. Une notification contenant un `channel_id` propose « Ouvrir la conversation » et rejoint son salon ; les résumés de notifications de l’accueil rejoignent la réception. Les actions marquent comme lu ou archivent, et l’action en lot restitue les erreurs. L’API retire les éléments archivés : aucune vue d’archives fictive n’est présentée.
 
-L’aide met en avant une recherche, une catégorie par sujet et des étapes numérotées. Le sujet courant utilise le fond de survol et le texte d’accent ; les étapes sont séparées par 25 px. La lecture de page conserve le titre, les blocs et les citations, avec un groupe compact de commandes « Modifier / Aperçu » et « Historique ». Le libellé distingue explicitement version publiée, brouillon non publié et édition. L’aperçu utilise le même rendu des blocs que la lecture ; les commentaires restent séparés par un trait.
+L’accueil charge calendrier, rappels et favoris par rubrique, conserve les données disponibles en cas d’échec partiel et propose Réessayer pour les rubriques indisponibles. Les filtres de salons et de pages ont un état de résultat vide écrit. Les états chargement, indisponibilité, succès et erreur sont exprimés sans dépendre de la seule couleur.
 
-### Amis et invitations
+### Galerie des univers
 
-La liste d’amis utilise des rangées, un avatar, un nom et un état de présence écrit accompagné d’un point ; les actions sont alignées à droite sur desktop. Les rangées ont 18 px de marge verticale et une séparation fine. Le lien d’invitation occupe un feuillet mat avec champ copiable, validité et bouton « Copier ». Les invitations envoyées exposent leur état et leur expiration dans des lignes compactes ; ces informations ne sont pas portées uniquement par une couleur.
+Neuf choix radio nommés, chacun avec description et aperçu « Aa », index miniature, lignes et bouton d’accent. La galerie utilise trois colonnes, puis deux jusqu’à (1100 px). Le choix sélectionné porte bordure et contour d’accent de (1 px). Les aperçus restent isolés en couleurs, famille et rayons, quelle que soit la préférence active ; le choix se sauvegarde avec le formulaire.
 
-### Catalogue d’emojis
+### Messagerie entre amis
 
-Le dialogue « Choisir un emoji » rassemble recherche française, catégorie, teinte de peau et nombre de résultats. Les caractères sont des emojis Unicode natifs, sans images de substitution. La grille de neuf colonnes passe à sept sur mobile ; son défilement est limité à 340 px de haut. Chaque bouton a un nom accessible ; le survol utilise le fond du thème et le focus reprend le contour global. Chargement et erreur sont exprimés en texte.
+Une conversation personnelle, distincte des salons, dans un conteneur de (920 px maximum). Les bulles reçues sont alignées à gauche, les bulles envoyées à droite sur fond de sélection, limitées à (80 %), puis (90 %) sur mobile. Le texte conserve ses retours à la ligne ; l’état Envoyé / Lu et l’heure française restent écrits. L’historique défile dans son cadre, avec accès aux messages précédents. La saisie garde le brouillon après erreur tant que la conversation reste ouverte ; hors ligne décrit le destinataire, sans promettre un envoi sans Internet.
 
-### Groupes et cases à cocher
+### Carte et collection personnelle
 
-Les groupes sont des boutons compacts suivis d’un formulaire. Les membres occupent un `fieldset` avec légende, rayon carte, marge interne de 16 px et espacement de 12 px. Chaque case conserve son libellé sur une même ligne horizontale avec un écart de 10 px ; cette disposition reste explicite dans les formulaires, sans hériter de leur empilement vertical. La commande d’enregistrement peut porter le retour « Groupe enregistré ».
+« Mes lieux » entre par « Où voulez-vous aller ? » : recherche géographique de ville, adresse ou « Burger King + ville », validée par Entrée ou Rechercher. La zone de découverte utilise une largeur maximale de (840 px), avec champ, effacement et action explicite. La recherche Photon ne se déclenche pas pendant la saisie. Les résultats et leurs adresses apparaissent dans la liste et sur la carte, autour de la meilleure correspondance de zone, dans un rayon de (15 km) avec (20 résultats maximum). « Autour de moi » demande la localisation explicitement ; « Rechercher dans cette zone » utilise la carte affichée. Le filtre « Filtrer ma liste… » reste distinct de cette découverte.
 
-### Historique de supervision
+Choisir un résultat ouvre son détail, puis les actions À essayer / Visité enregistrent directement le suivi, sans formulaire de coordonnées. Ces deux commandes ont une hauteur minimale de (44 px), des icônes SVG et un état pressé écrit ; la sélection utilise accent et encre. L’enregistrement d’un résultat externe alimente le catalogue uniquement après cette action explicite. Suivi privé par défaut ; les notes restent privées même lorsque les visites sont partagées. L’état d’enregistrement et les erreurs sont annoncés.
 
-La bande de contrôles colorés est complétée par une section native `details/summary`. Chaque entrée affiche date, état écrit, détail et latence disponible. Cette alternative textuelle reste utilisable au clavier et au toucher. Le statut, les unités et les informations de contrôle utilisent désormais 11 px. Les revues précédentes ont traité le survol principal clair et cet historique accessible. Le dernier verdict « ship » de 0.2.1 a seulement confirmé la résolution du P2 sur les mentions tronquées avant résolution des noms ; il ne constitue pas une certification de toute l’application.
+Ajouter manuellement ouvre un panneau dans la page. Le premier choix est l’emplacement : clic sur la carte, épingle déplaçable ou commande « Placer au centre de la carte » accessible au clavier. « Placer sur la carte » rejoint la carte et son focus. Le panneau demande ensuite nom, adresse facultative et état À essayer / Visité ; la date facultative apparaît uniquement pour Visité. Notes et partage sont regroupés dans un détail replié, les coordonnées dans un détail avancé replié. Le pied d’enregistrement reste sticky sur fond de surface, avec rappel de confidentialité, trait supérieur et action pleine largeur. Le brouillon manuel reste visible après une erreur.
+
+La grille conserve carte flexible et index de (320 px), puis (280 px) jusqu’à (1100 px). Jusqu’à (760 px), la recherche utilise une rangée icône / champ / effacement et un bouton Rechercher pleine largeur sur la rangée suivante, à (44 px minimum). Carte et index s’empilent ; lorsqu’un résultat, détail ou éditeur est ouvert, le panneau précède la carte. Une liste ouverte a une hauteur maximale de (420 px) ; la carte passe de (550 px minimum) à (350 px minimum). Le formulaire garde ses champs fluides, sans déborder du document.
+
+Les épingles SVG distinguent Visité (cercle coché, accent plein), À essayer (signet, surface bordée) et lieu non suivi (pin, bordure secondaire). Le libellé accessible reprend nom et état ; filtres et liste gardent des mots. « Ils connaissent ce lieu » affiche uniquement les visites visibles pour la personne connectée. Une recherche vide propose de changer la zone ou d’ajouter manuellement ; une indisponibilité fournisseur propose Réessayer ou placement manuel. Les erreurs, états occupés et résultat enregistré restent écrits.
+
+La revue finale de ce parcours a donné **ship**, sans correction matérielle, sur neuf captures valides ; elle complète la revue 0.5.0 précédente. Les captures de recherche, détail, ajout, erreur et résultat vide (`.impeccable/review/050-search-*.png`, `050-place-mobile.png`, `050-add-*.png`) utilisent des tuiles simulées et des fixtures Photon. Elles qualifient le parcours construit, sans certifier les résultats géographiques réels ou le GPS. La recherche n’est pas une couverture exhaustive des restaurants et n’importe pas les résultats en masse.
+
+### Projets et calendrier
+
+Le projet et tableau actifs précèdent les modes Tableau / Liste et les filtres. Les options projet/tableau se replient dans des détails contextuels. Les filtres de priorité, responsable et échéance s’alignent et se replient ; la recherche reste dans le cadre. Les priorités haute/urgente utilisent la couleur warning avec leur libellé. La vue Liste forme une grille de cartes (240 px minimum), puis une colonne sur mobile. Les archives restent nommées, sans action d’ajout trompeuse.
+
+Le calendrier distingue Mois / Agenda par contrôles segmentés, résumé de période et recherche ; Agenda est la vue initiale sur petit écran. Les lignes d’agenda passent de date / titre / état à une colonne jusqu’à (760 px). Les propositions de dates détectées restent à confirmer avec horaire local et fuseau explicite.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** conserver le fil continu de conversation et ses repères de date.
-- **Do** utiliser les couleurs du thème pour les nouveaux textes et contrôles, y compris Crépuscule.
-- **Do** conserver les repères textuels de publication, présence, invitation et enregistrement.
-- **Do** accompagner les signaux colorés de leur état écrit et conserver l’historique détaillé des contrôles.
-- **Do** garder les actions accessibles au clavier et visibles sur mobile.
-- **Do** respecter la préférence de réduction des mouvements.
+- **Do** réutiliser la sidebar globale et placer les index de contenu dans leur rubrique.
+- **Do** reprendre les variables des neuf thèmes pour les nouveaux contrôles et surfaces.
+- **Do** conserver la continuité du transcript, les retours à la ligne et les repères de date.
+- **Do** rendre les actions accessibles au clavier et visibles sur mobile.
+- **Do** garder les champs dans leur conteneur et le défilement du Kanban dans son cadre.
+- **Do** annoncer les états, conserver les libellés textuels et respecter la réduction des mouvements.
+- **Do** isoler les aperçus de galerie en couleurs, polices et rayons.
+- **Do** employer les tokens warning/danger et des marqueurs SVG avec état écrit.
 
 ### Don't:
 
-- **Don't** remplacer le système de séparateurs et de surfaces mates par des ombres décoratives.
-- **Don't** transformer chaque message du transcript en carte isolée.
+- **Don't** réintroduire un rail d’icônes séparé pour remplacer les groupes de navigation textuels.
+- **Don't** transformer chaque message ou rubrique en carte isolée avec ombre décorative ; garder l’ombre légère propre à Orbital.
 - **Don't** employer le survol comme seul accès à une action sur mobile.
-- **Don't** assimiler la palette claire à une simple inversion des couleurs.
+- **Don't** inventer comptes, états opérationnels ou rubrique d’archives sans données réelles.
+- **Don't** présenter une palette claire comme une simple inversion ou ignorer les règles locales encore actives dans la cascade.

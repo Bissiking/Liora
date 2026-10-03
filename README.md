@@ -1,4 +1,4 @@
-# Liora · 0.4.7 BETA
+# Liora · 0.5.0 BETA
 
 Un espace LUMA pour discuter, organiser les projets et recevoir les signaux des applications.
 
@@ -76,3 +76,7 @@ Les limites ALPHA et fonctions différées sont explicites dans [ROADMAP](ROADMA
 ## Historique 0.2.1
 
 Collaboration avancée, invitations/amis, aperçus et tutoriels : [notes de version](DOCS/RELEASE_0.2.1.md). Appliquer les migrations avant de redémarrer le nouveau build.
+
+Refonte UX 0.4.9 : accueil, navigation par usage, commande rapide et parcours mobile. [Notes de version](DOCS/RELEASE_0.4.9.md). Qualification dédiée : `E2E_UX_ONLY=1 npm run test:e2e` (base PostgreSQL jetable `_e2e`).
+
+Version 0.5.0 : thèmes structurants, dates françaises, carte personnelle en recherche libre et messages entre amis, projets et calendrier remaniés, réglages guidés. [Notes de version](DOCS/RELEASE_0.5.0.md). Appliquer les migrations 007/008 avant démarrage. Qualification : `E2E_050_ONLY=1 npm run test:e2e` (base jetable `_e2e`, recherche et tuiles simulées).

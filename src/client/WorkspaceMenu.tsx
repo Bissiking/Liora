@@ -22,7 +22,7 @@ export function WorkspaceMenu({
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
     const esc = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && open) {
         setOpen(false);
         root.current?.querySelector("button")?.focus();
       }
@@ -33,7 +33,7 @@ export function WorkspaceMenu({
       document.removeEventListener("click", close);
       document.removeEventListener("keydown", esc);
     };
-  }, []);
+  }, [open]);
   const run = (fn: () => void) => {
     fn();
     setOpen(false);

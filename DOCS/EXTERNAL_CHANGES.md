@@ -46,3 +46,23 @@ Aucun dépôt externe modifié, aucun secret créé sur un service distant. Lior
 ## 25 septembre 2026 — finalisation expérience 0.4.7
 
 Modifications limitées à Liora. Dépendances ajoutées : `@js-temporal/polyfill` (calculs horaires) et `web-push` (protocole/chiffrement), avec types de développement. Aucun dépôt ou service Kyros/Argos/DropIt/Nino/Narra modifié. Les tests push utilisent un transport contrôlé ; aucune notification envoyée à un destinataire externe pendant cette intervention.
+
+## 3 octobre 2026 — refonte UX 0.4.9
+
+Changements confinés à Liora : interface, packaging navigateur, version, documentation et qualification. Aucun dépôt externe modifié. Kyros et DropIt sont exercés par les fixtures de test locales, sans action sur leurs services réels.
+
+## 3 octobre 2026 — espace personnel 0.5.0
+
+Migration 007 pour conversations entre amis, catalogue et suivis de lieux, fuseau des messages. Nouveaux endpoints globaux `/friends/:id/messages` et `/places`, réservés aux humains et indépendants des espaces. Le contrat d’envoi des messages de salon accepte un fuseau optionnel et les suggestions de dates précisent `allDay`, `timezone` et l’offset de texte. Ajout des thèmes Atelier/Orbital/Terminal au profil ; contrats Kyros, DropIt, Argos et APIs d’espace conservés. Fond Leaflet 1.9.4 / OpenStreetMap, politique de referrer explicite et CSP images limitée au domaine de tuiles. Recherche géographique Photon par proxy authentifié, cache/throttle et URL configurable ; ajout de catalogue uniquement après sélection explicite, pas de synchronisation en masse. À appliquer et qualifier sur le déploiement ; aucune publication pendant l’intervention.
+
+## 3 octobre 2026 — recherche et ajout des lieux
+
+Ajout de `GET /api/v1/places/search` : noms, villes et adresses publics transmis à Photon uniquement sur validation de l’utilisateur, position de proximité arrondie, aucun suivi privé ni secret transmis. Le fournisseur public est remplaçable par `PLACES_GEOCODER_URL` ; cache et limites de requêtes côté Liora. Source et conditions : [Photon](https://github.com/komoot/photon). La recherche peut retourner moins de résultats qu’il existe d’établissements dans la zone.
+
+L’ajout s’appuie sur le contrat `/places` existant et la migration 007, sans nouvelle migration. Les champs de coordonnées sont avancés ; date, notes et partage utilisent le suivi personnel existant. Aucun dépôt externe modifié ni déploiement effectué. Les fixtures de qualification n’envoient aucune recherche aux services publics ; l’essai API réel sur Rennes est consigné séparément dans VALIDATION.md.
+
+## 3 octobre 2026 — recherche libre des lieux
+
+Le contrat `/places/search` retourne désormais les lieux, villes et adresses pertinents de Photon, sans filtre Burger King ni seconde recherche implicite. Alias MacDo/McDo/McDonalds normalisés en McDonald’s. Le paramètre facultatif `nearby=1` borne à 15 km du centre et trie par distance ; sans lui, les vingt premiers résultats conservent la pertinence du fournisseur. Cache, limites, droits humains et transmission sans notes ni identifiant restent en place. La recherche est toujours déclenchée explicitement.
+
+Migration **008_place_search.sql** additive : catégorie Lieu libre, sans modification des lieux/suivis Burger King ni de la migration 007. Appliquer avant démarrage. Aucun dépôt externe modifié, aucun fournisseur supplémentaire ni secret, aucun déploiement. Les essais réels en lecture seule « MacDo Rennes » et « Camping Rennes » sont distincts des fixtures et n’ajoutent rien au catalogue. Retour arrière du code possible en conservant la catégorie et les suivis ; ne pas supprimer les données Lieu libre.

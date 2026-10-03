@@ -1,6 +1,13 @@
 // src/client/main.tsx
 import { VERSION } from "../shared/version";
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   Hash,
@@ -24,9 +31,20 @@ import {
   Calendar as CalendarIcon,
   UserPlus,
   Shield,
+  House,
+  Menu,
+  X,
 } from "lucide-react";
 import "@fontsource-variable/manrope";
 import "./styles.css";
+import "./ux.css";
+import "./themes/index.css";
+import "./release-050.css";
+import { themeId } from "../shared/themes";
+import { navigation, navigationVisible } from "./navigation";
+import { Home } from "./Home";
+import { QuickSwitch } from "./QuickSwitch";
+import { Inbox } from "./Inbox";
 import { api, ApiError, collection } from "./api";
 import type { Row, Result, User, Workspace } from "./types";
 import { Avatar, Empty, FormDialog, type Field } from "./ui";
@@ -48,6 +66,9 @@ import { Groups } from "./Groups";
 import { Members } from "./Members";
 import { playSound } from "./sound";
 import { applyPwaUpdate } from "./pwa";
+const Places = lazy(() =>
+  import("./Places").then((m) => ({ default: m.Places })),
+);
 function App() {
   const [pwaUpdate, setPwaUpdate] = useState(false);
   useEffect(() => {
@@ -89,13 +110,17 @@ function App() {
   const [targetMessage, setTargetMessage] = useState("");
   const seenNotifications = useRef<Set<string> | null>(null);
   const [searchMessages, setSearchMessages] = useState(false);
+  const [quickSwitch, setQuickSwitch] = useState(false);
+  const [channelsOpen, setChannelsOpen] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
   const [me, setMe] = useState<User | null>(null),
     [spaces, setSpaces] = useState<Workspace[]>([]),
     [workspaceId, setWorkspaceId] = useState(""),
     [status, setStatus] = useState("loading"),
     [error, setError] = useState(""),
     [view, setView] = useState(
-      () => sessionStorage.getItem("liora.view") || "chat",
+      () => sessionStorage.getItem("liora.view") || "home",
     ),
     [adminTab, setAdminTab] = useState(
       () => sessionStorage.getItem("liora.adminTab") || "overview",
@@ -116,6 +141,42 @@ function App() {
       fields: Field[];
       save: (data: Record<string, string>) => Promise<void>;
     } | null>(null);
+  useEffect(() => {
+    if (!mobile && !channelsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobile(false);
+        setChannelsOpen(false);
+        menuTrigger.current?.focus();
+      }
+      if (e.key === "Tab" && !document.querySelector("dialog[open]")) {
+        const controls = Array.from(
+          (mobile
+            ? sidebarRef.current
+            : document.querySelector(".conversation-index")
+          )?.querySelectorAll<HTMLElement>("button:not(:disabled),input") || [],
+        );
+        const first = controls[0],
+          last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+        if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    (mobile
+      ? sidebarRef.current
+      : document.querySelector(".conversation-index")
+    )
+      ?.querySelector<HTMLElement>("button")
+      ?.focus();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobile, channelsOpen]);
   const workspace = spaces.find((w) => w.id === workspaceId),
     base = `/api/v1/workspaces/${workspaceId}`,
     can = (p: string) => workspace?.permissions.includes(p) || false;
@@ -175,7 +236,7 @@ function App() {
   useEffect(() => {
     if (!me) return;
     const prefs = me.preferences;
-    document.documentElement.dataset.theme = String(prefs.theme || "dark");
+    document.documentElement.dataset.theme = themeId(prefs.theme);
     document.documentElement.dataset.density = String(
       prefs.density || "comfortable",
     );
@@ -296,8 +357,7 @@ function App() {
       }
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setMobile(true);
-        document.getElementById("channel-search")?.focus();
+        setQuickSwitch(true);
         return;
       }
       if (
@@ -307,6 +367,7 @@ function App() {
       )
         return;
       const routes: Record<string, string> = {
+        "0": "home",
         "1": "chat",
         "2": "projects",
         "3": "calendar",
@@ -337,7 +398,7 @@ function App() {
       view === "monitoring" &&
       !workspace.permissions.includes("VIEW_MONITORING")
     )
-      setView("chat");
+      setView("home");
   }, [workspace, view]);
   useEffect(() => {
     if (location.hash.startsWith("#connected=dropit")) {
@@ -352,7 +413,68 @@ function App() {
     setTargetResource(null);
     setView(v);
     setMobile(false);
+    setChannelsOpen(false);
+    requestAnimationFrame(() => {
+      if (
+        !document.querySelector("dialog[open]") &&
+        !document.activeElement?.closest(
+          "input,textarea,select,[contenteditable=true]",
+        )
+      )
+        document.getElementById("main")?.focus({ preventScroll: true });
+    });
   };
+  const openChannel = (id: string) => {
+    setChannelId(id);
+    navigate("chat");
+  };
+  const openResource = (row: Row) => {
+    if (row.target_type === "channel" || row.target_type === "message") {
+      setChannelId(
+        row.target_type === "channel" ? row.target_id : row.channel_id,
+      );
+      setTargetMessage(row.target_type === "message" ? row.target_id : "");
+      navigate("chat");
+    } else {
+      const route = (
+        {
+          page: "pages",
+          project: "projects",
+          task: "projects",
+          event: "calendar",
+        } as Record<string, string>
+      )[row.target_type];
+      if (!route) return;
+      navigate(route);
+    }
+    setTargetResource(row);
+  };
+  const createConversation = () =>
+    void collection(`${base}/members`)
+      .then((r) =>
+        setForm({
+          title: "Nouvelle conversation privée",
+          fields: [
+            {
+              key: "user_id",
+              label: "Membre",
+              options: r.data
+                .filter((m) => m.id !== me?.id)
+                .map((m) => ({ value: m.id, label: m.name })),
+            },
+          ],
+          save: async (d) => {
+            const r = await api<{ data: Row }>(
+              `${base}/conversations`,
+              "POST",
+              d,
+            );
+            refresh();
+            openChannel(r.data.id);
+          },
+        }),
+      )
+      .catch(fail);
   const createChannel = () =>
     setForm({
       title: "Créer un salon",
@@ -415,23 +537,14 @@ function App() {
           <span>Un espace LUMA</span>
         </div>
         <main>
-          <div className="login-lines" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-            <i />
-          </div>
           <h1>
-            Les bonnes idées
+            Retrouvez votre équipe.
             <br />
-            se construisent
-            <br />
-            <em>ensemble.</em>
+            <em>Faites avancer la suite.</em>
           </h1>
           <p>
-            Conversations, projets et signaux de votre écosystème.
-            <br />
-            Un seul endroit pour leur donner une suite.
+            Discutez, organisez vos projets et gardez vos rendez-vous en vue.
+            Votre espace de travail LUMA vous attend.
           </p>
           <a className="primary" href="/auth/login">
             Entrer avec Kyros
@@ -464,99 +577,135 @@ function App() {
     );
   if (!workspace)
     return (
-      <div className="waiting">
-        <div className="waiting-header">
-          <img src="/brand/logo-dark.svg" alt="Liora" />
-          <h1>Bienvenue, {me?.name}.</h1>
-          <p>
-            Connectez-vous avec votre équipe. Créez un espace ou acceptez une
-            invitation pour commencer.
+      <div className="personal-shell">
+        {error && (
+          <p role="alert" className="error">
+            {error}
           </p>
-        </div>
-
-        <div className="waiting-cards">
-          <section className="waiting-card">
-            <h2>Accepter une invitation</h2>
-            <p>Vous avez reçu un lien d'amis ? Collez-le ici pour accepter.</p>
-            <div className="waiting-join">
-              <input
-                aria-label="Lien d'invitation"
-                placeholder="Lien d'invitation"
-                id="join-input"
-              />
-              <button
-                className="primary"
-                onClick={() => {
-                  const input = document.getElementById(
-                    "join-input",
-                  ) as HTMLInputElement;
-                  const val = input?.value?.trim();
-                  if (!val) return;
-                  let token = val;
-                  if (val.includes("#invite=")) {
-                    token = val.split("#invite=")[1] || "";
-                  } else if (val.includes("/invite/")) {
-                    token = val.split("/invite/")[1] || "";
-                  }
-                  if (token) {
-                    location.hash = `invite=${token}`;
-                    location.reload();
-                  }
-                }}
-              >
-                Accepter
-              </button>
-            </div>
-          </section>
-
-          <section className="waiting-card">
-            <h2>Créer un espace</h2>
-            <p>
-              Invitez vos amis et commencez à discuter dans votre propre espace.
-            </p>
-            <button
-              onClick={() =>
-                setForm({
-                  title: "Nouvel espace",
-                  fields: [{ key: "name", label: "Nom de l'espace" }],
-                  save: async (d) => {
-                    await api("/api/v1/workspaces", "POST", d);
-                    await loadMe();
-                  },
-                })
-              }
-            >
-              Créer mon espace
-            </button>
-          </section>
-        </div>
-
-        <section className="waiting-account">
-          <h2>Votre identifiant</h2>
-          <p>
-            Partagez cet identifiant avec quelqu'un pour qu'il puisse vous
-            envoyer une demande d'amis.
-          </p>
-          <code className="waiting-kyros">{me?.kyros_user_id}</code>
-          <div className="waiting-actions">
-            <button onClick={() => void loadMe()}>Actualiser</button>
-            <button
-              onClick={() =>
-                void api("/auth/logout", "POST").then(() => location.reload())
-              }
-            >
-              Se déconnecter
-            </button>
-          </div>
-        </section>
-
-        {form && (
-          <FormDialog
-            title={form.title}
-            fields={form.fields}
-            onSave={form.save}
-            onClose={() => setForm(null)}
+        )}
+        <nav aria-label="Mon espace personnel" className="personal-nav">
+          <button onClick={() => navigate("home")}>Bienvenue</button>
+          <button onClick={() => navigate("places")}>Mes lieux</button>
+          <button onClick={() => navigate("friends")}>Amis</button>
+          <button onClick={() => navigate("settings")}>Préférences</button>
+          <button onClick={() => navigate("help")}>Aide</button>
+        </nav>
+        {view === "places" ? (
+          <Suspense fallback={<p>Chargement de la carte…</p>}>
+            <Places />
+          </Suspense>
+        ) : view === "friends" ? (
+          <Friends
+            userId={me!.id}
+            workspace=""
+            revision={revision}
+            fail={fail}
           />
+        ) : view === "settings" ? (
+          <Preferences user={me!} base="" reload={loadMe} fail={fail} />
+        ) : view === "help" ? (
+          <Help />
+        ) : (
+          <div className="waiting">
+            <div className="waiting-header">
+              <img src="/brand/logo-dark.svg" alt="Liora" />
+              <h1>Bienvenue, {me?.name}.</h1>
+              <p>
+                Connectez-vous avec votre équipe. Créez un espace ou acceptez
+                une invitation pour commencer.
+              </p>
+            </div>
+
+            <div className="waiting-cards">
+              <section className="waiting-card">
+                <h2>Accepter une invitation</h2>
+                <p>
+                  Vous avez reçu un lien d'amis ? Collez-le ici pour accepter.
+                </p>
+                <div className="waiting-join">
+                  <input
+                    aria-label="Lien d'invitation"
+                    placeholder="Lien d'invitation"
+                    id="join-input"
+                  />
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      const input = document.getElementById(
+                        "join-input",
+                      ) as HTMLInputElement;
+                      const val = input?.value?.trim();
+                      if (!val) return;
+                      let token = val;
+                      if (val.includes("#invite=")) {
+                        token = val.split("#invite=")[1] || "";
+                      } else if (val.includes("/invite/")) {
+                        token = val.split("/invite/")[1] || "";
+                      }
+                      if (token) {
+                        location.hash = `invite=${token}`;
+                        location.reload();
+                      }
+                    }}
+                  >
+                    Accepter
+                  </button>
+                </div>
+              </section>
+
+              <section className="waiting-card">
+                <h2>Créer un espace</h2>
+                <p>
+                  Invitez vos amis et commencez à discuter dans votre propre
+                  espace.
+                </p>
+                <button
+                  onClick={() =>
+                    setForm({
+                      title: "Nouvel espace",
+                      fields: [{ key: "name", label: "Nom de l'espace" }],
+                      save: async (d) => {
+                        await api("/api/v1/workspaces", "POST", d);
+                        await loadMe();
+                      },
+                    })
+                  }
+                >
+                  Créer mon espace
+                </button>
+              </section>
+            </div>
+
+            <section className="waiting-account">
+              <h2>Votre identifiant</h2>
+              <p>
+                Partagez cet identifiant avec quelqu'un pour qu'il puisse vous
+                envoyer une demande d'amis.
+              </p>
+              <code className="waiting-kyros">{me?.kyros_user_id}</code>
+              <div className="waiting-actions">
+                <button onClick={() => void loadMe()}>Actualiser</button>
+                <button
+                  onClick={() =>
+                    void api("/auth/logout", "POST").then(() =>
+                      location.reload(),
+                    )
+                  }
+                >
+                  Se déconnecter
+                </button>
+              </div>
+            </section>
+
+            {form && (
+              <FormDialog
+                title={form.title}
+                fields={form.fields}
+                onSave={form.save}
+                onClose={() => setForm(null)}
+              />
+            )}
+          </div>
         )}
       </div>
     );
@@ -571,80 +720,6 @@ function App() {
       <a href="#main" className="skip-link">
         Aller au contenu
       </a>
-      <nav className="space-rail" aria-label="Espaces">
-        <img className="brand-icon" src="/brand/icon.svg" alt="Liora" />
-        <div className="rail-divider" />
-        {can("SEND_MESSAGE") && (
-          <button
-            className="space-button dm-button"
-            title="Conversation privée"
-            aria-label="Nouvelle conversation privée"
-            onClick={() =>
-              void collection(`${base}/members`)
-                .then((r) =>
-                  setForm({
-                    title: "Nouvelle conversation privée",
-                    fields: [
-                      {
-                        key: "user_id",
-                        label: "Membre",
-                        options: r.data
-                          .filter((m) => m.id !== me?.id)
-                          .map((m) => ({ value: m.id, label: m.name })),
-                      },
-                    ],
-                    save: async (d) => {
-                      const r = await api<{ data: Row }>(
-                        `${base}/conversations`,
-                        "POST",
-                        d,
-                      );
-                      refresh();
-                      setChannelId(r.data.id);
-                      navigate("chat");
-                    },
-                  }),
-                )
-                .catch(fail)
-            }
-          >
-            <MessageSquare size={20} />
-          </button>
-        )}
-        <div className="rail-divider" />
-        {spaces.map((w) => (
-          <button
-            key={w.id}
-            className={`space-button ${workspaceId === w.id ? "active" : ""}`}
-            title={w.name}
-            aria-label={`Espace ${w.name}`}
-            onClick={() => {
-              setWorkspaceId(w.id);
-              setChannelId("");
-              setView("chat");
-            }}
-          >
-            {w.name.slice(0, 1)}
-          </button>
-        ))}
-        <button
-          className="space-add"
-          aria-label="Créer un espace"
-          onClick={() =>
-            setForm({
-              title: "Créer un espace",
-              fields: [{ key: "name", label: "Nom de l'espace" }],
-              save: async (d) => {
-                await api("/api/v1/workspaces", "POST", d);
-                await loadMe();
-              },
-            })
-          }
-        >
-          <Plus />
-        </button>
-        <span className="rail-bottom">LUMA</span>
-      </nav>
       {mobile && (
         <button
           className="sidebar-backdrop"
@@ -663,14 +738,36 @@ function App() {
           }}
         />
       )}
-      <aside className={`sidebar ${mobile ? "open" : ""}`}>
+      <aside
+        ref={sidebarRef}
+        id="workspace-navigation"
+        className={`sidebar ${mobile ? "open" : ""}`}
+        aria-label="Navigation de l’espace"
+      >
+        <div className="sidebar-brand">
+          <button onClick={() => navigate("home")} aria-label="Accueil Liora">
+            <img src="/brand/icon.svg" alt="" />
+            <strong>Liora</strong>
+            <span>BETA</span>
+          </button>
+          <button
+            className="icon-button sidebar-close"
+            aria-label="Fermer le menu"
+            onClick={() => {
+              setMobile(false);
+              menuTrigger.current?.focus();
+            }}
+          >
+            <X size={20} />
+          </button>
+        </div>
         <WorkspaceMenu
           workspace={workspace}
           spaces={spaces}
           select={(id) => {
             setWorkspaceId(id);
             setChannelId("");
-            setView("chat");
+            setView("home");
             setMobile(false);
           }}
           create={() =>
@@ -685,7 +782,7 @@ function App() {
                 );
                 await loadMe();
                 setWorkspaceId(r.data.id);
-                setView("chat");
+                setView("home");
               },
             })
           }
@@ -694,164 +791,40 @@ function App() {
             navigate("admin");
           }}
         />
-        <nav className="main-nav" aria-label="Navigation principale">
-          <button
-            className={view === "friends" ? "active" : ""}
-            onClick={() => navigate("friends")}
-          >
-            <Users size={18} />
-            Amis
-          </button>
-          <button
-            className={view === "notifications" ? "active" : ""}
-            onClick={() => navigate("notifications")}
-          >
-            <Bell />
-            Boîte de réception
-            {unread > 0 && <span className="count">{unread}</span>}
-          </button>
-          {can("VIEW_PROJECT") && (
-            <button
-              className={view === "projects" ? "active" : ""}
-              onClick={() => navigate("projects")}
-            >
-              <LayoutGrid />
-              Projets
-            </button>
-          )}
-          {can("VIEW_PAGES") && (
-            <button
-              className={view === "pages" ? "active" : ""}
-              onClick={() => navigate("pages")}
-            >
-              <FileText />
-              Pages de l'équipe
-            </button>
-          )}
-          {can("VIEW_MONITORING") && (
-            <button
-              className={view === "monitoring" ? "active" : ""}
-              onClick={() => navigate("monitoring")}
-            >
-              <Activity />
-              Supervision
-              <span className="tiny-dot" />
-            </button>
-          )}
-        </nav>
-        <nav className="secondary-nav" aria-label="Outils">
-          <button
-            className={view === "calendar" ? "active" : ""}
-            onClick={() => navigate("calendar")}
-            title="Calendrier"
-          >
-            <CalendarIcon size={16} />
-            <span>Calendrier</span>
-          </button>
-          <button
-            className={view === "reminders" ? "active" : ""}
-            onClick={() => navigate("reminders")}
-            title="Rappels"
-          >
-            <Bell size={16} />
-            <span>Rappels</span>
-          </button>
-          <button
-            className={view === "favorites" ? "active" : ""}
-            onClick={() => navigate("favorites")}
-            title="Favoris"
-          >
-            <Star size={16} />
-            <span>Favoris</span>
-          </button>
-          {can("MANAGE_MEMBERS") && (
-            <button
-              className={view === "members" ? "active" : ""}
-              onClick={() => navigate("members")}
-              title="Membres"
-            >
-              <Users size={16} />
-              <span>Membres</span>
-            </button>
-          )}
-          <button
-            className={view === "help" ? "active" : ""}
-            onClick={() => navigate("help")}
-            title="Aide"
-          >
-            <FileText size={16} />
-            <span>Aide</span>
-          </button>
-        </nav>
-        <div className="channel-index">
-          <div className="channel-filter">
-            <Search size={13} />
-            <input
-              id="channel-search"
-              aria-label="Filtrer les salons"
-              placeholder="Filtrer"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-          <div className="section-label">
-            <span>Salons de l’espace</span>
-            {can("CREATE_CHANNEL") && (
-              <button
-                className="icon-button"
-                aria-label="Créer un salon"
-                onClick={createChannel}
-              >
-                <Plus size={15} />
-              </button>
-            )}
-          </div>
-          {[...categories, { id: "", name: "SANS CATÉGORIE" } as Row].map(
-            (cat) => {
-              const items = channels.filter(
-                (c) =>
-                  (c.type !== "monitoring" || can("VIEW_MONITORING")) &&
-                  !c.archived &&
-                  (c.category_id || "") === cat.id &&
-                  c.name.toLowerCase().includes(query.toLowerCase()),
-              );
-              return items.length ? (
-                <section className="channel-group" key={cat.id}>
-                  <h3>
-                    <ChevronDown size={12} />
-                    {cat.name}
-                  </h3>
-                  {items.map((c) => (
-                    <button
-                      key={c.id}
-                      className={
-                        view === "chat" && channelId === c.id ? "active" : ""
-                      }
-                      onClick={() => {
-                        setChannelId(c.id);
-                        navigate("chat");
-                      }}
-                    >
-                      {c.is_private ? (
-                        <Lock size={16} />
-                      ) : c.type === "monitoring" ? (
-                        <Activity size={17} />
-                      ) : (
-                        <Hash size={17} />
-                      )}
-                      <span>{c.name}</span>
-                      {view === "chat" && channelId === c.id && (
-                        <span className="active-dot" />
-                      )}
-                    </button>
-                  ))}
-                </section>
-              ) : null;
-            },
-          )}
-          {!channels.length && (
-            <p className="muted padded">Créez votre premier salon.</p>
-          )}
+        <button
+          className="navigation-search"
+          onClick={() => setQuickSwitch(true)}
+        >
+          <Search size={17} />
+          <span>Aller à…</span>
+          <kbd>⌘ K</kbd>
+        </button>
+        <div className="navigation-scroll">
+          {["Mon espace", "Équipe", "Gestion", "Réglages"].map((group) => {
+            const items = navigation.filter(
+              (n) => n.group === group && navigationVisible(n, can),
+            );
+            return items.length ? (
+              <nav className="nav-group" key={group} aria-label={group}>
+                <h2>{group}</h2>
+                {items.map((n) => (
+                  <button
+                    key={n.id}
+                    aria-label={n.label}
+                    className={view === n.id ? "active" : ""}
+                    aria-current={view === n.id ? "page" : undefined}
+                    onClick={() => navigate(n.id)}
+                  >
+                    <n.icon size={18} />
+                    <span>{n.label}</span>
+                    {n.id === "notifications" && unread > 0 && (
+                      <span className="count">{unread}</span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            ) : null;
+          })}
         </div>
         <div className="sidebar-bottom">
           <div className="version-note">
@@ -884,7 +857,10 @@ function App() {
         <header className="topbar">
           <button
             className="icon-button menu-toggle"
+            ref={menuTrigger}
             aria-label="Ouvrir la navigation"
+            aria-expanded={mobile}
+            aria-controls="workspace-navigation"
             onClick={() => setMobile(!mobile)}
           >
             <PanelLeft />
@@ -897,6 +873,7 @@ function App() {
                 ? channel?.name || "Conversations"
                 : (
                     {
+                      home: "Accueil",
                       friends: "Amis",
                       help: "Aide et tutoriels",
                       projects: "Projets",
@@ -907,6 +884,7 @@ function App() {
                       monitoring: "Supervision",
                       members: "Membres",
                       notifications: "Boîte de réception",
+                      places: "Mes lieux",
                       admin: "Administration",
                       settings: "Préférences",
                       about: "À propos",
@@ -915,6 +893,15 @@ function App() {
             </strong>
           </div>
           <div className="topbar-right">
+            {view === "chat" && (
+              <button
+                className="channel-picker"
+                onClick={() => setChannelsOpen(true)}
+                aria-expanded={channelsOpen}
+              >
+                <Hash size={17} /> Salons
+              </button>
+            )}
             <button
               className="icon-button topbar-search"
               aria-label="Rechercher des messages"
@@ -929,8 +916,12 @@ function App() {
               {connection}
             </span>
             <span className="divider" />
-            <Users size={16} />
-            <span>{presence.length}</span>
+            <span
+              className="presence-indicator"
+              title="Membres actifs dans l’espace"
+            >
+              <Users size={16} /> {presence.length} en ligne
+            </span>
             <Avatar src={me!.avatar} name={me!.name} small />
           </div>
         </header>
@@ -940,8 +931,138 @@ function App() {
             <button onClick={() => setError("")}>Fermer</button>
           </div>
         )}
-        <main id="main" className={`content content-${view}`}>
+        <main id="main" tabIndex={-1} className={`content content-${view}`}>
+          {view === "chat" && (
+            <>
+              {channelsOpen && (
+                <button
+                  className="channels-backdrop"
+                  aria-label="Fermer le panneau des salons"
+                  onClick={() => setChannelsOpen(false)}
+                />
+              )}
+              <aside
+                className={`channel-index conversation-index ${channelsOpen ? "open" : ""}`}
+                aria-label="Salons et conversations"
+              >
+                <header className="conversation-index-heading">
+                  <h2>Conversations</h2>
+                  <button
+                    className="icon-button conversation-close"
+                    aria-label="Fermer les salons"
+                    onClick={() => setChannelsOpen(false)}
+                  >
+                    <X size={20} />
+                  </button>
+                </header>
+                {can("SEND_MESSAGE") && (
+                  <button
+                    className="new-conversation"
+                    onClick={createConversation}
+                  >
+                    <Plus size={16} /> Conversation privée
+                  </button>
+                )}
+                <div className="channel-filter">
+                  <Search size={13} />
+                  <input
+                    id="channel-search"
+                    aria-label="Filtrer les salons"
+                    placeholder="Trouver un salon…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+                <div className="section-label">
+                  <span>Salons de l’espace</span>
+                  {can("CREATE_CHANNEL") && (
+                    <button
+                      className="icon-button"
+                      aria-label="Créer un salon"
+                      onClick={createChannel}
+                    >
+                      <Plus size={15} />
+                    </button>
+                  )}
+                </div>
+                {[...categories, { id: "", name: "SANS CATÉGORIE" } as Row].map(
+                  (cat) => {
+                    const items = channels.filter(
+                      (c) =>
+                        (c.type !== "monitoring" || can("VIEW_MONITORING")) &&
+                        !c.archived &&
+                        (c.category_id || "") === cat.id &&
+                        c.name.toLowerCase().includes(query.toLowerCase()),
+                    );
+                    return items.length ? (
+                      <section className="channel-group" key={cat.id}>
+                        <h3>
+                          <ChevronDown size={12} />
+                          {cat.name}
+                        </h3>
+                        {items.map((c) => (
+                          <button
+                            key={c.id}
+                            className={
+                              view === "chat" && channelId === c.id
+                                ? "active"
+                                : ""
+                            }
+                            onClick={() => {
+                              setChannelId(c.id);
+                              navigate("chat");
+                            }}
+                          >
+                            {c.is_private ? (
+                              <Lock size={16} />
+                            ) : c.type === "monitoring" ? (
+                              <Activity size={17} />
+                            ) : (
+                              <Hash size={17} />
+                            )}
+                            <span>{c.name}</span>
+                            {view === "chat" && channelId === c.id && (
+                              <span className="active-dot" />
+                            )}
+                          </button>
+                        ))}
+                      </section>
+                    ) : null;
+                  },
+                )}
+                {query &&
+                  !channels.some(
+                    (c) =>
+                      !c.archived &&
+                      (c.type !== "monitoring" || can("VIEW_MONITORING")) &&
+                      c.name.toLowerCase().includes(query.toLowerCase()),
+                  ) && (
+                    <p className="muted padded">
+                      Aucun salon ne correspond à « {query} ».
+                    </p>
+                  )}
+                {!channels.length && (
+                  <p className="muted padded">Créez votre premier salon.</p>
+                )}
+              </aside>
+            </>
+          )}
+
           <RenderBoundary key={`${workspaceId}/${view}`}>
+            {view === "home" && (
+              <Home
+                base={base}
+                user={me!}
+                workspace={workspace}
+                channels={channels}
+                notifications={notifications}
+                revision={revision}
+                navigate={navigate}
+                openChannel={openChannel}
+                openResource={openResource}
+              />
+            )}
+
             {view === "chat" &&
               (channel ? (
                 <Chat
@@ -1031,33 +1152,7 @@ function App() {
               <Favorites
                 base={base}
                 revision={revision}
-                onNavigate={(row) => {
-                  if (
-                    row.target_type === "channel" ||
-                    row.target_type === "message"
-                  ) {
-                    setChannelId(
-                      row.target_type === "channel"
-                        ? row.target_id
-                        : row.channel_id,
-                    );
-                    setTargetMessage(
-                      row.target_type === "message" ? row.target_id : "",
-                    );
-                    navigate("chat");
-                  } else
-                    navigate(
-                      (
-                        {
-                          page: "pages",
-                          project: "projects",
-                          task: "projects",
-                          event: "calendar",
-                        } as Record<string, string>
-                      )[row.target_type],
-                    );
-                  setTargetResource(row);
-                }}
+                onNavigate={openResource}
                 fail={fail}
               />
             )}
@@ -1066,17 +1161,16 @@ function App() {
             )}
             {view === "friends" && (
               <Friends
-                base={base}
+                userId={me!.id}
                 workspace={workspaceId}
-                can={can}
                 revision={revision}
                 fail={fail}
-                open={(id) => {
-                  setChannelId(id);
-                  refresh();
-                  navigate("chat");
-                }}
               />
+            )}
+            {view === "places" && (
+              <Suspense fallback={<p role="status">Chargement de la carte…</p>}>
+                <Places />
+              </Suspense>
             )}
             {view === "help" && <Help />}
             {view === "monitoring" && can("VIEW_MONITORING") && (
@@ -1113,46 +1207,13 @@ function App() {
               />
             )}
             {view === "notifications" && (
-              <div className="page">
-                <header className="page-heading">
-                  <div>
-                    <h1>Votre boîte de réception</h1>
-                    <p>Les conversations et les signaux qui vous concernent.</p>
-                  </div>
-                  <span className="tag">{unread} non lues</span>
-                </header>
-                {!notifications.length ? (
-                  <Empty title="Vous êtes à jour">
-                    Les mentions, tâches attribuées et alertes apparaîtront ici.
-                  </Empty>
-                ) : (
-                  notifications.map((n) => (
-                    <article className={`notification ${n.state}`} key={n.id}>
-                      <Bell size={19} />
-                      <div>
-                        <strong>{n.title}</strong>
-                        <p>{n.body}</p>
-                        <small>
-                          {new Date(n.created_at).toLocaleString("fr-FR")}
-                        </small>
-                      </div>
-                      <button
-                        onClick={() =>
-                          void api(`${base}/notifications/${n.id}`, "PATCH", {
-                            state: n.state === "unread" ? "read" : "dismissed",
-                          })
-                            .then(refresh)
-                            .catch(fail)
-                        }
-                      >
-                        {n.state === "unread"
-                          ? "Marquer comme lue"
-                          : "Archiver"}
-                      </button>
-                    </article>
-                  ))
-                )}
-              </div>
+              <Inbox
+                openChannel={openChannel}
+                base={base}
+                notifications={notifications}
+                refresh={refresh}
+                fail={fail}
+              />
             )}
             {view === "about" && (
               <div className="page about">
@@ -1183,6 +1244,41 @@ function App() {
           </RenderBoundary>
         </main>
       </div>
+      <nav className="mobile-dock" aria-label="Navigation mobile">
+        {[
+          navigation[0],
+          ...(can("VIEW_CHANNEL") ? [navigation[4]] : []),
+          ...(can("VIEW_PROJECT") ? [navigation[5]] : []),
+          navigation[1],
+        ].map((n) => (
+          <button
+            key={n.id}
+            className={view === n.id ? "active" : ""}
+            aria-current={view === n.id ? "page" : undefined}
+            onClick={() => navigate(n.id)}
+          >
+            <n.icon size={20} />
+            <span>{n.id === "notifications" ? "Réception" : n.label}</span>
+            {n.id === "notifications" && unread > 0 && (
+              <span className="dock-count">{unread}</span>
+            )}
+          </button>
+        ))}
+        <button aria-expanded={mobile} onClick={() => setMobile((v) => !v)}>
+          <Menu size={20} />
+          <span>Menu</span>
+        </button>
+      </nav>
+      {quickSwitch && (
+        <QuickSwitch
+          channels={channels}
+          can={can}
+          navigate={navigate}
+          openChannel={openChannel}
+          search={() => setSearchMessages(true)}
+          close={() => setQuickSwitch(false)}
+        />
+      )}
       {form && (
         <FormDialog
           title={form.title}

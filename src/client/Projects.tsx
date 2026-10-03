@@ -1,5 +1,5 @@
 // src/client/Projects.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Plus,
   MoreHorizontal,
@@ -32,6 +32,13 @@ export function Projects({
   refresh: () => void;
   fail: (e: unknown) => void;
 }) {
+  const handledTarget = useRef("");
+  const [layout, setLayout] = useState("board"),
+    [priorityFilter, setPriorityFilter] = useState(""),
+    [assigneeFilter, setAssigneeFilter] = useState(""),
+    [dueFilter, setDueFilter] = useState(""),
+    [loading, setLoading] = useState(true),
+    [loadError, setLoadError] = useState("");
   const [showArchived, setShowArchived] = useState(false),
     [templates, setTemplates] = useState<Row[]>([]);
   const [projects, setProjects] = useState<Row[]>([]),
@@ -50,9 +57,13 @@ export function Projects({
     } | null>(null);
   useEffect(() => {
     let gone = false;
+    setLoading(true);
+    setLoadError("");
     Promise.all(
       ["projects", "boards", "columns", "tasks", "members"].map((r) =>
-        collection(`${base}/${r}`),
+        ["boards", "columns", "tasks"].includes(r) && !can("VIEW_BOARD")
+          ? Promise.resolve({ data: [] })
+          : collection(`${base}/${r}`),
       ),
     )
       .then(([p, b, c, t, m]) => {
@@ -72,39 +83,51 @@ export function Projects({
         setBoard((old) =>
           b.data.some((x) => x.id === old) ? old : b.data[0]?.id || "",
         );
-        if (initialTask) {
-          const target = t.data.find((x) => x.id === initialTask);
-          const col = c.data.find((x) => x.id === target?.column_id);
-          const targetBoard = b.data.find((x) => x.id === col?.board_id);
-          if (targetBoard) {
-            setBoard(targetBoard.id);
-            setProject(targetBoard.project_id || "");
-          }
-        }
         setSelected((old) =>
-          old
-            ? t.data.find((x) => x.id === old.id) || null
-            : t.data.find((x) => x.id === initialTask) || null,
+          old ? t.data.find((x) => x.id === old.id) || null : null,
         );
       })
-      .catch(fail);
+      .catch((e) => {
+        if (!gone) setLoadError(e.message);
+      })
+      .finally(() => {
+        if (!gone) setLoading(false);
+      });
     return () => {
       gone = true;
     };
   }, [base, revision]);
   useEffect(() => {
+    if (initialProject) setProject(initialProject);
+  }, [initialProject]);
+  useEffect(() => {
+    const key = `${base}/${initialTask}`;
+    if (!initialTask || handledTarget.current === key) return;
+    const t = tasks.find((t) => t.id === initialTask),
+      c = columns.find((c) => c.id === t?.column_id),
+      b = boards.find((b) => b.id === c?.board_id);
+    if (t && b) {
+      handledTarget.current = key;
+      setSelected(t);
+      setBoard(b.id);
+      setProject(b.project_id || "unassigned");
+    }
+  }, [base, initialTask, tasks, boards, columns]);
+  useEffect(() => {
+    if (!can("VIEW_BOARD")) return;
     void collection(`${base}/templates`)
       .then((r) => setTemplates(r.data))
       .catch(fail);
   }, [base, revision]);
   const activeProjects = projects.filter((p) => showArchived || !p.archived);
-  const projectId = activeProjects.some((p) => p.id === project)
-    ? project
-    : activeProjects[0]?.id || "";
+  const projectId =
+    project === "unassigned" || activeProjects.some((p) => p.id === project)
+      ? project
+      : activeProjects[0]?.id || "";
   const activeBoards = boards.filter(
     (b) =>
       (showArchived || !b.archived) &&
-      (!b.project_id || b.project_id === projectId),
+      b.project_id === (projectId === "unassigned" ? null : projectId || null),
   );
   const activeBoard =
     activeBoards.find((b) => b.id === board) || activeBoards[0];
@@ -134,18 +157,24 @@ export function Projects({
       save: async (d) => {
         const { template, ...rest } = d;
         const t = templates.find((t) => t.id === template);
-        await api(`${base}/${resource}`, "POST", {
-          ...(t
-            ? {
-                description: t.description,
-                checklist: t.checklist,
-                tags: t.tags,
-                priority: t.priority,
-              }
-            : {}),
-          ...extra,
-          ...rest,
-        });
+        const created = await api<{ data: Row }>(
+          `${base}/${resource}`,
+          "POST",
+          {
+            ...(t
+              ? {
+                  description: t.description,
+                  checklist: t.checklist,
+                  tags: t.tags,
+                  priority: t.priority,
+                }
+              : {}),
+            ...extra,
+            ...rest,
+          },
+        );
+        if (resource === "projects") setProject(created.data.id);
+        if (resource === "boards") setBoard(created.data.id);
         refresh();
       },
     });
@@ -171,8 +200,10 @@ export function Projects({
     <div className="page project-page">
       <header className="page-heading">
         <div>
-          <h1>Les idées prennent forme.</h1>
-          <p>Un prochain pas, puis un autre. Faites avancer vos projets.</p>
+          <h1>Projets</h1>
+          <p>
+            Organisez vos tâches et suivez leur progression dans vos tableaux.
+          </p>
         </div>
         {can("CREATE_PROJECT") && (
           <button
@@ -194,68 +225,103 @@ export function Projects({
           </button>
         )}
       </header>
-      <div className="section-toolbar">
-        <label className="check-line">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => setShowArchived(e.target.checked)}
-          />
-          Afficher les archives
-        </label>
-        {projectId && can("MANAGE_PROJECT") && (
-          <button
-            onClick={() => {
-              const p = projects.find((p) => p.id === projectId)!;
-              setForm({
-                title: "Réglages du projet",
-                fields: [
-                  { key: "name", label: "Nom", value: p.name },
-                  {
-                    key: "archived",
-                    label: "État",
-                    value: String(p.archived),
-                    options: [
-                      { value: "false", label: "Actif" },
-                      { value: "true", label: "Archivé" },
-                    ],
+      {loading && <p role="status">Chargement des projets…</p>}
+      {loadError && (
+        <p role="alert" className="error">
+          {loadError} <button onClick={refresh}>Réessayer</button>
+        </p>
+      )}
+      <details className="project-options">
+        <summary>Options du projet</summary>
+        <div className="section-toolbar">
+          <label className="check-line">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+            />
+            Afficher les archives
+          </label>
+          {projectId && projectId !== "unassigned" && can("MANAGE_PROJECT") && (
+            <button
+              onClick={() => {
+                const p = projects.find((p) => p.id === projectId)!;
+                setForm({
+                  title: "Réglages du projet",
+                  fields: [
+                    { key: "name", label: "Nom", value: p.name },
+                    {
+                      key: "description",
+                      label: "Description",
+                      type: "textarea",
+                      required: false,
+                      value: p.description,
+                    },
+                    {
+                      key: "archived",
+                      label: "État",
+                      value: String(p.archived),
+                      options: [
+                        { value: "false", label: "Actif" },
+                        { value: "true", label: "Archivé" },
+                      ],
+                    },
+                  ],
+                  save: async (d) => {
+                    await api(`${base}/projects/${p.id}`, "PATCH", {
+                      name: d.name,
+                      description: d.description,
+                      archived: d.archived === "true",
+                    });
+                    refresh();
                   },
-                ],
-                save: async (d) => {
-                  await api(`${base}/projects/${p.id}`, "PATCH", {
-                    name: d.name,
-                    archived: d.archived === "true",
-                  });
-                  refresh();
-                },
-              });
-            }}
-          >
-            Modifier le projet
-          </button>
-        )}
-        {projectId && can("MANAGE_PROJECT") && (
+                });
+              }}
+            >
+              Modifier le projet
+            </button>
+          )}
+          {projectId &&
+            projectId !== "unassigned" &&
+            can("MANAGE_PROJECT") &&
+            can("MANAGE_BOARD") &&
+            can("MANAGE_TASK") && (
+              <button
+                className="danger"
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Supprimer ce projet et ses données associées ? Cette action est définitive.",
+                    )
+                  )
+                    void api(`${base}/projects/${projectId}`, "DELETE")
+                      .then(refresh)
+                      .catch(fail);
+                }}
+              >
+                Supprimer le projet
+              </button>
+            )}
+        </div>
+      </details>
+      <div className="project-tabs" aria-label="Choisir un projet">
+        {boards.some((b) => !b.project_id && (showArchived || !b.archived)) && (
           <button
+            className={projectId === "unassigned" ? "active" : ""}
             onClick={() => {
-              if (
-                confirm(
-                  "Supprimer ce projet et ses données associées ? Cette action est définitive.",
-                )
-              )
-                void api(`${base}/projects/${projectId}`, "DELETE")
-                  .then(refresh)
-                  .catch(fail);
+              setProject("unassigned");
+              setBoard("");
             }}
           >
-            Supprimer le projet
+            Sans projet
           </button>
         )}
-      </div>
-      <div className="project-tabs">
         {activeProjects.map((p) => (
           <button
             key={p.id}
             className={projectId === p.id ? "active" : ""}
+            aria-label={p.name}
+            aria-pressed={projectId === p.id}
             onClick={() => {
               setProject(p.id);
               setBoard("");
@@ -267,12 +333,22 @@ export function Projects({
           </button>
         ))}
       </div>
-      {!activeProjects.length ? (
+      {!activeProjects.length && !boards.some((b) => !b.project_id) ? (
         <Empty title="Votre première idée mérite un projet">
           Créez un projet pour réunir vos boards et vos pages.
         </Empty>
       ) : (
         <>
+          <div className="project-context">
+            <h2>
+              {projects.find((p) => p.id === projectId)?.name ||
+                "Tableaux sans projet"}
+            </h2>
+            <p>
+              {projects.find((p) => p.id === projectId)?.description ||
+                "Un projet, plusieurs tableaux pour avancer ensemble."}
+            </p>
+          </div>
           <div className="board-toolbar">
             <select
               aria-label="Board"
@@ -298,7 +374,9 @@ export function Projects({
                     "boards",
                     "Nouveau board",
                     [{ key: "name", label: "Nom du board" }],
-                    { project_id: projectId },
+                    {
+                      project_id: projectId === "unassigned" ? null : projectId,
+                    },
                   )
                 }
               >
@@ -313,7 +391,16 @@ export function Projects({
                     "columns",
                     "Nouvelle colonne",
                     [{ key: "name", label: "Nom" }],
-                    { board_id: activeBoard.id, position: columns.length },
+                    {
+                      board_id: activeBoard.id,
+                      position:
+                        Math.max(
+                          -1,
+                          ...columns
+                            .filter((c) => c.board_id === activeBoard.id)
+                            .map((c) => c.position),
+                        ) + 1,
+                    },
                   )
                 }
               >
@@ -323,13 +410,26 @@ export function Projects({
             )}
           </div>
           {activeBoard && can("MANAGE_BOARD") && (
-            <div className="board-management">
+            <details className="board-management">
+              <summary>Options du tableau</summary>
               <button
                 onClick={() =>
                   setForm({
                     title: "Réglages du board",
                     fields: [
                       { key: "name", label: "Nom", value: activeBoard.name },
+                      {
+                        key: "project_id",
+                        label: "Projet",
+                        value: activeBoard.project_id || "",
+                        options: [
+                          { value: "", label: "Sans projet" },
+                          ...activeProjects.map((p) => ({
+                            value: p.id,
+                            label: p.name,
+                          })),
+                        ],
+                      },
                       {
                         key: "archived",
                         label: "État",
@@ -343,6 +443,7 @@ export function Projects({
                     save: async (d) => {
                       await api(`${base}/boards/${activeBoard.id}`, "PATCH", {
                         name: d.name,
+                        project_id: d.project_id || null,
                         archived: d.archived === "true",
                       });
                       refresh();
@@ -364,9 +465,73 @@ export function Projects({
               >
                 Supprimer le board
               </button>
-            </div>
+            </details>
           )}
-          <div className="kanban">
+          <div className="task-filters">
+            <div className="segmented">
+              <button
+                aria-pressed={layout === "board"}
+                onClick={() => setLayout("board")}
+              >
+                Tableau
+              </button>
+              <button
+                aria-pressed={layout === "list"}
+                onClick={() => setLayout("list")}
+              >
+                Liste
+              </button>
+            </div>
+            <select
+              aria-label="Filtrer par priorité"
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+            >
+              <option value="">Toutes les priorités</option>
+              <option value="urgent">Urgente</option>
+              <option value="high">Haute</option>
+              <option value="normal">Normale</option>
+              <option value="low">Basse</option>
+            </select>
+            <select
+              aria-label="Filtrer par responsable"
+              value={assigneeFilter}
+              onChange={(e) => setAssigneeFilter(e.target.value)}
+            >
+              <option value="">Tous les responsables</option>
+              <option value="unassigned">Sans responsable</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filtrer par échéance"
+              value={dueFilter}
+              onChange={(e) => setDueFilter(e.target.value)}
+            >
+              <option value="">Toutes les échéances</option>
+              <option value="late">En retard</option>
+              <option value="week">Dans les 7 jours</option>
+              <option value="none">Sans échéance</option>
+            </select>
+            {(filter || priorityFilter || assigneeFilter || dueFilter) && (
+              <button
+                onClick={() => {
+                  setFilter("");
+                  setPriorityFilter("");
+                  setAssigneeFilter("");
+                  setDueFilter("");
+                }}
+              >
+                Effacer les filtres
+              </button>
+            )}
+          </div>
+          <div
+            className={`kanban ${layout === "list" ? "task-list-view" : ""}`}
+          >
             {columns
               .filter((c) => c.board_id === activeBoard?.id)
               .map((c, index) => {
@@ -374,9 +539,23 @@ export function Projects({
                   .filter(
                     (t) =>
                       t.column_id === c.id &&
-                      `${t.title} ${t.tags.join(" ")}`
+                      `${t.title} ${t.description} ${t.tags.join(" ")}`
                         .toLowerCase()
-                        .includes(filter.toLowerCase()),
+                        .includes(filter.toLowerCase()) &&
+                      (!priorityFilter || t.priority === priorityFilter) &&
+                      (!assigneeFilter ||
+                        (assigneeFilter === "unassigned"
+                          ? !t.assignee
+                          : t.assignee === assigneeFilter)) &&
+                      (!dueFilter ||
+                        (dueFilter === "none"
+                          ? !t.due_at
+                          : !!t.due_at &&
+                            (dueFilter === "late"
+                              ? Date.parse(t.due_at) < Date.now()
+                              : Date.parse(t.due_at) >= Date.now() &&
+                                Date.parse(t.due_at) <=
+                                  Date.now() + 7 * 86400000))),
                   )
                   .sort((a, b) => a.position - b.position);
                 return (
@@ -413,7 +592,16 @@ export function Projects({
                                   required: false,
                                 },
                               ],
-                              { column_id: c.id, position: cards.length },
+                              {
+                                column_id: c.id,
+                                position:
+                                  Math.max(
+                                    -1,
+                                    ...tasks
+                                      .filter((t) => t.column_id === c.id)
+                                      .map((t) => t.position),
+                                  ) + 1,
+                              },
                             )
                           }
                         >
@@ -426,7 +614,11 @@ export function Projects({
                         <article
                           key={t.id}
                           className="task-card"
-                          draggable={can("MANAGE_TASK")}
+                          draggable={
+                            can("MANAGE_TASK") &&
+                            !activeBoard?.archived &&
+                            !projects.find((p) => p.id === projectId)?.archived
+                          }
                           onDragStart={(e) => {
                             e.dataTransfer.setData("text/plain", t.id);
                             e.dataTransfer.effectAllowed = "move";
@@ -494,7 +686,16 @@ export function Projects({
                             "tasks",
                             "Nouvelle tâche",
                             [{ key: "title", label: "Titre" }],
-                            { column_id: c.id, position: cards.length },
+                            {
+                              column_id: c.id,
+                              position:
+                                Math.max(
+                                  -1,
+                                  ...tasks
+                                    .filter((t) => t.column_id === c.id)
+                                    .map((t) => t.position),
+                                ) + 1,
+                            },
                           )
                         }
                       >

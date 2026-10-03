@@ -1,4 +1,50 @@
-# Validation — 0.4.7 BETA
+# Validation — 0.5.0 BETA
+
+## Recherche et ajout des lieux — correction 0.5.0 du 3 octobre 2026
+
+Qualification locale sur le serveur compilé, PostgreSQL jetable et Chrome headless/Puppeteer. Aucune donnée de la base personnelle modifiée, aucune nouvelle migration après 007.
+
+- `npm run check` : **54/54 tests**, TypeScript strict et build client/serveur/outils réussis. Sept tests du fournisseur couvrent localisation, tri/rayon/adresses, recherche nominative, réponses invalides, cache/requêtes simultanées, lieu inconnu et indisponibilité. Un test d’intégration vérifie authentification humaine, bornes des coordonnées, recherche sans écriture, cache et réutilisation du catalogue entre deux comptes.
+- `E2E_050_ONLY=1 npm run test:e2e` : réussi après compaction du formulaire. Aucune requête pendant la saisie ; recherche validée avec Entrée ; choix de résultat puis À essayer → Visité sans coordonnées ; notes/partage et rechargement ; ajout manuel par clic sur la carte et, sur mobile, par placement au centre ; position de navigateur simulée, recherche vide et indisponibilité contrôlée avec actions de reprise. Les autres parcours 0.5.0 restent inclus.
+- `npm run test:e2e` : non-régression complète réussie après ajout de la recherche, avant la dernière compaction CSS du panneau. La confirmation ciblée ci-dessus inclut les derniers changements. Les parcours PWA continuent d’exercer le service worker ; seul le parcours 0.5.0 le contourne côté Puppeteer pour intercepter les requêtes HTTP de recherche et injecter la panne contrôlée. Les autres erreurs réseau restent bloquantes.
+- Captures `050-search-*.png`, `050-place-mobile.png`, `050-add-*.png`, `050-map-*.png` dans `.impeccable/review/`, à **1440×1000 et 390×844**. Photon, tuiles et position GPS sont des fixtures explicitement synthétiques. La carte réelle, les permissions/localisations d’appareils physiques et le déploiement ne sont pas qualifiés par ces captures.
+- Essais API externes en lecture seule via le vrai proxy de recherche : « Burger King Rennes » renvoie cinq restaurants ; « Rennes » résout la ville et renvoie huit restaurants dans le rayon, dont Quai Lamennais et Boulevard de la Robiquette. Aucun ajout en base. Ces essais vérifient la réponse réelle de Photon au moment du test ; ils ne prouvent ni exhaustivité ni disponibilité permanente.
+- Revue de finition indépendante et fraîche après le retour utilisateur sur la modale : verdict **ship** sur le parcours recherche/ajout et les neuf captures requises, sans correction matérielle demandée. La recherche, les actions directes, le panneau manuel, l’adaptation mobile et les reprises d’erreur correspondent au contrat ; le contenu inférieur au viewport est une continuation défilante. Ce verdict porte sur cette correction, sans certification du GPS, des tuiles réelles ou d’un appareil physique.
+
+La recherche n’importe rien sans action explicite ; le catalogue peut être alimenté par un résultat choisi ou un ajout manuel. Les limites fournisseur, confidentialité, configuration et exploitation sont décrites dans [RELEASE_0.5.0.md](RELEASE_0.5.0.md). Le chunk carte est désormais ~170 Ko minifié, chargé séparément ; les avertissements Vite sur les chunks principal et emojis restent présents.
+
+## Espace personnel et refonte 0.5.0 — qualification initiale du 3 octobre 2026
+
+Qualification locale sur macOS, Node 24.19.0, PostgreSQL jetable et Chrome headless via Puppeteer. Le serveur et les assets compilés sont exercés avec Kyros de test. Les migrations 001–007 sont appliquées uniquement aux bases de qualification ; aucune migration de la base personnelle ou distante.
+
+- `npm run check` : **46/46 tests**, TypeScript strict et build client/serveur/outils réussis. Couverture supplémentaire du parseur français (ancrage, fuseaux, changements d’heure, plages et offsets), de la persistance et de l’idempotence des messages entre amis, des règles de partage des lieux, des thèmes et des droits/archives de projets.
+- `E2E_050_ONLY=1 npm run test:e2e` : réussi après les corrections. Saisie d’une date et reprise de son heure locale dans le formulaire d’événement ; ajout d’un lieu, passage À essayer → Visité, notes et rechargement ; message persistant vers un ami sans session ni espace commun ; historique après rechargement ; filtres/liste de projets et sélection après création d’un projet puis d’un tableau ; Agenda ; trois nouveaux univers, thème sombre et aperçus isolés ; aides des réglages ; accès aux outils personnels après retrait de l’espace.
+- `npm run test:e2e` : non-régression complète réussie sur le build final. Les parcours existants de collaboration, permissions, intégrations de test, persistance, calendrier/récurrences, favoris/rappels, PWA et mise à jour du service worker passent.
+- `E2E_UX_ONLY=1 npm run test:e2e` : réussi sur la 0.5.0 ; accueil, réception, commande rapide et navigation sur l’ensemble des écrans conservés.
+- Parcours et captures à **1440×1000 et 390×844**. Les captures `050-*.png` dans `.impeccable/review/`, ignorées par Git, utilisent des données de qualification. Les tuiles OSM sont remplacées par un fond portant « Fond simulé — test local » ; aucune qualification du fournisseur de tuiles réel ni du GPS.
+- Détecteur Impeccable exécuté une fois sur les nouvelles surfaces : **0 antipattern, 30 conseils** de documentation de tokens. Revue indépendante : cinq corrections demandées et appliquées en un lot (contraste des priorités, compacité des filtres, isolation des aperçus de thèmes, traits de sélection, marqueurs SVG). Verdict final **ship**, avec ces cinq points résolus ; portée limitée aux corrections examinées, sans certification générale d’accessibilité.
+- Prettier vérifié sur les fichiers modifiés ; `git diff --check` réussi. La carte est chargée séparément (~160 Ko minifié), le parseur importe la variante française et la dépendance inutilisée `date-fns` est retirée. Les avertissements Vite restent pour les chunks principal (~667 Ko) et emojis (~805 Ko) ; aucun résultat de performance sur appareil physique.
+
+Avant mise en service : sauvegarder puis appliquer **007_personal_space.sql**. Le catalogue de lieux est renseigné sur action explicite ; il ne contient pas automatiquement tous les Burger King. Les anciens messages utilisent UTC faute de fuseau historique, et les conversations personnelles ne fusionnent pas l’historique des anciens salons privés. Voir [RELEASE_0.5.0.md](RELEASE_0.5.0.md).
+
+Aucun déploiement, tag, publication ou restauration effectué dans ce lot. Kyros/DropIt réels, fournisseur push réel, fond de carte réel et appareils physiques restent hors de ces essais. Les résultats historiques suivants sont conservés avec leur version d’origine.
+
+## Refonte UX 0.4.9 — 3 octobre 2026
+
+Qualification locale sur macOS, Node 24.19.0, PostgreSQL jetable `liora_e2e` et Chrome headless via Puppeteer. Le serveur et les assets de production compilés sont exercés, pas uniquement le serveur Vite. Les identités Kyros, le consentement DropIt et les données de collaboration utilisent les fixtures locales.
+
+- `npm run check` : TypeScript strict, **38/38 tests** et build client/serveur/outils réussis. Un dernier `npm run build` a compilé les corrections de revue.
+- `npm run test:e2e` : réussi sur le build final. Login Kyros simulé, changements de permissions à chaud, accès privés/DMs, fils/épingles/recherche, deux sessions échangeant des messages, projets, édition/aperçu de pages, invitations, intégrations, six thèmes, persistance après redémarrage, calendrier/récurrences/favoris/rappels, retour hors ligne et mise à jour du service worker.
+- `E2E_UX_ONLY=1 npm run test:e2e` : réussi. Accueil alimenté par calendrier/rappels persistés, commande rapide ouverte au clavier et sélection avec Entrée, marquage des notifications en lot vérifié en DB, accès notification → salon réel. Navigation effective et contrôle de débordement sur accueil, conversations, projets, pages, calendrier, réception, rappels, favoris, amis, supervision, aide, préférences et administration à **1440×1000 et 390×844**. Fermeture clavier du menu mobile et choix de salon dans le panneau dédié.
+- Captures finales `ux-*.png` sous `.impeccable/review/`, ignorées par Git ; données explicitement de test. Inspection desktop/mobile en deux passes, filtre de pages mobile corrigé. Le hook Impeccable n’a relevé aucun problème déterministe sur `ux.css` et `Inbox.tsx` ; cela ne constitue pas un audit exhaustif d’accessibilité.
+- Revue indépendante du code et des captures : après correction, le verdict `ship` confirme la résolution des deux points listés (accès notification → conversation et filtre de pages mobile), sans certification exhaustive du produit.
+- Prettier vérifié sur tous les fichiers source modifiés ; `git diff --check` réussi. Le build signale encore des chunks supérieurs à 500 Ko, notamment le catalogue d’emojis chargé séparément. Aucun résultat de performance sur appareil physique n’est revendiqué.
+
+Le nouveau parcours d’accueil a nécessité l’adaptation des sélecteurs E2E qui supposaient un accès initial direct au chat. Le test hors ligne classe uniquement les 503 dont le service worker fournit effectivement `error.code=OFFLINE`, y compris leurs messages console différés au retour réseau. Les erreurs réseau inattendues restent bloquantes.
+
+Deux défauts corrigés pendant la qualification : import nu `chrono-node` laissé dans le build navigateur, et focus différé de navigation interrompant le début d’une saisie dans la seconde session. Le premier est désormais bundlé, le second conserve le focus d’un champ ou d’un dialogue déjà actif.
+
+Pas de migration SQL, déploiement, tag ni publication. Kyros/DropIt réels, réception push par un fournisseur réel et iPhone/Android physiques restent hors de ces essais. L’historique de qualification ci-dessous est conservé.
 
 ## Finalisation du jalon 0.4.0 — 25 septembre 2026
 

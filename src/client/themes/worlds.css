@@ -1,0 +1,163 @@
+/* Structural themes: typography, geometry, rhythm and surface treatment. */
+:root[data-theme="atelier"],
+.theme-preview[data-theme="atelier"] {
+  --bg: #f2efe6;
+  --surface: #faf8f2;
+  --surface-2: #eae5d9;
+  --side: #e8e3d7;
+  --text: #292a26;
+  --muted: #61645a;
+  --line: #c9c5b9;
+  --accent: #375844;
+  --accent-ink: #fffdf5;
+  --hover: #ded9cb;
+  --font-heading: Georgia, "Times New Roman", serif;
+  --font-meta: Georgia, serif;
+  --radius-control: 3px;
+  --radius-panel: 3px;
+  --radius-card: 2px;
+  --space-page: 34px;
+  --space-row: 18px;
+  --heading-weight: 500;
+  --danger: #9e2937;
+  --success: #29633e;
+  --warning: #805914;
+  color-scheme: light;
+}
+:root[data-theme="orbit"],
+.theme-preview[data-theme="orbit"] {
+  --bg: #eaf0f8;
+  --surface: #fff;
+  --surface-2: #f1f5fb;
+  --side: #f8faff;
+  --text: #202b42;
+  --muted: #596883;
+  --line: #cbd6e8;
+  --accent: #2d50c8;
+  --accent-ink: #fff;
+  --hover: #e3ebfa;
+  --radius-control: 18px;
+  --radius-panel: 22px;
+  --radius-card: 18px;
+  --space-page: 32px;
+  --space-row: 18px;
+  --panel-shadow: 0 6px 20px #2035600a;
+  --danger: #a12540;
+  --success: #206d43;
+  --warning: #815512;
+  color-scheme: light;
+}
+:root[data-theme="terminal"],
+.theme-preview[data-theme="terminal"] {
+  --bg: #111714;
+  --surface: #18211b;
+  --surface-2: #212c24;
+  --side: #141d17;
+  --text: #e3eee4;
+  --muted: #a4b7a7;
+  --line: #415648;
+  --accent: #b3e095;
+  --accent-ink: #15200f;
+  --hover: #2a3b2c;
+  --font-body: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-heading: var(--font-body);
+  --font-meta: var(--font-body);
+  --radius-control: 0px;
+  --radius-panel: 0px;
+  --radius-card: 0px;
+  --space-page: 24px;
+  --space-row: 12px;
+  --heading-weight: 650;
+  color-scheme: dark;
+}
+:root[data-theme="light"],
+:root[data-theme="dusk"] {
+  --danger: #a92d3d;
+  --success: #236b40;
+  --warning: #855e1b;
+}
+h1,
+h2,
+h3,
+.page-heading strong {
+  font-family: var(--font-heading);
+  font-weight: var(--heading-weight);
+}
+button,
+input,
+textarea,
+select,
+.button {
+  border-radius: var(--radius-control);
+}
+.page {
+  padding: var(--space-page);
+}
+.modal,
+.settings-panel,
+.home-section,
+.friends-section {
+  border-radius: var(--radius-panel);
+  box-shadow: var(--panel-shadow);
+}
+.task-card,
+.home-shortcut,
+.intro-card {
+  border-radius: var(--radius-card);
+}
+.error,
+.danger {
+  color: var(--danger);
+}
+:root[data-theme="atelier"] .page-heading {
+  border-bottom: 3px double var(--line);
+  padding-bottom: 22px;
+}
+:root[data-theme="atelier"] .sidebar-brand strong {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  letter-spacing: -0.5px;
+}
+:root[data-theme="atelier"] .task-card {
+  border-inline-start: 1px solid var(--accent);
+  box-shadow: none;
+}
+:root[data-theme="orbit"] .sidebar {
+  margin: 12px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  height: calc(100dvh - 24px);
+}
+:root[data-theme="orbit"] .global-nav button {
+  border-radius: 18px;
+}
+:root[data-theme="orbit"] .task-card {
+  padding: 18px;
+  box-shadow: var(--panel-shadow);
+}
+:root[data-theme="terminal"] .page-heading h1 {
+  letter-spacing: -1px;
+}
+:root[data-theme="terminal"] .global-nav button.active {
+  border-inline-start: 1px solid var(--accent);
+}
+:root[data-theme="terminal"] .task-card {
+  border-style: dashed;
+}
+:root[data-theme="terminal"] .calendar-day-header {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+@media (max-width: 760px) {
+  :root {
+    --space-page: 18px;
+  }
+  :root[data-theme="orbit"] .sidebar {
+    margin: 0;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .page {
+    padding: var(--space-page);
+  }
+}

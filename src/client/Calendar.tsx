@@ -44,7 +44,10 @@ export function Calendar({
     [month, setMonth] = useState(() => new Date()),
     [selected, setSelected] = useState<Row | null>(null),
     [search, setSearch] = useState(""),
-    [day, setDay] = useState("");
+    [day, setDay] = useState(""),
+    [mode, setMode] = useState(() =>
+      matchMedia("(max-width:760px)").matches ? "agenda" : "month",
+    );
   const [loading, setLoading] = useState(true),
     [error, setError] = useState("");
   const [form, setForm] = useState<{
@@ -115,7 +118,7 @@ export function Calendar({
           type: "datetime-local",
           value: event
             ? localDateTime(event.series_start_at || event.start_at, timezone)
-            : `${localKey(new Date())}T09:00`,
+            : `${day || localKey(new Date())}T09:00`,
         },
         {
           key: "end_at",
@@ -232,6 +235,30 @@ export function Calendar({
           </button>
         )}
       </header>
+      <div className="calendar-summary">
+        <strong>{filtered.length} rendez-vous ce mois-ci</strong>
+        <span>
+          {day
+            ? new Date(`${day}T12:00`).toLocaleDateString("fr-FR", {
+                dateStyle: "full",
+              })
+            : "Choisissez un jour ou parcourez l’agenda."}
+        </span>
+        <div className="segmented">
+          <button
+            aria-pressed={mode === "month"}
+            onClick={() => setMode("month")}
+          >
+            Mois
+          </button>
+          <button
+            aria-pressed={mode === "agenda"}
+            onClick={() => setMode("agenda")}
+          >
+            Agenda
+          </button>
+        </div>
+      </div>
       <div className="calendar-toolbar">
         <button
           aria-label="Mois précédent"
@@ -284,59 +311,73 @@ export function Calendar({
         <p role="status">Chargement du calendrier…</p>
       ) : (
         <>
-          <div className="calendar-grid">
-            {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
-              <div className="calendar-day-header" key={d}>
-                {d}
-              </div>
-            ))}
-            {Array.from({ length: first }, (_, i) => (
-              <div className="calendar-cell is-outside" key={`empty${i}`} />
-            ))}
-            {Array.from({ length: days }, (_, i) => {
-              const k = localKey(
-                  new Date(month.getFullYear(), month.getMonth(), i + 1),
-                ),
-                items = filtered.filter((e) => fallsOn(e, k));
-              return (
-                <div
-                  key={k}
-                  className={`calendar-cell${k === localKey(new Date()) ? " today" : ""}`}
-                >
-                  <button
-                    className="calendar-date"
-                    aria-label={`${i + 1} ${month.toLocaleDateString("fr-FR", { month: "long" })}, ${items.length} événement(s)`}
-                    onClick={() => setDay(day === k ? "" : k)}
-                    aria-pressed={day === k}
-                  >
-                    {i + 1}
-                    {items.length > 0 && (
-                      <span className="calendar-count"> · {items.length}</span>
-                    )}
-                  </button>
-                  {items.slice(0, 3).map((e) => (
-                    <button
-                      key={e.occurrence_id}
-                      className="calendar-event"
-                      onClick={() => setSelected(e)}
-                    >
-                      {e.title}
-                    </button>
-                  ))}
-                  {items.length > 3 && (
-                    <button className="calendar-more" onClick={() => setDay(k)}>
-                      Voir les {items.length} événements
-                    </button>
-                  )}
+          {mode === "month" && (
+            <div className="calendar-grid">
+              {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
+                <div className="calendar-day-header" key={d}>
+                  {d}
                 </div>
-              );
-            })}
-          </div>
+              ))}
+              {Array.from({ length: first }, (_, i) => (
+                <div className="calendar-cell is-outside" key={`empty${i}`} />
+              ))}
+              {Array.from({ length: days }, (_, i) => {
+                const k = localKey(
+                    new Date(month.getFullYear(), month.getMonth(), i + 1),
+                  ),
+                  items = filtered.filter((e) => fallsOn(e, k));
+                return (
+                  <div
+                    key={k}
+                    className={`calendar-cell${k === localKey(new Date()) ? " today" : ""}`}
+                  >
+                    <button
+                      className="calendar-date"
+                      aria-label={`${i + 1} ${month.toLocaleDateString("fr-FR", { month: "long" })}, ${items.length} événement(s)`}
+                      onClick={() => setDay(day === k ? "" : k)}
+                      aria-pressed={day === k}
+                    >
+                      {i + 1}
+                      {items.length > 0 && (
+                        <span className="calendar-count">
+                          {" "}
+                          · {items.length}
+                        </span>
+                      )}
+                    </button>
+                    {items.slice(0, 3).map((e) => (
+                      <button
+                        key={e.occurrence_id}
+                        className="calendar-event"
+                        onClick={() => setSelected(e)}
+                      >
+                        {e.title}
+                      </button>
+                    ))}
+                    {items.length > 3 && (
+                      <button
+                        className="calendar-more"
+                        onClick={() => setDay(k)}
+                      >
+                        Voir les {items.length} événements
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <section
             className="calendar-agenda"
             aria-label="Liste des événements"
           >
-            <h2>{day ? `Événements du ${day}` : "Événements du mois"}</h2>
+            <h2>
+              {day
+                ? new Date(`${day}T12:00`).toLocaleDateString("fr-FR", {
+                    dateStyle: "full",
+                  })
+                : "Votre agenda du mois"}
+            </h2>
             {day && (
               <button onClick={() => setDay("")}>Afficher tout le mois</button>
             )}

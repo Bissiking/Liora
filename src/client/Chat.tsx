@@ -20,6 +20,7 @@ import {
   Copy,
   FolderOpen,
   Terminal,
+  CalendarDays,
 } from "lucide-react";
 import { api, collection } from "./api";
 import type { Row, Result, User } from "./types";
@@ -33,8 +34,12 @@ import {
   replyPreview,
 } from "./MessageContent";
 import { EmojiPicker } from "./EmojiPicker";
-import { detectDateTimes, formatDateTimeForDisplay, formatDateOnlyForDisplay } from "../shared/date-detection.client";
-import { instantFromLocal } from "../shared/schedule";
+import {
+  detectDateTimes,
+  formatDateTimeForDisplay,
+  formatDateOnlyForDisplay,
+} from "../shared/date-detection.client";
+import { instantFromLocal, localDateTime } from "../shared/schedule";
 export function Chat({
   base,
   channel,
@@ -67,15 +72,20 @@ export function Chat({
     [access, setAccess] = useState(false);
   const [messages, setMessages] = useState<Row[]>([]),
     [draft, setDraft] = useState(""),
-    [detectedDates, setDetectedDates] = useState<Array<{
-      originalText: string;
-      start: Date;
-      end?: Date;
-    }>>([]),
-    [detectDebounce, setDetectDebounce] = useState<NodeJS.Timeout | null>(null),
+    [detectedDates, setDetectedDates] = useState<
+      Array<{
+        originalText: string;
+        start: Date;
+        end?: Date;
+        allDay?: boolean;
+        timezone?: string;
+      }>
+    >([]),
     [eventFromDate, setEventFromDate] = useState<{
       start: Date;
       end?: Date;
+      allDay?: boolean;
+      timezone?: string;
       originalText: string;
     } | null>(null),
     [busy, setBusy] = useState(false),
@@ -88,6 +98,13 @@ export function Chat({
     [members, setMembers] = useState<Row[]>([]),
     [mentionOpen, setMentionOpen] = useState(false),
     [attachments, setAttachments] = useState<Row[]>([]);
+  const detectDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (detectDebounce.current) clearTimeout(detectDebounce.current);
+    },
+    [channel.id],
+  );
   const end = useRef<HTMLDivElement>(null),
     scroll = useRef<HTMLDivElement>(null),
     textarea = useRef<HTMLTextAreaElement>(null),
@@ -154,10 +171,13 @@ export function Chat({
           }),
         );
         setDraft("");
+        setDetectedDates([]);
+        if (detectDebounce.current) clearTimeout(detectDebounce.current);
         return;
       }
       await api(`${base}/channels/${channel.id}/messages`, "POST", {
         content: encodeMentions(draft.trim(), members),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         reply_to: reply?.id || null,
         attachment_ids: attachments.map((a) => a.id),
       }).then((res: any) => {
@@ -443,11 +463,20 @@ export function Chat({
                   members={[...members, ...(m.mentions || [])]}
                   previews={user.preferences.linkPreviews !== false}
                   detectedDates={m.detectedDates || []}
-                  onDateClick={(d) => setEventFromDate({
-                    ...d,
-                    start: typeof d.start === 'string' ? new Date(d.start) : d.start,
-                    end: d.end && typeof d.end === 'string' ? new Date(d.end) : d.end,
-                  })}
+                  onDateClick={(d) =>
+                    can("CREATE_CALENDAR_EVENT") &&
+                    setEventFromDate({
+                      ...d,
+                      start:
+                        typeof d.start === "string"
+                          ? new Date(d.start)
+                          : d.start,
+                      end:
+                        d.end && typeof d.end === "string"
+                          ? new Date(d.end)
+                          : d.end,
+                    })
+                  }
                 />
                 <button className="thread-link" onClick={() => setThread(m)}>
                   <MessageSquare size={14} />
@@ -611,12 +640,12 @@ export function Chat({
                 onChange={(e) => {
                   const value = e.target.value;
                   setDraft(value);
-                  if (detectDebounce) clearTimeout(detectDebounce);
-                  const timeout = setTimeout(async () => {
-                    const dates = await detectDateTimes(value);
+                  if (detectDebounce.current)
+                    clearTimeout(detectDebounce.current);
+                  detectDebounce.current = setTimeout(() => {
+                    const dates = detectDateTimes(value);
                     setDetectedDates(dates);
                   }, 300);
-                  setDetectDebounce(timeout);
                 }}
                 onKeyDown={(e) => {
                   if (
@@ -638,20 +667,32 @@ export function Chat({
                         key={i}
                         type="button"
                         className="date-pill"
-                        onClick={() => setEventFromDate({
-                          ...d,
-                          start: typeof d.start === 'string' ? new Date(d.start) : d.start,
-                          end: d.end && typeof d.end === 'string' ? new Date(d.end) : d.end,
-                        })}
-                        aria-label={`Créer un événement pour ${formatDateTimeForDisplay(d.start)}`}
+                        disabled={!can("CREATE_CALENDAR_EVENT")}
+                        onClick={() =>
+                          setEventFromDate({
+                            ...d,
+                            start:
+                              typeof d.start === "string"
+                                ? new Date(d.start)
+                                : d.start,
+                            end:
+                              d.end && typeof d.end === "string"
+                                ? new Date(d.end)
+                                : d.end,
+                          })
+                        }
+                        aria-label={`Créer un événement pour ${d.allDay ? formatDateOnlyForDisplay(d.start, d.timezone) : formatDateTimeForDisplay(d.start, d.timezone)}`}
                       >
-                        <span className="date-pill-icon" aria-hidden="true">📅</span>
+                        <CalendarDays size={15} aria-hidden="true" />
                         <span className="date-pill-text">
-                          {formatDateTimeForDisplay(d.start)}
+                          {d.allDay
+                            ? formatDateOnlyForDisplay(d.start, d.timezone)
+                            : formatDateTimeForDisplay(d.start, d.timezone)}
                           {d.end &&
-                            ` – ${d.end.toLocaleTimeString("fr-FR", {
+                            ` – ${new Date(d.end).toLocaleTimeString("fr-FR", {
                               hour: "2-digit",
                               minute: "2-digit",
+                              timeZone: d.timezone,
                             })}`}
                         </span>
                       </button>
@@ -871,20 +912,36 @@ export function Chat({
               key: "start_at",
               label: "Début",
               type: "datetime-local",
-              value: eventFromDate.start.toISOString().slice(0, 16),
+              value: localDateTime(
+                eventFromDate.start,
+                eventFromDate.timezone ||
+                  Intl.DateTimeFormat().resolvedOptions().timeZone,
+              ),
             },
             {
               key: "end_at",
               label: "Fin (facultatif)",
               type: "datetime-local",
               required: false,
-              value: eventFromDate.end?.toISOString().slice(0, 16) || "",
+              value: eventFromDate.end
+                ? localDateTime(
+                    eventFromDate.end,
+                    eventFromDate.timezone ||
+                      Intl.DateTimeFormat().resolvedOptions().timeZone,
+                  )
+                : "",
             },
-            { key: "timezone", label: "Fuseau", value: Intl.DateTimeFormat().resolvedOptions().timeZone },
+            {
+              key: "timezone",
+              label: "Fuseau",
+              value:
+                eventFromDate.timezone ||
+                Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
             {
               key: "all_day",
               label: "Toute la journée",
-              value: "false",
+              value: eventFromDate.allDay ? "true" : "false",
               options: [
                 { value: "false", label: "Non" },
                 { value: "true", label: "Oui" },
@@ -917,7 +974,9 @@ export function Chat({
           ]}
           onSave={async (d) => {
             const allDay = d.all_day === "true";
-            const from = allDay ? `${d.start_at.slice(0, 10)}T00:00` : d.start_at;
+            const from = allDay
+              ? `${d.start_at.slice(0, 10)}T00:00`
+              : d.start_at;
             let to = d.end_at
               ? allDay
                 ? `${d.end_at.slice(0, 10)}T00:00`
@@ -936,7 +995,8 @@ export function Chat({
               timezone: d.timezone,
               all_day: allDay,
               recurrence: d.recurrence,
-              reminder_minutes: d.reminder_minutes === "" ? null : Number(d.reminder_minutes),
+              reminder_minutes:
+                d.reminder_minutes === "" ? null : Number(d.reminder_minutes),
             });
             setEventFromDate(null);
             setNotice("Événement créé dans le calendrier.");

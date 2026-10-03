@@ -20,7 +20,7 @@ Relier conversation, tâches et événements de l'écosystème dans des workspac
 
 ## Capabilities and Constraints
 
-Kyros SSO v4 authentifie uniquement. Autorisations locales, PostgreSQL obligatoire, bots et services distincts des humains, modules Jellyfin/demandes de médias désactivés. Les images et GIF partagés dans le chat disposent d’aperçus. Modules administrés en base, DropIt personnel, événements et règles filtrées. Calendrier récurrent, rappels effectifs, favoris, recherche filtrée et Web Push sur consentement complètent le lot expérience. Version courante 0.4.7 BETA ; historique dans CHANGELOG.md.
+Kyros SSO v4 authentifie uniquement. Autorisations locales, PostgreSQL obligatoire, bots et services distincts des humains, modules Jellyfin/demandes de médias désactivés. Les images et GIF partagés dans le chat disposent d’aperçus. Modules administrés en base, DropIt personnel, événements et règles filtrées. Calendrier récurrent, rappels effectifs, favoris, recherche filtrée et Web Push sur consentement complètent le lot expérience. Version courante 0.5.0 BETA ; historique dans CHANGELOG.md.
 
 ## Evidence on Hand
 
@@ -38,3 +38,7 @@ Interface française, clavier, focus visibles, mobile fonctionnel.
 
 Nom retenu par délégation : Liora (lumière et liaison). Alternatives : Nacre (moins orienté communication), Relio (plus générique), Atria (déjà courant). Disponibilité commerciale non vérifiée.
 Hypothèse de conception : usage fréquent sur ordinateur, navigation compacte et espace central calme.
+
+### Décision 0.5.0 — 3 octobre 2026
+
+Mes lieux et les messages entre amis sont personnels et accessibles sans espace. La carte suit à la fois les lieux à essayer et déjà visités ; notes privées, visites partagées sur choix explicite. Recherche libre d’enseignes, restaurants, campings, musées, villes et adresses ; catalogue commun alimenté par ajout manuel ou sélection explicite d’un résultat OpenStreetMap. Le type Burger King historique est conservé, les autres résultats utilisent Lieu libre. Les trois univers structurants prolongent Liora avec typographie/géométrie/rythme distincts. Projets, calendrier et réglages privilégient navigation contextualisée et aide au bon endroit.

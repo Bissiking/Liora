@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { randomBytes, createHmac } from "node:crypto";
 import pg from "pg";
 import { fakeKyros } from "./fixtures/kyros.js";
+import { fixturePlaces } from "./fixtures/places.js";
 import type { Server } from "node:http";
 process.env.NODE_ENV = "test";
 process.env.ARGOS_BASE_URL = "";
@@ -11,6 +12,7 @@ process.env.ARGUS_HEALTH_URL = "";
 process.env.VAPID_PUBLIC_KEY = "";
 process.env.VAPID_PRIVATE_KEY = "";
 process.env.VAPID_SUBJECT = "";
+process.env.PLACES_GEOCODER_URL = "http://127.0.0.1:14316/photon";
 const origin = "http://127.0.0.1:14310";
 process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ||
@@ -24,6 +26,7 @@ process.env.BOOTSTRAP_OWNER_KYROS_ID = "test-owner";
 process.env.KYROS_RESOURCE_AUDIENCE = "kyros:liora";
 process.env.KYROS_ISSUER = "";
 let server: Server,
+  placesProvider: Awaited<ReturnType<typeof fixturePlaces>>,
   provider: Awaited<ReturnType<typeof fakeKyros>>,
   db: typeof import("../src/server/db.js"),
   cookie = "",
@@ -89,6 +92,7 @@ before(async () => {
   await migrate();
   workspace = await seed();
   provider = await fakeKyros(14312, origin);
+  placesProvider = await fixturePlaces(14316);
   const { createApp, errorHandler } = await import("../src/server/app.js");
   const app = createApp();
   app.use(
@@ -114,6 +118,7 @@ after(async () => {
   await new Promise<void>((r) => server?.close(() => r()));
   await new Promise<void>((r) => provider?.server.close(() => r()));
   await db?.pool.end();
+  await placesProvider?.close();
 });
 test("Kyros PAR + PKCE login bootstraps only explicit owner, encrypted persistent session", async () => {
   const r = await call("/api/v1/me");
@@ -1949,6 +1954,394 @@ test("0.4 search filters preserve channel access and use dates and author", asyn
       )
     ).status,
     400,
+  );
+});
+test("0.5 personal messages persist offline without shared workspace and enforce privacy", async () => {
+  const owner = (await call("/api/v1/me")).body.data.id;
+  const pair = [owner, memberId].sort();
+  await db.query(
+    "INSERT INTO friendships(user_a,user_b) VALUES($1,$2) ON CONFLICT DO NOTHING",
+    pair,
+  );
+  const [membership] = await db.query(
+    "SELECT * FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+    [workspace, memberId],
+  );
+  const [original] = await db.query(
+    "SELECT status,preferences FROM users WHERE id=$1",
+    [memberId],
+  );
+  try {
+    await db.query(
+      "DELETE FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+      [workspace, memberId],
+    );
+    await db.query(
+      "UPDATE users SET status='invisible',preferences=jsonb_set(preferences,'{dmPolicy}','\"friends\"') WHERE id=$1",
+      [memberId],
+    );
+    const client_id = crypto.randomUUID(),
+      b = { content: "Un message qui attend ton retour", client_id };
+    const sent = await call(`/api/v1/friends/${memberId}/messages`, "POST", b);
+    assert.equal(sent.status, 201);
+    const retry = await call(`/api/v1/friends/${memberId}/messages`, "POST", b);
+    assert.equal(retry.body.data.id, sent.body.data.id);
+    assert.equal(
+      (
+        await call(`/api/v1/friends/${memberId}/messages`, "POST", {
+          ...b,
+          content: "Autre contenu",
+        })
+      ).status,
+      409,
+    );
+    const inbox = await call(
+      `/api/v1/friends/${owner}/messages`,
+      "GET",
+      undefined,
+      memberCookie,
+    );
+    assert.equal(inbox.status, 200);
+    assert.ok(inbox.body.data.some((m: any) => m.id === sent.body.data.id));
+    assert.ok(
+      (
+        await call("/api/v1/friends", "GET", undefined, memberCookie)
+      ).body.data.find((f: any) => f.id === owner).unread_count > 0,
+    );
+    assert.equal(
+      (
+        await call(
+          `/api/v1/friends/${owner}/messages/read`,
+          "POST",
+          { through: sent.body.data.id },
+          memberCookie,
+        )
+      ).status,
+      200,
+    );
+    assert.ok(
+      (await call(`/api/v1/friends/${memberId}/messages`)).body.data.find(
+        (m: any) => m.id === sent.body.data.id,
+      ).read_at,
+    );
+    await db.query(
+      "UPDATE users SET preferences=jsonb_set(preferences,'{dmPolicy}','\"nobody\"') WHERE id=$1",
+      [memberId],
+    );
+    assert.equal(
+      (
+        await call(`/api/v1/friends/${memberId}/messages`, "POST", {
+          content: "Bloqué",
+          client_id: crypto.randomUUID(),
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (await call(`/api/v1/friends/${crypto.randomUUID()}/messages`)).status,
+      403,
+    );
+    const bot = await call(`/api/v1/workspaces/${workspace}/accounts`, "POST", {
+      name: "Personal isolation",
+      kind: "bot",
+      permissions: ["VIEW_WORKSPACE"],
+    });
+    assert.equal(bot.status, 201);
+    assert.equal(
+      (
+        await call(
+          `/api/v1/friends/${memberId}/messages`,
+          "GET",
+          undefined,
+          "Bearer " + bot.body.token,
+        )
+      ).status,
+      403,
+    );
+  } finally {
+    await db.query("UPDATE users SET status=$2,preferences=$3 WHERE id=$1", [
+      memberId,
+      original.status,
+      JSON.stringify(original.preferences),
+    ]);
+    if (membership)
+      await db.query(
+        "INSERT INTO workspace_members(workspace_id,user_id,role_id,state) VALUES($1,$2,$3,$4)",
+        [workspace, memberId, membership.role_id, membership.state],
+      );
+  }
+});
+test("0.5 map entries are personal and visitor visibility never exposes private notes", async () => {
+  const owner = (await call("/api/v1/me")).body.data.id;
+  const created = await call("/api/v1/places", "POST", {
+    category: "burger-king",
+    name: "Burger King Test",
+    address: "Adresse synthétique",
+    latitude: 48.85,
+    longitude: 2.35,
+    entry: {
+      state: "wishlist",
+      notes: "secret propriétaire",
+      visibility: "private",
+    },
+  });
+  assert.equal(created.status, 201);
+  const id = created.body.data.id;
+  assert.equal(
+    (
+      await call(
+        `/api/v1/places/${id}/entry`,
+        "PUT",
+        {
+          state: "visited",
+          notes: "secret ami",
+          visibility: "private",
+          visited_on: "2026-10-03",
+        },
+        memberCookie,
+      )
+    ).status,
+    200,
+  );
+  assert.deepEqual((await call(`/api/v1/places/${id}/visitors`)).body.data, []);
+  let bounds = (
+    await call("/api/v1/places?south=48&north=49&west=2&east=3")
+  ).body.data.find((p: any) => p.id === id);
+  assert.equal(bounds.notes, "secret propriétaire");
+  assert.equal(bounds.state, "wishlist");
+  assert.equal(
+    (
+      await call(
+        `/api/v1/places/${id}/entry`,
+        "PUT",
+        {
+          state: "visited",
+          notes: "secret ami",
+          visibility: "friends",
+          visited_on: "2026-10-03",
+        },
+        memberCookie,
+      )
+    ).status,
+    200,
+  );
+  let visitors = (await call(`/api/v1/places/${id}/visitors`)).body.data;
+  assert.ok(visitors.some((v: any) => v.id === memberId));
+  assert.ok(
+    visitors.every((v: any) => !("notes" in v) && !("visited_on" in v)),
+  );
+  await db.query("DELETE FROM friendships WHERE user_a=$1 AND user_b=$2", [
+    ...[owner, memberId].sort(),
+  ]);
+  assert.deepEqual((await call(`/api/v1/places/${id}/visitors`)).body.data, []);
+  assert.equal(
+    (await call(`/api/v1/friends/${memberId}/messages`)).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(
+        `/api/v1/places/${id}/entry`,
+        "PUT",
+        { state: "visited", visibility: "community" },
+        memberCookie,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await call(`/api/v1/places/${id}/visitors`)).body.data[0].id,
+    memberId,
+  );
+  assert.equal(
+    (await call(`/api/v1/places/${id}/entry`, "DELETE")).status,
+    200,
+  );
+  assert.ok(
+    (
+      await call("/api/v1/places/mine", "GET", undefined, memberCookie)
+    ).body.data.some((p: any) => p.id === id),
+  );
+  assert.equal(
+    (
+      await call("/api/v1/places", "POST", {
+        category: "bad",
+        name: "Bad",
+        latitude: 99,
+        longitude: 2,
+        entry: { state: "visited" },
+      })
+    ).status,
+    400,
+  );
+});
+test("0.5 place discovery is human-only, bounded, read-only and cached", async () => {
+  const path = "/api/v1/places/search?q=MacDo&latitude=48.1&longitude=-1.6";
+  assert.equal((await call(path, "GET", undefined, "")).status, 401);
+  const bot = await call(`/api/v1/workspaces/${workspace}/accounts`, "POST", {
+    name: "Discovery guard",
+    kind: "bot",
+    permissions: ["VIEW_WORKSPACE", "VIEW_CHANNEL"],
+  });
+  assert.equal(bot.status, 201);
+  assert.equal(
+    (await call(path, "GET", undefined, `Bearer ${bot.body.token}`)).status,
+    403,
+  );
+  assert.equal(
+    (await call("/api/v1/places/search?q=Rennes&latitude=100&longitude=0"))
+      .status,
+    400,
+  );
+  const n = (await db.query("SELECT count(*) n FROM places"))[0].n;
+  const r = await call(path);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.length, 1);
+  assert.match(r.body.data[0].name, /McDonald's/);
+  assert.equal(r.body.data[0].category, "place");
+  assert.ok(
+    r.body.data.every(
+      (p: any) =>
+        p.id.startsWith("osm:") && !("notes" in p) && !("visibility" in p),
+    ),
+  );
+  assert.equal((await db.query("SELECT count(*) n FROM places"))[0].n, n);
+  assert.equal(placesProvider.calls.length, 1);
+  const repeated = await call(path);
+  assert.deepEqual(repeated.body, r.body);
+  assert.equal(placesProvider.calls.length, 1);
+  const p = r.body.data[0],
+    body = {
+      category: p.category,
+      name: p.name,
+      address: p.address,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      entry: { state: "wishlist" },
+    };
+  const a = await call("/api/v1/places", "POST", body),
+    b = await call("/api/v1/places", "POST", body, memberCookie);
+  assert.equal(a.status, 201);
+  assert.equal(b.status, 201);
+  assert.equal(a.body.data.id, b.body.data.id);
+  assert.equal(
+    (await db.query("SELECT count(*) n FROM places"))[0].n,
+    String(Number(n) + 1),
+  );
+});
+test("0.5 saved date suggestions remain anchored after reload", async () => {
+  const b = `/api/v1/workspaces/${workspace}`;
+  const r = await call(`${b}/channels/${channel}/messages`, "POST", {
+    content: "demain à 14h",
+    timezone: "Europe/Paris",
+  });
+  assert.equal(r.status, 201);
+  const first = r.body.detectedDates[0];
+  assert.equal(first.timezone, "Europe/Paris");
+  const reloaded = await call(`${b}/messages/${r.body.data.id}`);
+  assert.deepEqual(reloaded.body.data.detectedDates[0], first);
+  const model = (await call("/api/v1/me")).body.data;
+  for (const theme of ["atelier", "orbit", "terminal"])
+    assert.equal(
+      (
+        await call("/api/v1/me", "PATCH", {
+          name: model.name,
+          bio: model.bio,
+          status: model.status,
+          preferences: { ...model.preferences, theme },
+        })
+      ).status,
+      200,
+    );
+});
+test("0.5 project archive and column deletion enforce task permissions", async () => {
+  const b = `/api/v1/workspaces/${workspace}`;
+  const p = await call(`${b}/projects`, "POST", { name: "Archive test" });
+  assert.equal(p.status, 201);
+  const board = await call(`${b}/boards`, "POST", {
+    name: "Archive board",
+    project_id: p.body.data.id,
+  });
+  assert.equal(board.status, 201);
+  const col = await call(`${b}/columns`, "POST", {
+    name: "Archive column",
+    board_id: board.body.data.id,
+  });
+  assert.equal(col.status, 201);
+  const task = await call(`${b}/tasks`, "POST", {
+    title: "Keep me",
+    column_id: col.body.data.id,
+  });
+  assert.equal(task.status, 201);
+  assert.equal(
+    (await call(`${b}/projects/${p.body.data.id}`, "PATCH", { archived: true }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (
+      await call(`${b}/tasks`, "POST", {
+        title: "Forbidden in archive",
+        column_id: col.body.data.id,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await call(`${b}/boards`, "POST", {
+        name: "Forbidden in archive",
+        project_id: p.body.data.id,
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await call(`${b}/projects/${p.body.data.id}`, "PATCH", {
+        archived: false,
+      })
+    ).status,
+    200,
+  );
+  const [membership] = await db.query(
+    "SELECT role_id FROM workspace_members WHERE workspace_id=$1 AND user_id=$2",
+    [workspace, memberId],
+  );
+  const role = await call(`${b}/roles`, "POST", {
+    name: "Column manager only",
+    permissions: ["VIEW_WORKSPACE", "MANAGE_BOARD"],
+  });
+  assert.equal(role.status, 201);
+  try {
+    await db.query(
+      "UPDATE workspace_members SET role_id=$3 WHERE workspace_id=$1 AND user_id=$2",
+      [workspace, memberId, role.body.data.id],
+    );
+    assert.equal(
+      (
+        await call(
+          `${b}/columns/${col.body.data.id}`,
+          "DELETE",
+          undefined,
+          memberCookie,
+        )
+      ).status,
+      403,
+    );
+    assert.equal(
+      (await call(`${b}/tasks/${task.body.data.id}`)).body.data.id,
+      task.body.data.id,
+    );
+  } finally {
+    await db.query(
+      "UPDATE workspace_members SET role_id=$3 WHERE workspace_id=$1 AND user_id=$2",
+      [workspace, memberId, membership.role_id],
+    );
+  }
+  assert.equal(
+    (await call(`${b}/projects/${p.body.data.id}`, "DELETE")).status,
+    200,
   );
 });
 test("SSE delivers durable invalidations and session revocation closes access", async () => {

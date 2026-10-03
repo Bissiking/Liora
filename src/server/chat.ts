@@ -6,8 +6,12 @@ import { authorize, type Actor } from "./auth.js";
 import { assert } from "./errors.js";
 import { emit, audit } from "./events.js";
 import { channelAccess, granted, visibleChannel } from "./access.js";
+import { validTimezone } from "../shared/schedule.js";
 import emojiData from "emojibase-data/fr/data.json" with { type: "json" };
-import { detectDateTimes, type DetectedDateTime } from "../shared/date-detection.js";
+import {
+  detectDateTimes,
+  type DetectedDateTime,
+} from "../shared/date-detection.js";
 const nativeEmojis = new Set(
   emojiData
     .flatMap((e) => [e.emoji, ...(e.skins || []).map((s) => s.emoji)])
@@ -19,6 +23,7 @@ const body = z
     reply_to: z.uuid().nullable().optional(),
     thread_id: z.uuid().nullable().optional(),
     attachment_ids: z.array(z.uuid()).max(10).default([]),
+    timezone: z.string().max(80).refine(validTimezone).default("UTC"),
   })
   .strict();
 export async function sendMessage(
@@ -30,6 +35,7 @@ export async function sendMessage(
   db: DB,
   thread: string | null = null,
   attachments: string[] = [],
+  timezone = "UTC",
 ): Promise<{ message: any; detectedDates: DetectedDateTime[] }> {
   const [ch] = await query(
     "SELECT * FROM channels WHERE id=$1 AND workspace_id=$2 AND NOT archived",
@@ -93,7 +99,7 @@ export async function sendMessage(
     );
   }
   const [message] = await query(
-    "INSERT INTO messages(workspace_id,channel_id,user_id,technical_id,content,reply_to,thread_id,attachment_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
+    "INSERT INTO messages(workspace_id,channel_id,user_id,technical_id,content,reply_to,thread_id,attachment_ids,detection_timezone) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
     [
       workspace,
       channel,
@@ -103,6 +109,7 @@ export async function sendMessage(
       reply,
       thread,
       attachments,
+      timezone,
     ],
     db,
   );
@@ -134,7 +141,11 @@ export async function sendMessage(
     ],
     db,
   );
-  const detectedDates = detectDateTimes(content);
+  const detectedDates = detectDateTimes(
+    content,
+    new Date(message.created_at),
+    message.detection_timezone,
+  );
   return { message, detectedDates };
 }
 export const chatRouter = Router({ mergeParams: true });
@@ -170,7 +181,11 @@ chatRouter.get("/channels/:channel/messages", async (req, res) => {
           [workspace, ids],
         )
       : [];
-    row.detectedDates = detectDateTimes(row.content);
+    row.detectedDates = detectDateTimes(
+      row.content,
+      new Date(row.created_at),
+      row.detection_timezone,
+    );
   }
   res.json({
     data: rows.reverse(),
@@ -199,6 +214,7 @@ chatRouter.post("/channels/:channel/messages", async (req, res) => {
       db,
       input.thread_id ?? null,
       input.attachment_ids,
+      input.timezone,
     ),
   );
   res.status(201).json({
@@ -212,7 +228,12 @@ chatRouter.get("/messages/:id", async (req, res) => {
     "SELECT m.*,u.name author_name,u.avatar author_avatar,COALESCE((SELECT json_agg(json_build_object('emoji',r.emoji,'actor_id',r.actor_id)) FROM message_reactions r WHERE message_id=m.id),'[]') reactions FROM messages m LEFT JOIN users u ON u.id=m.user_id WHERE m.id=$1 AND m.workspace_id=$2",
     [req.params.id, w],
   );
-  if (m) m.detectedDates = detectDateTimes(m.content);
+  if (m)
+    m.detectedDates = detectDateTimes(
+      m.content,
+      new Date(m.created_at),
+      m.detection_timezone,
+    );
   res.json({ data: m });
 });
 chatRouter.patch("/messages/:id", async (req, res) => {
@@ -381,7 +402,11 @@ chatRouter.get("/search", async (req, res) => {
     ],
   );
   for (const row of rows) {
-    row.detectedDates = detectDateTimes(row.content);
+    row.detectedDates = detectDateTimes(
+      row.content,
+      new Date(row.created_at),
+      row.detection_timezone,
+    );
   }
   res.json({
     data: rows,

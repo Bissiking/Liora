@@ -1,20 +1,9 @@
 /* src/client/styles.css */
 :root {
-  font-family: "Manrope Variable", sans-serif;
-  color: #edf0eb;
-  background: #171d23;
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--bg);
   font-synthesis: none;
-  --bg: #171d23;
-  --surface: #20272e;
-  --surface-2: #272f37;
-  --side: #1c232a;
-  --text: #edf0eb;
-  --muted: #adb7bd;
-  --line: #343d45;
-  --accent: #b8dfb4;
-  --accent-ink: #213a26;
-  --hover: #303a42;
-  color-scheme: dark;
   font-size: 14px;
 }
 * {
@@ -163,7 +152,7 @@ a.primary {
 }
 button.primary:hover,
 a.primary:hover {
-  background: #cbe8c8;
+  background: var(--accent-hover);
 }
 .icon-button {
   border: 0;
@@ -844,7 +833,9 @@ a.primary:hover {
   color: var(--accent);
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .message-date-badge:hover {
   background: #354a3a;
@@ -925,7 +916,9 @@ a.primary:hover {
   color: var(--accent);
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 .date-pill:hover {
   background: #354a3a;
@@ -1229,7 +1222,7 @@ a.primary:hover {
 }
 .task-tags .priority.high,
 .task-tags .priority.urgent {
-  color: #edbc9e;
+  color: var(--warning);
 }
 .task-title {
   font-size: 13px;
@@ -2175,56 +2168,6 @@ dialog > header h2 {
 .sidebar-backdrop {
   display: none;
 }
-:root[data-theme="light"] {
-  color-scheme: light;
-  --bg: #f5f5ef;
-  --surface: #fff;
-  --surface-2: #e8ebe2;
-  --side: #eceee6;
-  --text: #26362d;
-  --muted: #57685d;
-  --line: #ced5c8;
-  --accent: #365f3d;
-  --accent-ink: #fff;
-  --hover: #dee5d8;
-  background: var(--bg);
-  color: var(--text);
-}
-[data-theme="light"] .message-text {
-  color: var(--text);
-}
-[data-theme="light"] .composer,
-[data-theme="light"] .task-card {
-  background: var(--surface);
-}
-[data-theme="light"] .kanban-column {
-  background: var(--side);
-}
-[data-theme="light"] .profile-button {
-  background: var(--surface-2);
-}
-[data-theme="light"] .active {
-  color: var(--accent) !important;
-  background: #dce8d7 !important;
-}
-[data-theme="light"] .dm-button {
-  background: var(--surface-2);
-  color: var(--text);
-}
-[data-theme="light"] .dm-button:hover {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
-}
-[data-theme="light"] .intro-symbol {
-  background: #dce8d7;
-}
-[data-theme="light"] .composer-footnote kbd {
-  color: var(--text);
-}
-[data-theme="light"] .about > img {
-  filter: brightness(0.35);
-}
 [data-density="compact"] .message {
   padding: 6px 0;
 }
@@ -2807,13 +2750,6 @@ dialog > header h2 {
   }
 }
 
-[data-theme="light"] button.primary:hover,
-[data-theme="light"] a.primary:hover {
-  background: #294c30;
-  border-color: #294c30;
-  color: #fff;
-}
-
 .status-label,
 .monitor-reading span,
 .monitor-target footer,
@@ -2976,45 +2912,6 @@ dialog > header h2 {
   width: auto;
 }
 /* Liora 0.2.1: collaboration, reading and the Crepuscule theme. */
-[data-theme="dusk"] {
-  --bg: #191a30;
-  --surface: #25263f;
-  --surface-2: #30314d;
-  --side: #202139;
-  --text: #f0edf9;
-  --muted: #bdb9d1;
-  --line: #45455f;
-  --accent: #d5bcff;
-  --accent-ink: #352548;
-  --hover: #393650;
-  color: var(--text);
-  background: var(--bg);
-  color-scheme: dark;
-}
-[data-theme="dusk"] .space-rail,
-[data-theme="dusk"] .topbar {
-  background: #151629;
-}
-[data-theme="dusk"] .space-button.active,
-[data-theme="dusk"] .primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-[data-theme="dusk"] .dm-button:hover {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
-}
-[data-theme="dusk"] .channel-group button.active,
-[data-theme="dusk"] .main-nav button.active,
-[data-theme="dusk"] .secondary-nav button.active {
-  background: #39304e;
-  color: #eadcff;
-}
-[data-theme="dusk"] .avatar {
-  background: #453c5b;
-  color: #eadcff;
-}
 .avatar img {
   width: 100%;
   height: 100%;
@@ -3572,17 +3469,6 @@ dialog > header h2 {
     flex-wrap: wrap;
   }
 }
-[data-theme="dusk"] .intro-symbol {
-  background: #39304e;
-  color: var(--accent);
-}
-[data-theme="dusk"] .send-button {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-[data-theme="dusk"] .primary:hover {
-  background: #e4d2ff;
-}
 
 @media (max-width: 700px) {
   .message {
@@ -3742,21 +3628,6 @@ dialog > header h2 {
 .calendar-cell.today {
   background: #1e2a25;
 }
-[data-theme="light"] .calendar-cell.today {
-  background: #e8f0e4;
-}
-[data-theme="dusk"] .calendar-cell.today {
-  background: #282545;
-}
-[data-theme="midnight"] .calendar-cell.today {
-  background: #1a1a3a;
-}
-[data-theme="forest"] .calendar-cell.today {
-  background: #1a2e1a;
-}
-[data-theme="ember"] .calendar-cell.today {
-  background: #2e1a1a;
-}
 .calendar-date {
   font-size: 12px;
   font-weight: 600;
@@ -3851,124 +3722,10 @@ dialog > header h2 {
 }
 
 /* 0.4: Thèmes avancés — Midnight */
-[data-theme="midnight"] {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-2: #1c2128;
-  --side: #0d1117;
-  --text: #e6edf3;
-  --muted: #7d8590;
-  --line: #30363d;
-  --accent: #58a6ff;
-  --accent-ink: #0d1117;
-  --hover: #21262d;
-  color: var(--text);
-  background: var(--bg);
-  color-scheme: dark;
-}
-[data-theme="midnight"] .space-rail,
-[data-theme="midnight"] .topbar {
-  background: #010409;
-}
-[data-theme="midnight"] .space-button.active,
-[data-theme="midnight"] .primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-[data-theme="midnight"] .channel-group button.active,
-[data-theme="midnight"] .main-nav button.active,
-[data-theme="midnight"] .secondary-nav button.active {
-  background: #1c2333;
-  color: #79c0ff;
-}
-[data-theme="midnight"] .avatar {
-  background: #1c2333;
-  color: #79c0ff;
-}
-[data-theme="midnight"] .intro-symbol {
-  background: #1c2333;
-  color: var(--accent);
-}
 
 /* 0.4: Thèmes avancés — Forest */
-[data-theme="forest"] {
-  --bg: #0f1a0f;
-  --surface: #162016;
-  --surface-2: #1c281c;
-  --side: #0f1a0f;
-  --text: #d4e8d4;
-  --muted: #7a9a7a;
-  --line: #2a3e2a;
-  --accent: #7dcea0;
-  --accent-ink: #0f1a0f;
-  --hover: #1e2e1e;
-  color: var(--text);
-  background: var(--bg);
-  color-scheme: dark;
-}
-[data-theme="forest"] .space-rail,
-[data-theme="forest"] .topbar {
-  background: #0a120a;
-}
-[data-theme="forest"] .space-button.active,
-[data-theme="forest"] .primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-[data-theme="forest"] .channel-group button.active,
-[data-theme="forest"] .main-nav button.active,
-[data-theme="forest"] .secondary-nav button.active {
-  background: #1e3020;
-  color: #a8e6b0;
-}
-[data-theme="forest"] .avatar {
-  background: #1e3020;
-  color: #a8e6b0;
-}
-[data-theme="forest"] .intro-symbol {
-  background: #1e3020;
-  color: var(--accent);
-}
 
 /* 0.4: Thèmes avancés — Ember */
-[data-theme="ember"] {
-  --bg: #1a0f0f;
-  --surface: #201616;
-  --surface-2: #281c1c;
-  --side: #1a0f0f;
-  --text: #e8d4d4;
-  --muted: #9a7a7a;
-  --line: #3e2a2a;
-  --accent: #e07060;
-  --accent-ink: #1a0f0f;
-  --hover: #2e1e1e;
-  color: var(--text);
-  background: var(--bg);
-  color-scheme: dark;
-}
-[data-theme="ember"] .space-rail,
-[data-theme="ember"] .topbar {
-  background: #120a0a;
-}
-[data-theme="ember"] .space-button.active,
-[data-theme="ember"] .primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-[data-theme="ember"] .channel-group button.active,
-[data-theme="ember"] .main-nav button.active,
-[data-theme="ember"] .secondary-nav button.active {
-  background: #301e1e;
-  color: #f0a898;
-}
-[data-theme="ember"] .avatar {
-  background: #301e1e;
-  color: #f0a898;
-}
-[data-theme="ember"] .intro-symbol {
-  background: #301e1e;
-  color: var(--accent);
-}
 
 /* 0.4: PWA / Offline indicator */
 .offline-banner {

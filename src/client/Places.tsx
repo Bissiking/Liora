@@ -28,7 +28,6 @@ type Place = PlaceSearchItem & {
 type Visitor = { id: string; name: string; avatar?: string };
 type Editor = {
   place?: Place;
-  category: string;
   name: string;
   address: string;
   latitude: string;
@@ -45,7 +44,6 @@ const coordinateKey = (p: Pick<Place, "latitude" | "longitude">) =>
 function editorFor(p?: Place): Editor {
   return {
     place: p,
-    category: p?.category || "place",
     name: p?.name || "",
     address: p?.address || "",
     latitude: p ? String(p.latitude) : "",
@@ -90,7 +88,6 @@ export function Places() {
     [mine, setMine] = useState<Place[]>([]),
     [selected, setSelected] = useState<Place | null>(null),
     [visitors, setVisitors] = useState<Visitor[]>([]),
-    [categories, setCategories] = useState<{ key: string; name: string }[]>([]),
     [filter, setFilter] = useState("all"),
     [query, setQuery] = useState(""),
     [collectionQuery, setCollectionQuery] = useState(""),
@@ -228,11 +225,6 @@ export function Places() {
       }
     });
     void load();
-    void api<{ data: { key: string; name: string }[] }>(
-      "/api/v1/places/categories",
-    )
-      .then((r) => setCategories(r.data))
-      .catch((e) => setError(e.message));
     const observer = new ResizeObserver(() => instance.invalidateSize());
     observer.observe(element.current);
     return () => {
@@ -1137,16 +1129,18 @@ export function Places() {
                   <span>
                     <strong>{p.name}</strong>
                     <small>{p.address || "Adresse non renseignée"}</small>
-                    {p.distance_m !== undefined && filter === "search" && lastSearch.current.nearby && (
-                      <small>
-                        {new Intl.NumberFormat("fr-FR", {
-                          maximumFractionDigits: 1,
-                        }).format(p.distance_m / 1000)}{" "}
-                        {lastSearch.current.nearby
-                          ? "km du centre recherché"
-                          : "km de la première correspondance"}
-                      </small>
-                    )}
+                    {p.distance_m !== undefined &&
+                      filter === "search" &&
+                      lastSearch.current.nearby && (
+                        <small>
+                          {new Intl.NumberFormat("fr-FR", {
+                            maximumFractionDigits: 1,
+                          }).format(p.distance_m / 1000)}{" "}
+                          {lastSearch.current.nearby
+                            ? "km du centre recherché"
+                            : "km de la première correspondance"}
+                        </small>
+                      )}
                   </span>
                   <small>
                     {p.state === "visited"

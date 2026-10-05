@@ -1,4 +1,5 @@
 // src/client/FriendMessenger.tsx
+import { Markdown, MarkdownToolbar } from "./Markdown";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Send, MessageSquare } from "lucide-react";
 import { api } from "./api";
@@ -29,7 +30,13 @@ export function FriendMessenger({
     [cursor, setCursor] = useState<string | null>(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [format, setFormat] = useState(false),
+    [preview, setPreview] = useState(false),
+    [olderBusy, setOlderBusy] = useState(false),
+    [newMessages, setNewMessages] = useState(false);
+  const follow = useRef(true);
+  const textarea = useRef<HTMLTextAreaElement>(null);
   const nonce = useRef({ content: "", id: "" }),
     bottom = useRef<HTMLDivElement>(null),
     active = useRef(true);
@@ -43,6 +50,7 @@ export function FriendMessenger({
       try {
         const r = await api<Page>(path);
         if (gone) return;
+        setError("");
         setMessages((old) =>
           [...new Map([...old, ...r.data].map((m) => [m.id, m])).values()].sort(
             (a, b) =>
@@ -76,7 +84,8 @@ export function FriendMessenger({
     };
   }, [path, userId]);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ block: "nearest" });
+    if (follow.current) bottom.current?.scrollIntoView({ block: "nearest" });
+    else setNewMessages(true);
   }, [messages.at(-1)?.id]);
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -95,7 +104,10 @@ export function FriendMessenger({
       setMessages((old) =>
         old.some((m) => m.id === r.data.id) ? old : [...old, r.data],
       );
+      follow.current = true;
+      setNewMessages(false);
       setDraft("");
+      setPreview(false);
       nonce.current = { content: "", id: "" };
       onRead();
     } catch (e) {
@@ -125,6 +137,11 @@ export function FriendMessenger({
       </header>
       <div
         className="friend-message-list"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          follow.current =
+            el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        }}
         aria-live="polite"
         aria-busy={loading}
       >
@@ -134,7 +151,9 @@ export function FriendMessenger({
           <>
             {cursor && (
               <button
+                disabled={olderBusy}
                 onClick={() => {
+                  setOlderBusy(true);
                   void api<Page>(`${path}?before=${cursor}`)
                     .then((r) => {
                       setMessages((old) => [
@@ -144,7 +163,8 @@ export function FriendMessenger({
                       ]);
                       setCursor(r.nextCursor);
                     })
-                    .catch((e) => setError(e.message));
+                    .catch((e) => setError(e.message))
+                    .finally(() => setOlderBusy(false));
                 }}
               >
                 Messages précédents
@@ -157,50 +177,121 @@ export function FriendMessenger({
                 <p>Votre ami peut vous répondre à sa prochaine connexion.</p>
               </div>
             )}
-            {messages.map((m) => (
-              <article
-                key={m.id}
-                className={`friend-bubble ${m.sender_id === userId ? "mine" : ""}`}
-              >
-                <p>{m.content}</p>
-                <small>
-                  <time dateTime={m.created_at}>
-                    {new Date(m.created_at).toLocaleString("fr-FR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
+            {messages.map((m, index) => (
+              <div className="friend-message-group" key={m.id}>
+                {(index === 0 ||
+                  new Date(messages[index - 1].created_at).toDateString() !==
+                    new Date(m.created_at).toDateString()) && (
+                  <p className="conversation-date">
+                    {new Date(m.created_at).toLocaleDateString("fr-FR", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
                     })}
-                  </time>
-                  {m.sender_id === userId
-                    ? ` · ${m.read_at ? "Lu" : "Envoyé"}`
-                    : ""}
-                </small>
-              </article>
+                  </p>
+                )}
+                <article
+                  key={m.id}
+                  className={`friend-bubble ${m.sender_id === userId ? "mine" : ""}`}
+                >
+                  <Markdown text={m.content} />
+                  <small>
+                    <time dateTime={m.created_at}>
+                      {new Date(m.created_at).toLocaleString("fr-FR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </time>
+                    {m.sender_id === userId
+                      ? ` · ${m.read_at ? "Lu" : "Envoyé"}`
+                      : ""}
+                  </small>
+                </article>
+              </div>
             ))}
           </>
         )}
         <div ref={bottom} />
       </div>
+      {newMessages && (
+        <button
+          className="conversation-new"
+          onClick={() => {
+            follow.current = true;
+            bottom.current?.scrollIntoView({ block: "nearest" });
+            setNewMessages(false);
+          }}
+        >
+          Aller au dernier message
+        </button>
+      )}
       {error && (
         <p role="alert" className="error">
           {error} Votre texte est conservé.
         </p>
       )}
       <form onSubmit={send}>
+        <div className="conversation-composer-modes">
+          <button
+            type="button"
+            aria-expanded={format}
+            onClick={() => {
+              setFormat(!format);
+              setPreview(false);
+            }}
+          >
+            Mettre en forme
+          </button>
+          <button
+            type="button"
+            aria-pressed={preview}
+            onClick={() => setPreview(!preview)}
+          >
+            {preview ? "Écrire" : "Aperçu"}
+          </button>
+        </div>
+        {format && !preview && (
+          <MarkdownToolbar
+            value={draft}
+            onChange={setDraft}
+            textareaRef={textarea}
+          />
+        )}
+        {preview && (
+          <div className="composer-preview">
+            <Markdown text={draft || "Votre aperçu apparaîtra ici."} />
+          </div>
+        )}
         <label className="visually-hidden" htmlFor="friend-draft">
           Message à {friend.name}
         </label>
         <textarea
           id="friend-draft"
+          ref={textarea}
+          hidden={preview}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              (e.ctrlKey || e.metaKey) &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder="Écrivez à votre ami…"
           value={draft}
           maxLength={8000}
           onChange={(e) => setDraft(e.target.value)}
           rows={2}
         />
-        <button className="primary" disabled={busy || !draft.trim()}>
-          <Send size={16} />
-          {busy ? "Envoi…" : "Envoyer"}
-        </button>
+        <div className="friend-send-row">
+          <small>Ctrl / ⌘ Entrée pour envoyer · Markdown disponible</small>
+          <button className="primary" disabled={busy || !draft.trim()}>
+            <Send size={16} />
+            {busy ? "Envoi…" : "Envoyer"}
+          </button>
+        </div>
       </form>
     </section>
   );

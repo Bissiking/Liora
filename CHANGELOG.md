@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.7.1 — BETA — 2026-10-05
+
+- BrainDump rejoint DropIt dans les intégrations configurables. URL, identifiant et clé chiffrée en base, test de capacités et consentement personnel pour les notes datées.
+- Connexion PKCE liée à la session, contrôle du même compte Kyros, renouvellement des jetons, révocation et retrait des copies privées. Aucun événement BrainDump publié dans les salons. Migration 011.
+- BrainDump mis à jour en 2.1.0 avec Applications connectées et API de délégation en lecture seule. [Guide](DOCS/RELEASE_0.7.1.md).
+
+## 0.7.0 — BETA — 2026-10-05
+
+- Paramètres d’intégration limités à DropIt ; autres fournisseurs masqués, aide et exemples adaptés.
+- Notes datées personnelles et lien BrainDump opt-in, identité Kyros vérifiée, copie conservée en cas d’indisponibilité.
+- Google Agenda Android/Web : connexion OAuth, événements Liora de l’auteur synchronisés dans les deux sens, conflits explicites et traitement des suppressions ; accès CalDAV distinct par appareil. Migration 010.
+- Thème enregistré dans le compte avec option de choix local au navigateur, sans écraser les autres préférences. Nouveau thème Lagune.
+- Amis : recherche/filtres, index et conversation côte à côte, dates et lecture, parcours mobile dédié.
+- Markdown et aperçu dans les conversations ; outils titres, soulignement sûr, citations, listes, code et tableaux.
+- [Configuration, périmètre et limites](DOCS/RELEASE_0.7.0.md).
+
+## 0.6.0 — BETA — 2026-10-05
+
+- Refonte Projets : index compact, tableaux contextualisés et filtres repliables ; Kanban plus lisible et actions de cartes/colonnes par clic droit, clavier ou bouton.
+- Carte : description Markdown éditable dans le dialogue, propriétés séparées, étapes, commentaires et fichiers/activité par onglets ; erreurs locales et brouillons conservés.
+- Markdown GFM : messages, conversations entre amis, descriptions, commentaires et blocs texte des pages ; outils d’écriture et aperçu dans les formulaires.
+- Pages d’équipe : ouverture en lecture, index avec dates, édition/aperçu/historique regroupés.
+- Supervision et données personnelles : recherche/états, latence min./moy./max. sur échantillons réels, comptes et services en lignes lisibles.
+- Gotify : activation personnelle, jeton chiffré, envoi générique, file transactionnelle avec droits/préférences réévalués, cinq essais, retry/cancel et test. Migration 009.
+- Avatar du compte Kyros synchronisé à la connexion et au refresh, proxy d’image local et surcharge locale conservée ; avatar retiré de topbar-right.
+- Catégories de sidebar et de salons repliables, état enregistré par compte.
+- Version 0.6.0 synchronisée. Qualification et limites dans DOCS/RELEASE_0.6.0.md. Aucun déploiement distant.
+
 ## 0.5.0 — BETA — 2026-10-03
 
 - Trois thèmes structurants : Atelier, Orbital et Terminal, avec catalogue et variables organisés.

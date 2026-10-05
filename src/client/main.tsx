@@ -40,7 +40,9 @@ import "./styles.css";
 import "./ux.css";
 import "./themes/index.css";
 import "./release-050.css";
-import { themeId } from "../shared/themes";
+import "./release-060.css";
+import "./release-070.css";
+import { deviceAppearance } from "./theme-preference";
 import { navigation, navigationVisible } from "./navigation";
 import { Home } from "./Home";
 import { QuickSwitch } from "./QuickSwitch";
@@ -57,6 +59,7 @@ import { WorkspaceMenu } from "./WorkspaceMenu";
 import { RenderBoundary } from "./RenderBoundary";
 import { Monitoring } from "./Monitoring";
 import { SearchMessages } from "./Collaboration";
+import { Notes } from "./Notes";
 import { Friends, Invitation } from "./Social";
 import { Help } from "./Help";
 import { Calendar } from "./Calendar";
@@ -70,6 +73,8 @@ const Places = lazy(() =>
   import("./Places").then((m) => ({ default: m.Places })),
 );
 function App() {
+  const [collapsedNavigation, setCollapsedNavigation] = useState<string[]>([]),
+    [collapsingNavigation, setCollapsingNavigation] = useState(false);
   const [pwaUpdate, setPwaUpdate] = useState(false);
   useEffect(() => {
     const ready = () => setPwaUpdate(true);
@@ -177,6 +182,42 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [mobile, channelsOpen]);
+  useEffect(() => {
+    setCollapsedNavigation(
+      Array.isArray(me?.preferences.collapsedNavigation)
+        ? (me.preferences.collapsedNavigation as string[])
+        : [],
+    );
+  }, [me]);
+  const collapse = async (key: string) => {
+    if (!me || collapsingNavigation) return;
+    setCollapsingNavigation(true);
+    const next = collapsedNavigation.includes(key)
+      ? collapsedNavigation.filter((k) => k !== key)
+      : [...collapsedNavigation, key];
+    setCollapsedNavigation(next);
+    try {
+      await api("/api/v1/me/navigation", "PATCH", {
+        collapsedNavigation: next,
+      });
+      setMe((current) =>
+        current
+          ? {
+              ...current,
+              preferences: {
+                ...current.preferences,
+                collapsedNavigation: next,
+              },
+            }
+          : current,
+      );
+    } catch (e) {
+      setCollapsedNavigation(collapsedNavigation);
+      fail(e);
+    } finally {
+      setCollapsingNavigation(false);
+    }
+  };
   const workspace = spaces.find((w) => w.id === workspaceId),
     base = `/api/v1/workspaces/${workspaceId}`,
     can = (p: string) => workspace?.permissions.includes(p) || false;
@@ -184,12 +225,27 @@ function App() {
     const open = () => {
       const params = new URLSearchParams(location.hash.slice(1));
       const id = params.get("workspace");
-      if (
-        params.get("view") === "notifications" &&
-        spaces.some((w) => w.id === id)
-      ) {
+      const destination = spaces.find((w) => w.id === id);
+      if (params.get("view") === "notifications" && destination) {
         setWorkspaceId(id!);
         setView("notifications");
+        history.replaceState(null, "", location.pathname);
+      } else if (
+        params.get("view") === "projects" &&
+        destination?.permissions.includes("VIEW_PROJECT")
+      ) {
+        setWorkspaceId(id!);
+        setView("projects");
+        const task = params.get("task"),
+          project = params.get("project"),
+          valid = (v: string | null) => !!v && /^[0-9a-f-]{36}$/i.test(v);
+        setTargetResource(
+          valid(task) && destination.permissions.includes("VIEW_BOARD")
+            ? ({ target_type: "task", target_id: task } as Row)
+            : valid(project)
+              ? ({ target_type: "project", target_id: project } as Row)
+              : null,
+        );
         history.replaceState(null, "", location.pathname);
       }
     };
@@ -201,6 +257,7 @@ function App() {
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "Connexion interrompue.");
   const loadMe = useCallback(async () => {
+    if (location.hash.startsWith("#google-calendar=")) setView("settings");
     try {
       const r = await api<{ data: User; workspaces: Workspace[] }>(
         "/api/v1/me",
@@ -236,13 +293,22 @@ function App() {
   useEffect(() => {
     if (!me) return;
     const prefs = me.preferences;
-    document.documentElement.dataset.theme = themeId(prefs.theme);
+    const applyTheme = () => {
+      document.documentElement.dataset.theme = deviceAppearance(me).theme;
+    };
+    applyTheme();
+    window.addEventListener("storage", applyTheme);
+    window.addEventListener("liora:appearance", applyTheme);
     document.documentElement.dataset.density = String(
       prefs.density || "comfortable",
     );
     document.documentElement.dataset.fontSize = String(
       prefs.fontSize || "normal",
     );
+    return () => {
+      window.removeEventListener("storage", applyTheme);
+      window.removeEventListener("liora:appearance", applyTheme);
+    };
   }, [me]);
   useEffect(() => {
     if (!me) return;
@@ -401,13 +467,25 @@ function App() {
       setView("home");
   }, [workspace, view]);
   useEffect(() => {
-    if (location.hash.startsWith("#connected=dropit")) {
+    if (
+      location.hash.startsWith("#connected=dropit") ||
+      location.hash.startsWith("#connected=braindump")
+    ) {
       const linkedWorkspace = new URLSearchParams(location.hash.slice(1)).get(
         "workspace",
       );
       if (linkedWorkspace) setWorkspaceId(linkedWorkspace);
-      setView("settings");
+      setView(
+        location.hash.startsWith("#connected=braindump") ? "notes" : "settings",
+      );
     }
+  }, []);
+  useEffect(() => {
+    const open = () => {
+      if (location.hash.startsWith("#connected=braindump")) setView("notes");
+    };
+    window.addEventListener("hashchange", open);
+    return () => window.removeEventListener("hashchange", open);
   }, []);
   const navigate = (v: string) => {
     setTargetResource(null);
@@ -587,6 +665,7 @@ function App() {
           <button onClick={() => navigate("home")}>Bienvenue</button>
           <button onClick={() => navigate("places")}>Mes lieux</button>
           <button onClick={() => navigate("friends")}>Amis</button>
+          <button onClick={() => navigate("notes")}>Notes datées</button>
           <button onClick={() => navigate("settings")}>Préférences</button>
           <button onClick={() => navigate("help")}>Aide</button>
         </nav>
@@ -594,6 +673,8 @@ function App() {
           <Suspense fallback={<p>Chargement de la carte…</p>}>
             <Places />
           </Suspense>
+        ) : view === "notes" ? (
+          <Notes />
         ) : view === "friends" ? (
           <Friends
             userId={me!.id}
@@ -806,22 +887,37 @@ function App() {
             );
             return items.length ? (
               <nav className="nav-group" key={group} aria-label={group}>
-                <h2>{group}</h2>
-                {items.map((n) => (
+                <h2>
                   <button
-                    key={n.id}
-                    aria-label={n.label}
-                    className={view === n.id ? "active" : ""}
-                    aria-current={view === n.id ? "page" : undefined}
-                    onClick={() => navigate(n.id)}
+                    className="nav-collapse"
+                    aria-expanded={!collapsedNavigation.includes(group)}
+                    aria-controls={`nav-${group.replaceAll(" ", "-")}`}
+                    onClick={() => void collapse(group)}
                   >
-                    <n.icon size={18} />
-                    <span>{n.label}</span>
-                    {n.id === "notifications" && unread > 0 && (
-                      <span className="count">{unread}</span>
-                    )}
+                    <span>{group}</span>
+                    <ChevronDown size={14} />
                   </button>
-                ))}
+                </h2>
+                <div
+                  id={`nav-${group.replaceAll(" ", "-")}`}
+                  hidden={collapsedNavigation.includes(group)}
+                >
+                  {items.map((n) => (
+                    <button
+                      key={n.id}
+                      aria-label={n.label}
+                      className={view === n.id ? "active" : ""}
+                      aria-current={view === n.id ? "page" : undefined}
+                      onClick={() => navigate(n.id)}
+                    >
+                      <n.icon size={18} />
+                      <span>{n.label}</span>
+                      {n.id === "notifications" && unread > 0 && (
+                        <span className="count">{unread}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </nav>
             ) : null;
           })}
@@ -874,6 +970,7 @@ function App() {
                 : (
                     {
                       home: "Accueil",
+                      notes: "Notes datées",
                       friends: "Amis",
                       help: "Aide et tutoriels",
                       projects: "Projets",
@@ -922,7 +1019,6 @@ function App() {
             >
               <Users size={16} /> {presence.length} en ligne
             </span>
-            <Avatar src={me!.avatar} name={me!.name} small />
           </div>
         </header>
         {error && (
@@ -997,35 +1093,59 @@ function App() {
                     return items.length ? (
                       <section className="channel-group" key={cat.id}>
                         <h3>
-                          <ChevronDown size={12} />
-                          {cat.name}
-                        </h3>
-                        {items.map((c) => (
                           <button
-                            key={c.id}
-                            className={
-                              view === "chat" && channelId === c.id
-                                ? "active"
-                                : ""
+                            className="nav-collapse"
+                            aria-expanded={
+                              !!query ||
+                              !collapsedNavigation.includes(
+                                `channel:${workspaceId}:${cat.id}`,
+                              )
                             }
-                            onClick={() => {
-                              setChannelId(c.id);
-                              navigate("chat");
-                            }}
+                            aria-controls={`channels-${cat.id || "other"}`}
+                            onClick={() =>
+                              void collapse(`channel:${workspaceId}:${cat.id}`)
+                            }
                           >
-                            {c.is_private ? (
-                              <Lock size={16} />
-                            ) : c.type === "monitoring" ? (
-                              <Activity size={17} />
-                            ) : (
-                              <Hash size={17} />
-                            )}
-                            <span>{c.name}</span>
-                            {view === "chat" && channelId === c.id && (
-                              <span className="active-dot" />
-                            )}
+                            <span>{cat.name}</span>
+                            <ChevronDown size={12} />
                           </button>
-                        ))}
+                        </h3>
+                        <div
+                          id={`channels-${cat.id || "other"}`}
+                          hidden={
+                            !query &&
+                            collapsedNavigation.includes(
+                              `channel:${workspaceId}:${cat.id}`,
+                            )
+                          }
+                        >
+                          {items.map((c) => (
+                            <button
+                              key={c.id}
+                              className={
+                                view === "chat" && channelId === c.id
+                                  ? "active"
+                                  : ""
+                              }
+                              onClick={() => {
+                                setChannelId(c.id);
+                                navigate("chat");
+                              }}
+                            >
+                              {c.is_private ? (
+                                <Lock size={16} />
+                              ) : c.type === "monitoring" ? (
+                                <Activity size={17} />
+                              ) : (
+                                <Hash size={17} />
+                              )}
+                              <span>{c.name}</span>
+                              {view === "chat" && channelId === c.id && (
+                                <span className="active-dot" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
                       </section>
                     ) : null;
                   },
@@ -1159,6 +1279,7 @@ function App() {
             {view === "members" && can("MANAGE_MEMBERS") && (
               <Members base={base} can={can} fail={fail} refresh={refresh} />
             )}
+            {view === "notes" && <Notes />}
             {view === "friends" && (
               <Friends
                 userId={me!.id}

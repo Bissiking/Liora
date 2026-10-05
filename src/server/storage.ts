@@ -9,6 +9,7 @@ import { authorize } from "./auth.js";
 import { assert } from "./errors.js";
 import { audit } from "./events.js";
 import { channelAccess, granted, visibleChannel } from "./access.js";
+import { fetchKyrosAvatar } from "./kyros-avatar.js";
 import { imageMime } from "./previews.js";
 export interface StorageProvider {
   put(key: string, data: Buffer): Promise<void>;
@@ -213,9 +214,24 @@ avatarRouter.post("/me/avatar", async (req, res) => {
 });
 avatarRouter.get("/avatars/:id", async (req, res) => {
   const [u] = await query(
-    "SELECT avatar_key,avatar_mime FROM users WHERE id=$1 AND NOT disabled",
+    "SELECT avatar_key,avatar_mime,kyros_avatar_url FROM users WHERE id=$1 AND NOT disabled",
     [z.uuid().parse(req.params.id)],
   );
-  assert(u?.avatar_key, 404, "NOT_FOUND", "Avatar introuvable.");
-  res.type(u.avatar_mime).send(await storage.get(u.avatar_key));
+  assert(
+    u && (u.avatar_key || u.kyros_avatar_url),
+    404,
+    "NOT_FOUND",
+    "Avatar introuvable.",
+  );
+  res.set("Cache-Control", "private, max-age=300");
+  if (u.avatar_key) {
+    res.type(u.avatar_mime).send(await storage.get(u.avatar_key));
+    return;
+  }
+  try {
+    const image = await fetchKyrosAvatar(u.kyros_avatar_url);
+    res.type(image.mime).send(image.bytes);
+  } catch {
+    res.status(404).end();
+  }
 });

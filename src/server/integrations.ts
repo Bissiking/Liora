@@ -20,7 +20,15 @@ const configSchema = z
 const schema = z
   .object({
     name: z.string().trim().min(1).max(80),
-    provider: z.enum(["dropit", "github", "nino", "narra", "argos", "generic"]),
+    provider: z.enum([
+      "dropit",
+      "braindump",
+      "github",
+      "nino",
+      "narra",
+      "argos",
+      "generic",
+    ]),
     config: configSchema,
     api_key: z
       .string()
@@ -28,9 +36,23 @@ const schema = z
       .max(4000)
       .regex(/^[!-~]+$/)
       .optional(),
-    channel_id: z.uuid(),
+    channel_id: z.uuid().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((b, ctx) => {
+    if (b.provider !== "braindump" && !b.channel_id)
+      ctx.addIssue({
+        code: "custom",
+        path: ["channel_id"],
+        message: "Choisissez un salon.",
+      });
+    if (b.provider === "braindump" && (!b.config.client_id || !b.api_key))
+      ctx.addIssue({
+        code: "custom",
+        path: ["api_key"],
+        message: "Identifiant et clé BrainDump requis.",
+      });
+  });
 const callback = () => `${process.env.APP_URL}/api/v1/integration-callback`;
 async function human(req: Request) {
   assert(
@@ -90,9 +112,13 @@ integrationRouter.post("/connectors", async (req, res) => {
   const w = await manage(req),
     b = schema.parse(req.body);
   await validateConfig(req, b.config);
-  await authorize(req.actor, w, "CREATE_WEBHOOK");
-  const ch = await channelAccess(req.actor, w, b.channel_id);
-  assert(!ch.is_dm, 403, "DM_PROTECTED", "Choisissez un salon d’équipe.");
+  let channelId: string | null = null;
+  if (b.provider !== "braindump") {
+    await authorize(req.actor, w, "CREATE_WEBHOOK");
+    const ch = await channelAccess(req.actor, w, b.channel_id!);
+    assert(!ch.is_dm, 403, "DM_PROTECTED", "Choisissez un salon d’équipe.");
+    channelId = ch.id;
+  }
   const raw = token(),
     signing = token();
   const data = await transaction(async (db) => {
@@ -107,32 +133,38 @@ integrationRouter.post("/connectors", async (req, res) => {
       ],
       db,
     );
-    const [t] = await query(
-      "INSERT INTO technical_accounts(workspace_id,name,kind) VALUES($1,$2,'service') RETURNING id",
-      [w, b.name],
-      db,
-    );
-    await query(
-      "INSERT INTO webhooks(workspace_id,channel_id,technical_id,name,token_hash,integration_id,hmac_secret,signature_mode) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
-      [
-        w,
-        ch.id,
-        t.id,
-        b.name,
-        hash(raw),
-        i.id,
-        await seal(signing),
-        b.provider === "github" ? "github" : "liora",
-      ],
-      db,
-    );
+    if (b.provider !== "braindump") {
+      const [t] = await query(
+        "INSERT INTO technical_accounts(workspace_id,name,kind) VALUES($1,$2,'service') RETURNING id",
+        [w, b.name],
+        db,
+      );
+      await query(
+        "INSERT INTO webhooks(workspace_id,channel_id,technical_id,name,token_hash,integration_id,hmac_secret,signature_mode) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        [
+          w,
+          channelId,
+          t.id,
+          b.name,
+          hash(raw),
+          i.id,
+          await seal(signing),
+          b.provider === "github" ? "github" : "liora",
+        ],
+        db,
+      );
+    }
     await audit(w, req.actor.id, "integration.created", i.id, db);
     return i;
   });
   res.status(201).json({
     data,
-    incoming_url: `${process.env.APP_URL}/api/webhooks/${raw}`,
-    signing_secret: signing,
+    ...(b.provider === "braindump"
+      ? {}
+      : {
+          incoming_url: `${process.env.APP_URL}/api/webhooks/${raw}`,
+          signing_secret: signing,
+        }),
   });
 });
 integrationRouter.patch("/connectors/:id", async (req, res) => {
@@ -190,6 +222,18 @@ integrationRouter.patch("/connectors/:id", async (req, res) => {
         [id],
         db,
       );
+      if (old.provider === "braindump") {
+        await query(
+          "DELETE FROM personal_notes WHERE source='braindump' AND user_id IN (SELECT user_id FROM braindump_connections WHERE integration_id=$1)",
+          [id],
+          db,
+        );
+        await query(
+          "UPDATE braindump_connections SET enabled=false,last_error=NULL WHERE integration_id=$1",
+          [id],
+          db,
+        );
+      }
     }
     await audit(w, req.actor.id, "integration.updated", id, db);
     await emit(w, "integrations.updated", req.actor.id, {}, db);
@@ -240,7 +284,7 @@ integrationRouter.post("/connectors/:id/test", async (req, res) => {
   try {
     const remote = await moduleRequest(
       i.config.base_url,
-      i.provider === "dropit"
+      ["dropit", "braindump"].includes(i.provider)
         ? "/api/integrations/capabilities"
         : i.provider === "github"
           ? "/user"
@@ -250,13 +294,22 @@ integrationRouter.post("/connectors/:id/test", async (req, res) => {
         allowPrivate: i.config.allow_private,
       },
     );
-    if (i.provider === "dropit")
+    if (["dropit", "braindump"].includes(i.provider))
       assert(
         remote.client_id === i.config.client_id &&
           remote.identity_issuer === getKyrosConfig().issuer,
         400,
         "CLIENT_MISMATCH",
-        "La clé ne correspond pas au client DropIt.",
+        "La clé ne correspond pas au client ou à l’émetteur Kyros du module.",
+      );
+    if (i.provider === "braindump")
+      assert(
+        remote.provider === "braindump" &&
+          remote.protocol_version === 1 &&
+          remote.scopes?.includes("notes:dated:read"),
+        400,
+        "INCOMPATIBLE_MODULE",
+        "BrainDump doit prendre en charge la lecture déléguée des notes datées.",
       );
     await query(
       "UPDATE integrations SET state='connected',last_error=NULL,last_checked_at=now() WHERE id=$1 AND revision=$2",
@@ -367,7 +420,7 @@ integrationRouter.get("/connections", async (req, res) => {
   await authorize(req.actor, w, "VIEW_WORKSPACE");
   res.json({
     data: await query(
-      "SELECT i.id,i.name,i.provider,i.enabled,i.state,EXISTS(SELECT 1 FROM integration_grants g WHERE g.integration_id=i.id AND g.user_id=$2) connected FROM integrations i WHERE i.workspace_id=$1 AND i.provider='dropit' ORDER BY i.name",
+      "SELECT i.id,i.name,i.provider,i.enabled,i.state,EXISTS(SELECT 1 FROM integration_grants g WHERE g.integration_id=i.id AND g.user_id=$2) connected FROM integrations i WHERE i.workspace_id=$1 AND i.provider IN ('dropit','braindump') ORDER BY i.name",
       [w, req.actor.id],
     ),
   });
@@ -377,14 +430,14 @@ integrationRouter.post("/connections/:id/start", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
   await authorize(req.actor, w, "VIEW_WORKSPACE");
   const [i] = await query(
-    "SELECT * FROM integrations WHERE id=$1 AND workspace_id=$2 AND enabled AND provider='dropit'",
+    "SELECT * FROM integrations WHERE id=$1 AND workspace_id=$2 AND enabled AND provider IN ('dropit','braindump')",
     [z.uuid().parse(req.params.id), w],
   );
   assert(
     i?.secret && i.config.client_id,
     409,
     "NOT_CONFIGURED",
-    "Un admin doit configurer et tester DropIt.",
+    "Un admin doit configurer et tester ce module.",
   );
   assert(
     i.state === "connected",
@@ -396,8 +449,15 @@ integrationRouter.post("/connections/:id/start", async (req, res) => {
     verifier = token();
   await query("DELETE FROM integration_attempts WHERE expires_at<now()");
   await query(
-    "INSERT INTO integration_attempts(id,user_id,integration_id,revision,verifier) VALUES($1,$2,$3,$4,$5)",
-    [hash(state), req.actor.id, i.id, i.revision, await seal(verifier)],
+    "INSERT INTO integration_attempts(id,user_id,integration_id,revision,verifier,session_id) VALUES($1,$2,$3,$4,$5,$6)",
+    [
+      hash(state),
+      req.actor.id,
+      i.id,
+      i.revision,
+      await seal(verifier),
+      req.actor.sessionId,
+    ],
   );
   const u = new URL(i.config.base_url + "/integrations/authorize");
   u.search = new URLSearchParams({
@@ -405,20 +465,32 @@ integrationRouter.post("/connections/:id/start", async (req, res) => {
     redirect_uri: callback(),
     state,
     code_challenge: createHash("sha256").update(verifier).digest("base64url"),
+    ...(i.provider === "braindump" ? { code_challenge_method: "S256" } : {}),
   }).toString();
   res.json({ url: u.toString() });
 });
-async function personal(req: Request, route: string, body?: unknown) {
+export async function personalModule(
+  req: Request,
+  id: string,
+  w: string,
+  provider: "dropit" | "braindump",
+  route: string,
+  body?: unknown,
+) {
   await human(req);
-  const w = z.uuid().parse(req.workspaceId);
   await authorize(req.actor, w, "VIEW_WORKSPACE");
   const access = await transaction(async (db) => {
     const [i] = await query(
-      "SELECT i.*,g.tokens,g.expires_at FROM integrations i JOIN integration_grants g ON g.integration_id=i.id WHERE i.id=$1 AND i.workspace_id=$2 AND i.enabled AND i.provider='dropit' AND g.user_id=$3 FOR UPDATE OF g",
-      [z.uuid().parse(req.params.id), w, req.actor.id],
+      "SELECT i.*,g.tokens,g.expires_at FROM integrations i JOIN integration_grants g ON g.integration_id=i.id WHERE i.id=$1 AND i.workspace_id=$2 AND i.enabled AND i.provider=$4 AND g.user_id=$3 FOR UPDATE OF g",
+      [id, w, req.actor.id, provider],
       db,
     );
-    assert(i, 409, "CONNECT_REQUIRED", "Connectez votre compte DropIt.");
+    assert(
+      i?.secret,
+      409,
+      "CONNECT_REQUIRED",
+      `Connectez votre compte ${provider === "dropit" ? "DropIt" : "BrainDump"}.`,
+    );
     let tokens = await unseal<any>(i.tokens);
     const key = await unseal<string>(i.secret);
     const options = { key, allowPrivate: i.config.allow_private };
@@ -442,7 +514,7 @@ async function personal(req: Request, route: string, body?: unknown) {
           tokens.expires_in <= 3600,
         502,
         "INVALID_TOKENS",
-        "Réponse de connexion DropIt invalide.",
+        "Réponse de connexion du module invalide.",
       );
       const [u] = await query(
         "SELECT kyros_user_id FROM users WHERE id=$1",
@@ -456,6 +528,13 @@ async function personal(req: Request, route: string, body?: unknown) {
         "IDENTITY_MISMATCH",
         "Compte distant différent.",
       );
+      if (provider === "braindump")
+        assert(
+          tokens.scope === "notes:dated:read",
+          502,
+          "INVALID_TOKENS",
+          "Portée de lecture BrainDump invalide.",
+        );
       await query(
         "UPDATE integration_grants SET tokens=$3,expires_at=$4 WHERE integration_id=$1 AND user_id=$2",
         [
@@ -469,10 +548,27 @@ async function personal(req: Request, route: string, body?: unknown) {
     }
     return {
       base: i.config.base_url,
-      options: { ...options, userToken: tokens.access_token },
+      options: {
+        ...options,
+        userToken: tokens.access_token,
+        userTokenHeader:
+          provider === "braindump"
+            ? ("x-braindump-user-token" as const)
+            : ("x-dropit-user-token" as const),
+      },
     };
   });
   return moduleRequest(access.base, route, { ...access.options, body });
+}
+async function personal(req: Request, route: string, body?: unknown) {
+  return personalModule(
+    req,
+    z.uuid().parse(req.params.id),
+    z.uuid().parse(req.workspaceId),
+    "dropit",
+    route,
+    body,
+  );
 }
 integrationRouter.get("/connections/:id/files", async (req, res) => {
   const after = z.string().max(200).optional().parse(req.query.after);
@@ -519,17 +615,38 @@ integrationRouter.delete("/connections/:id", async (req, res) => {
       "DELETE FROM integration_grants WHERE integration_id=$1 AND user_id=$2",
       [id, req.actor.id],
     );
+    if (i.provider === "braindump")
+      await transaction(async (db) => {
+        const rows = await query(
+          "UPDATE braindump_connections SET enabled=false,last_error=NULL WHERE user_id=$1 AND integration_id=$2 RETURNING user_id",
+          [req.actor.id, id],
+          db,
+        );
+        if (rows.length)
+          await query(
+            "DELETE FROM personal_notes WHERE user_id=$1 AND source='braindump'",
+            [req.actor.id],
+            db,
+          );
+      });
   }
   res.json({ ok: true });
 });
 export const integrationCallback = Router();
 integrationCallback.get("/integration-callback", async (req, res) => {
   await human(req);
-  const state = z.string().min(30).max(100).parse(req.query.state),
-    code = z.string().min(30).max(100).parse(req.query.code);
-  const connectedWorkspace = await transaction(async (db) => {
+  const state = z.string().min(30).max(100).parse(req.query.state);
+  if (req.query.error === "access_denied") {
+    await query(
+      "DELETE FROM integration_attempts WHERE id=$1 AND user_id=$2 AND session_id=$3",
+      [hash(state), req.actor.id, req.actor.sessionId],
+    );
+    return res.redirect("/#connected=braindump&error=access_denied");
+  }
+  const code = z.string().min(30).max(100).parse(req.query.code);
+  const connected = await transaction(async (db) => {
     const [a] = await query(
-      "SELECT a.*,i.config,i.secret,i.workspace_id,i.enabled,i.revision current_revision FROM integration_attempts a JOIN integrations i ON i.id=a.integration_id WHERE a.id=$1 AND a.user_id=$2 AND a.expires_at>now() FOR UPDATE OF a",
+      "SELECT a.*,i.provider,i.config,i.secret,i.workspace_id,i.enabled,i.revision current_revision FROM integration_attempts a JOIN integrations i ON i.id=a.integration_id WHERE a.id=$1 AND a.user_id=$2 AND a.expires_at>now() FOR UPDATE OF a,i",
       [hash(state), req.actor.id],
       db,
     );
@@ -538,6 +655,12 @@ integrationCallback.get("/integration-callback", async (req, res) => {
       400,
       "INVALID_ATTEMPT",
       "Connexion expirée ou configuration modifiée.",
+    );
+    assert(
+      a.provider !== "braindump" || a.session_id === req.actor.sessionId,
+      400,
+      "INVALID_ATTEMPT",
+      "Relancez la connexion depuis cette session Liora.",
     );
     await authorize(req.actor, a.workspace_id, "VIEW_WORKSPACE");
     const tokens = await moduleRequest(
@@ -564,7 +687,7 @@ integrationCallback.get("/integration-callback", async (req, res) => {
         tokens.identity_issuer === getKyrosConfig().issuer,
       403,
       "IDENTITY_MISMATCH",
-      "Connectez le même compte Kyros dans DropIt et Liora.",
+      "Connectez le même compte Kyros dans le module et Liora.",
     );
     assert(
       typeof tokens.access_token === "string" &&
@@ -576,6 +699,13 @@ integrationCallback.get("/integration-callback", async (req, res) => {
       "INVALID_MODULE",
       "Jetons distants invalides.",
     );
+    if (a.provider === "braindump")
+      assert(
+        tokens.scope === "notes:dated:read",
+        502,
+        "INVALID_SCOPE",
+        "Autorisation BrainDump incompatible.",
+      );
     await query(
       "INSERT INTO integration_grants(integration_id,user_id,subject,tokens,expires_at) VALUES($1,$2,$3,$4,$5) ON CONFLICT(integration_id,user_id) DO UPDATE SET subject=$3,tokens=$4,expires_at=$5",
       [
@@ -595,9 +725,12 @@ integrationCallback.get("/integration-callback", async (req, res) => {
       a.integration_id,
       db,
     );
-    return a.workspace_id;
+    return { workspace: a.workspace_id, provider: a.provider };
   });
   res.redirect(
-    "/#connected=dropit&workspace=" + encodeURIComponent(connectedWorkspace),
+    "/#connected=" +
+      encodeURIComponent(connected.provider) +
+      "&workspace=" +
+      encodeURIComponent(connected.workspace),
   );
 });

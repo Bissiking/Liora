@@ -119,7 +119,7 @@ export type User = {
   kyros_user_id: string;
   bio: string;
   status: string;
-  preferences: Record<string, string | boolean>;
+  preferences: Record<string, string | boolean | string[]>;
 };
 export type Workspace = {
   id: string;

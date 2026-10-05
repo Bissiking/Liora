@@ -8,6 +8,7 @@ import {
   Trash2,
   Star,
 } from "lucide-react";
+import { CalendarSync } from "./CalendarSync";
 import { api } from "./api";
 import { Empty, FormDialog, Modal, type Field } from "./ui";
 import type { Row, Result } from "./types";
@@ -235,6 +236,7 @@ export function Calendar({
           </button>
         )}
       </header>
+      <details className="calendar-sync-disclosure"><summary>Synchroniser mes agendas</summary><CalendarSync workspace={base.split("/").at(-1)}/></details>
       <div className="calendar-summary">
         <strong>{filtered.length} rendez-vous ce mois-ci</strong>
         <span>

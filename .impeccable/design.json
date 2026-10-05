@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-03T11:09:41.305317Z",
+  "generatedAt": "2026-10-05T14:57:00.961957Z",
   "title": "Design System: Liora",
   "extensions": {
     "colorMeta": {
@@ -491,6 +491,58 @@
       "dusk-warning": {
         "role": "neutral",
         "displayName": "Crépuscule · warning"
+      },
+      "lagoon-bg": {
+        "role": "neutral",
+        "displayName": "Lagune · bg"
+      },
+      "lagoon-surface": {
+        "role": "neutral",
+        "displayName": "Lagune · surface"
+      },
+      "lagoon-surface-2": {
+        "role": "neutral",
+        "displayName": "Lagune · surface-2"
+      },
+      "lagoon-side": {
+        "role": "neutral",
+        "displayName": "Lagune · side"
+      },
+      "lagoon-text": {
+        "role": "neutral",
+        "displayName": "Lagune · text"
+      },
+      "lagoon-muted": {
+        "role": "neutral",
+        "displayName": "Lagune · muted"
+      },
+      "lagoon-line": {
+        "role": "neutral",
+        "displayName": "Lagune · line"
+      },
+      "lagoon-accent": {
+        "role": "primary",
+        "displayName": "Lagune · accent"
+      },
+      "lagoon-accent-ink": {
+        "role": "primary",
+        "displayName": "Lagune · accent-ink"
+      },
+      "lagoon-hover": {
+        "role": "neutral",
+        "displayName": "Lagune · hover"
+      },
+      "lagoon-danger": {
+        "role": "neutral",
+        "displayName": "Lagune · danger"
+      },
+      "lagoon-success": {
+        "role": "neutral",
+        "displayName": "Lagune · success"
+      },
+      "lagoon-warning": {
+        "role": "neutral",
+        "displayName": "Lagune · warning"
       }
     },
     "typographyMeta": {
@@ -533,6 +585,10 @@
       "heading-default": {
         "displayName": "Poids de titre par défaut",
         "purpose": "Token 750, poids locaux plus spécifiques conservés."
+      },
+      "lagoon-heading": {
+        "displayName": "Titres Lagune",
+        "purpose": "Manrope, poids token 650 ; hiérarchie existante conservée."
       }
     },
     "shadows": [
@@ -549,7 +605,7 @@
       {
         "name": "orbit-panel",
         "value": "0 6px 20px #2035600a",
-        "purpose": "Panneaux et cartes Orbital."
+        "purpose": "Panneaux et cartes Orbital hors cartes de projet, dont release-060.css retire l’ombre."
       },
       {
         "name": "map-actions",
@@ -565,6 +621,16 @@
         "name": "settings-selection-strip",
         "value": "inset 1px 0 var(--accent)",
         "purpose": "Repère d’accent fin pour la rubrique des réglages sélectionnée."
+      },
+      {
+        "name": "task-dialog",
+        "value": "0 18px 70px #0007",
+        "purpose": "Dialogue de carte 0.6.0 ; cartes et colonnes de projet restent sans ombre."
+      },
+      {
+        "name": "context-menu",
+        "value": "0 10px 35px #0005",
+        "purpose": "Menu contextuel de carte ou colonne, borné au viewport."
       }
     ],
     "motion": [
@@ -659,7 +725,7 @@
       "name": "Galerie des univers",
       "kind": "custom",
       "refersTo": "theme-preview",
-      "description": "Miniature Atelier avec police et rayons isolés du monde actif. Les couleurs propres au choix sont intentionnelles.",
+      "description": "Dix choix dont Lagune ; miniature Atelier avec police et rayons isolés du monde actif. Les couleurs propres au choix sont intentionnelles.",
       "html": "<label class=\"ds-theme-choice\"><span class=\"ds-theme-preview\"><span class=\"ds-theme-preview-nav\"></span><span class=\"ds-theme-preview-content\"><strong>Aa</strong><span></span><span></span><i></i></span></span><input type=\"radio\" name=\"ds-theme\" checked><strong>Atelier</strong><small>Papier ivoire, titres sérif et lignes éditoriales.</small></label>",
       "css": ".ds-theme-choice{font-family:var(--font-body,\"Manrope Variable\",sans-serif);display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;padding:14px;border:1px solid var(--accent,#b8dfb4);outline:1px solid var(--accent,#b8dfb4);border-radius:var(--radius-panel,12px);color:var(--text,#edf0eb);background:var(--surface,#20272e);cursor:pointer;}.ds-theme-choice:hover{border-color:var(--accent,#b8dfb4);}.ds-theme-choice input{width:16px;accent-color:var(--accent,#b8dfb4);}.ds-theme-choice input:focus-visible{outline:2px solid var(--focus,var(--accent,#b8dfb4));outline-offset:3px;}.ds-theme-choice>strong{grid-column:2;}.ds-theme-choice>small{grid-column:1/-1;font-size:12px;line-height:1.5;color:var(--muted,#adb7bd);}.ds-theme-preview{--font-body:\"Manrope Variable\",sans-serif;--font-heading:Georgia,\"Times New Roman\",serif;--radius-control:3px;--radius-panel:3px;--radius-card:2px;grid-column:1/-1;display:flex;height:82px;overflow:hidden;border-radius:var(--radius-panel);font-family:var(--font-body);background:#f2efe6;color:#292a26;border:1px solid #c9c5b9;}.ds-theme-preview-nav{width:24%;background:#e8e3d7;border-right:1px solid #c9c5b9;}.ds-theme-preview-content{flex:1;padding:12px;display:grid;gap:4px;}.ds-theme-preview-content strong{font-family:var(--font-heading);font-size:20px;font-weight:500;line-height:1;}.ds-theme-preview-content>span{height:3px;background:#c9c5b9;width:75%;}.ds-theme-preview-content>span+span{width:50%;}.ds-theme-preview-content>i{background:#375844;width:28%;height:9px;border-radius:var(--radius-control);}"
     },
@@ -667,9 +733,9 @@
       "name": "Message entre amis",
       "kind": "card",
       "refersTo": "friend-message",
-      "description": "Bulle personnelle envoyée, distincte du transcript des salons.",
+      "description": "Bulle personnelle envoyée dans la conversation adjacente à l’index ; Markdown partagé et état écrit.",
       "html": "<article class=\"ds-friend-bubble\"><p>Je prépare le prochain rendez-vous.</p><small>03/10/2026 14:30 · Envoyé</small></article>",
-      "css": ".ds-friend-bubble{font-family:var(--font-body,\"Manrope Variable\",sans-serif);max-width:80%;background:var(--selection,color-mix(in srgb,var(--accent,#b8dfb4) 13%,var(--surface,#20272e)));color:var(--text,#edf0eb);padding:12px 16px;border:1px solid color-mix(in srgb,var(--accent,#b8dfb4) 35%,var(--line,#343d45));border-radius:var(--radius-card,9px);}.ds-friend-bubble p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 8px;line-height:1.7;font-size:14px;}.ds-friend-bubble small{font-size:10px;color:var(--muted,#adb7bd);}@media(max-width:760px){.ds-friend-bubble{max-width:90%;}}"
+      "css": ".ds-friend-bubble{font-family:var(--font-body,\"Manrope Variable\",sans-serif);max-width:min(85%,65ch);background:var(--selection,color-mix(in srgb,var(--accent,#b8dfb4) 13%,var(--surface,#20272e)));color:var(--text,#edf0eb);padding:12px 16px;border:0;border-radius:var(--radius-panel,12px);}.ds-friend-bubble p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 8px;line-height:1.65;font-size:14px;}.ds-friend-bubble small{font-size:10px;color:var(--muted,#adb7bd);}@media(max-width:760px){.ds-friend-bubble{max-width:92%;}}"
     },
     {
       "name": "Épingle de lieu visité",
@@ -686,20 +752,35 @@
       "description": "Navigation contextuelle avec bande de sélection de 1 px.",
       "html": "<nav aria-label=\"Préférences\"><button class=\"ds-setting-active\" aria-current=\"page\">Apparence</button></nav>",
       "css": ".ds-setting-active{font-family:var(--font-body,\"Manrope Variable\",sans-serif);font-size:12px;font-weight:600;padding:11px 12px;min-height:40px;width:100%;text-align:left;background:var(--selection,color-mix(in srgb,var(--accent,#b8dfb4) 13%,var(--surface,#20272e)));color:var(--text,#edf0eb);border:0;border-radius:var(--radius-control,7px);box-shadow:inset 1px 0 var(--accent,#b8dfb4);cursor:pointer;}.ds-setting-active:hover,.ds-setting-active:active{background:var(--selection,color-mix(in srgb,var(--accent,#b8dfb4) 13%,var(--surface,#20272e)));}.ds-setting-active:focus-visible{outline:2px solid var(--focus,var(--accent,#b8dfb4));outline-offset:3px;}@media(max-width:768px){.ds-setting-active{min-height:44px;}}"
+    },
+    {
+      "name": "Note datée · source BrainDump",
+      "kind": "custom",
+      "description": "Ligne de lecture avec date, source visible et Markdown ; les notes BrainDump n’exposent aucune action Modifier / Supprimer.",
+      "html": "<article class=\"ds-dated-note\"><time datetime=\"2026-10-05T08:00:00Z\">5 oct. 2026<small>10:00</small></time><div><div class=\"ds-note-heading\"><h2>Préparer la semaine</h2><span class=\"ds-note-source\">BrainDump</span></div><div class=\"ds-note-markdown\"><p>Relire les points de suivi.</p></div></div></article>",
+      "css": ".ds-dated-note{display:grid;grid-template-columns:100px minmax(0,1fr) auto;gap:22px;padding:24px 0;border-block-start:1px solid var(--line,#343d45);align-items:start;color:var(--text,#edf0eb);font:14px var(--font-body,\"Manrope Variable\",sans-serif)}.ds-dated-note time{font-size:12px;color:var(--muted,#adb7bd);font-variant-numeric:tabular-nums;padding-top:5px}.ds-dated-note time small{display:block;margin-top:6px}.ds-note-heading{display:flex;align-items:center;gap:12px;margin-bottom:12px}.ds-note-heading h2{margin:0;font-size:21px;overflow-wrap:anywhere}.ds-note-source{font-size:10px;font-weight:650;color:var(--muted,#adb7bd);border:1px solid var(--line,#343d45);padding:5px 9px;border-radius:5px;white-space:nowrap}.ds-note-markdown{max-width:75ch;line-height:1.7}.ds-note-markdown p{margin:0}@media(max-width:760px){.ds-dated-note{grid-template-columns:minmax(0,1fr) auto;gap:10px}.ds-dated-note time{grid-column:1/-1;display:flex;gap:8px}.ds-dated-note time small{margin:0}.ds-note-heading{align-items:start;flex-wrap:wrap;gap:6px}.ds-note-heading h2{font-size:19px}}"
     }
   ],
   "narrative": {
     "northStar": "Le poste de travail LUMA",
-    "overview": "Le poste de travail LUMA conserve la sidebar et les index contextuels de 0.4.9. La 0.5.0 ajoute trois univers construits : Atelier (Georgia, ivoire et angles fins), Orbital (cobalt, surfaces arrondies et ombre légère), Terminal (monospace et angles droits). Six palettes classiques demeurent. La galerie isole explicitement couleurs, polices et rayons de chaque miniature.\n\nCascade : styles.css, ux.css, themes/index.css puis release-050.css. Réglages guidés, messagerie personnelle et carte/collection réutilisent les tokens ; les sélections de réglages utilisent un trait de 1 px, les priorités warning et les marqueurs des SVG. Captures 050 locales avec tuiles synthétiques, sans certification OSM/GPS. Détecteur exécuté une fois, 0 antipattern et 30 avis de documentation ; verdict ship limité aux cinq corrections examinées.\n\nSuivi Mes lieux : recherche libre d’enseignes, lieux, villes et adresses, au plus 20 résultats dans l’ordre fournisseur, sans rayon systématique ; villes et adresses elles-mêmes enregistrables. MacDo/McDo/McDonalds deviennent McDonald’s. Autour de moi et zone affichée utilisent le texte courant ou restaurant si vide, avec proximité 15 km maximum, tri par distance et distances affichées uniquement dans ce mode. Résultat puis À essayer/Visité directement. Ajout manuel dans un panneau, emplacement cliqué/déplaçable ou centre clavier, nom sans choix de type ; Burger King historique conservé par le nom, autres lieux Lieu libre. Date pour Visité uniquement, notes/partage et coordonnées avancées repliés, suivi privé par défaut. Pied sticky et panneau avant carte sur mobile. Revue ship sans correction matérielle sur sept captures examinées, avec tuiles synthétiques et fixtures Photon. MacDo Rennes et Camping Rennes ont séparément renvoyé 20 résultats réels chacun en lecture seule, sans écriture en base ni certification géographique globale.",
+    "overview": "Le poste de travail LUMA conserve la sidebar et les index contextuels de 0.4.9. La 0.5.0 ajoute trois univers construits : Atelier (Georgia, ivoire et angles fins), Orbital (cobalt, surfaces arrondies et ombre légère), Terminal (monospace et angles droits). Six palettes classiques demeurent. La galerie isole explicitement couleurs, polices et rayons de chaque miniature.\n\nCascade actuelle : styles.css, ux.css, themes/index.css, release-050.css, release-060.css puis release-070.css. Réglages guidés, messagerie personnelle et carte/collection réutilisent les tokens ; les sélections de réglages utilisent un trait de 1 px, les priorités warning et les marqueurs des SVG. Captures 050 locales avec tuiles synthétiques, sans certification OSM/GPS. Détecteur exécuté une fois, 0 antipattern et 30 avis de documentation ; verdict ship limité aux cinq corrections examinées.\n\nSuivi Mes lieux : recherche libre d’enseignes, lieux, villes et adresses, au plus 20 résultats dans l’ordre fournisseur, sans rayon systématique ; villes et adresses elles-mêmes enregistrables. MacDo/McDo/McDonalds deviennent McDonald’s. Autour de moi et zone affichée utilisent le texte courant ou restaurant si vide, avec proximité 15 km maximum, tri par distance et distances affichées uniquement dans ce mode. Résultat puis À essayer/Visité directement. Ajout manuel dans un panneau, emplacement cliqué/déplaçable ou centre clavier, nom sans choix de type ; Burger King historique conservé par le nom, autres lieux Lieu libre. Date pour Visité uniquement, notes/partage et coordonnées avancées repliés, suivi privé par défaut. Pied sticky et panneau avant carte sur mobile. Revue ship sans correction matérielle sur sept captures examinées, avec tuiles synthétiques et fixtures Photon. MacDo Rennes et Camping Rennes ont séparément renvoyé 20 résultats réels chacun en lecture seule, sans écriture en base ni certification géographique globale.\n\nLa 0.6.0 importe release-060.css après release-050.css et conserve les neuf univers et leurs tokens. Projets : index 210 px, puis 170 px jusqu’à 1100 px ; rangée horizontale jusqu’à 760 px, titre mobile compact sans contexte redondant. Kanban : colonnes 286 px, puis min(286px, 82vw), filtres repliables et actions par clic droit, Maj+F10 sur carte ou boutons. Dialogue : largeur max. 1020 px, propriétés 248 px à droite puis avant le contenu sur mobile ; Description et étapes / Commentaires / Ressources, édition Markdown intégrée. Pages : lecture publiée initiale, index 248/210 px puis horizontal mobile ; dates secondaires visibles sur desktop et masquées sur mobile. Markdown GFM partagé, HTML ignoré, images rendues en texte alternatif, code et tableaux défilants. Supervision en liste filtrable à traits fins avec minimum/moyenne/maximum issus des latences disponibles et comptes de contrôles/mesures. Gotify personnel dans Notifications, jeton masqué, enregistrement indépendant, test en file et historique avec nouvelles tentatives/annulation. Groupes sidebar et salons repliables par compte.\n\nfinish-060.md conclut ship sans correction matérielle sur seize captures 060-*.png Graphite desktop/mobile ; ce périmètre ne vaut pas approbation globale du produit ni preuve rendue des neuf thèmes. 62 tests, compilation et E2E navigateur locaux ciblés 0.6.0 et complets passés ; fournisseurs et Kyros en fixtures, sans Gotify réel ni déploiement. Détecteur 0.6.0 : zéro finding primaire, avis de tailles typographiques conservées sans changement arbitraire de tokens.\n\nLa 0.7.0 prolonge le monde en code ; Operate reste un mode de brief de surface, sans mode global persisté. Lagune ajoute les tokens minéraux extraits de worlds.css, Manrope, rayons 10/14/12 px et marge de page 30 px puis 18 px mobile. Aucun raster de livraison créé.\n\nLa revue 0.7.0 porte sur les treize captures `070-*.png` de `.impeccable/review/`, dont les notes et la galerie Lagune. Le verdict final **ship** de `finish-070.md` clôt les deux corrections matérielles : suppression sur la même ligne que l’ami sur mobile, et comparaison complète des versions d’événement avant décision. Il ne vaut pas nouvelle approbation globale des surfaces. Les captures utilisent des identités et fournisseurs locaux de démonstration ; consentement et synchronisation Google réels, BrainDump réel, clients CalDAV natifs, thème entre appareils réels, déploiement et mouvement normal restent non validés. Cette mise à jour documentaire s’appuie sur ces captures et les sources, sans nouvelle exécution du navigateur ou du détecteur.\n\nEn 0.7.0, Amis partage la hauteur disponible entre index de (300 px) et conversation flexible ; jusqu’à (1100 px), index de (260 px), espacement adjacent de (24 px), puis (18 px). Jusqu’à (760 px), l’index et la discussion occupent alternativement la surface, avec retour explicite et marge de (14 px). Les notes alignent date (100 px), contenu flexible et actions, séparés de (22 px) ; sur mobile, la date précède contenu et actions, avec écart de (10 px). La synchronisation Agenda reste limitée à (900 px), avec champs et versions de conflit en deux colonnes, puis une jusqu’à (760 px).\n\n« Synchroniser le thème de mon compte sur cet appareil » est coché par défaut : le thème enregistré est repris à la connexion sur les appareils synchronisés. Décoché, le choix reste propre à ce navigateur et à ce compte, dans `liora.appearance.<user id>` ; le thème de compte est conservé. Si le stockage navigateur est indisponible, le choix local utilise une mémoire volatile. Le contrôle décrit cette portée, sans promettre une propagation instantanée entre sessions déjà ouvertes.\n\nL’index personnel et le fil partagent la page en deux colonnes. Recherche par nom ou conversation et filtres Tous / Non lus / En ligne précèdent les amis ; nom, aperçu tronqué, présence et compte non lu restent réunis. La conversation sélectionnée teinte sa ligne ; la suppression reste à droite de cette même personne, avec cible mobile de (44 × 44 px), sans retour à la ligne.\n\nLe fil occupe toute la hauteur disponible à côté de l’index ; en mobile, il remplace l’index et le titre de page, avec « Retour à mes amis » dans l’en-tête. Les bulles reçues restent à gauche, les envoyées à droite sur fond de sélection, sans bordure et avec rayon de panneau du thème. Leur largeur maximale est `min(85%, 65ch)`, puis (92 %) jusqu’à (760 px). Le texte utilise le Markdown partagé, avec interligne (1.65), heure française et état Envoyé / Lu écrits. Les dates séparent les journées ; l’historique défile indépendamment du composeur, avec Messages précédents et Aller au dernier message. La saisie conserve son brouillon après erreur tant que la conversation reste ouverte ; hors ligne décrit le destinataire. Mettre en forme / Aperçu exposent la même barre Markdown que les salons et les éditeurs ; Ctrl/⌘ Entrée envoie.\n\n### Notes datées et agendas personnels\n\nLes notes personnelles se lisent dans une liste à traits fins, date et heure tabulaires, titre et source Liora / BrainDump visibles, contenu Markdown limité à (75ch). Recherche par titre/contenu et fuseau écrit précèdent les notes. Nouvelle note et les actions Modifier / Supprimer concernent les notes Liora ; les notes BrainDump restent en lecture et se modifient à la source. Le lien BrainDump affiche activation, dernière réception, Actualiser et erreurs ; l’actualisation annoncée chaque minute concerne cette page ouverte, sans preuve d’un fournisseur réel.\n\nLa préférence Synchronisation Agenda et le détail accessible depuis le calendrier réutilisent le même connecteur. Google Agenda présente le choix d’espace et d’agenda, activation automatique, Enregistrer le lien Google, Synchroniser maintenant et Déconnecter Google avec états écrits. Le périmètre annoncé reste les événements Liora de l’auteur hors salons privés ; les autres rendez-vous Google restent dans Google. L’automatisation annoncée toutes les cinq minutes ne remplace pas l’action manuelle.\n\nAvant Conserver Liora / Conserver Google, les deux versions sont nommées et affichent titre, début, fin, fuseau, horaire/journée entière, répétition, rappels, description conservant ses retours à la ligne et lieu lorsqu’il est présent. La fin d’une journée entière est explicitement exclusive ; une version supprimée affiche Supprimé. Le choix doit montrer ce qu’il écrasera, y compris une durée ou un contenu divergent. Les versions se lisent côte à côte sur desktop, puis l’une sous l’autre sur mobile, avec décisions de (44 px minimum).\n\nApple Calendrier et autres applications CalDAV reste un détail repliable : serveur et identifiant en lecture, accès distinct nommé par appareil, mot de passe montré une seule fois avec Copier / Masquer, et révocation explicite. Les calendriers d’équipe suivent les droits reçus ; les notes personnelles datées sont annoncées en lecture seule. Ce parcours ne certifie pas l’utilisation par un client natif.\n\nL’éditeur associe libellé visible, modes Écrire / Aperçu et barre partagée : Gras, Italique, Souligner (`++texte++`), Barrer, Titres 1–3, Citation, Liste, Liste numérotée, Case à cocher, Lien, Code, Bloc de code, Tableau et Séparateur. Le soulignement transforme les nœuds de texte, sans autoriser le HTML. Les composeurs des salons et des amis proposent Mettre en forme / Aperçu sans perdre le brouillon ; l’aperçu conserve une hauteur de (72 px minimum), limitée à (260 px) avec défilement.\n\nL’extension 0.7.1 relie les interfaces existantes à BrainDump 2.1.0 ; son contrat est `.impeccable/surfaces/braindump-integration.md`. Elle distingue configuration du module, autorisation de chaque compte et lecture seule des notes datées. Les onze captures `brain-*.png` de `.impeccable/review/` montrent applications, configuration, consentement et notes sur desktop (1440 × 1000) et mobile (390 × 844), avec documents complets pour les applications et compléments `actions` / `content` pour le défilement interne de Liora. `finish-braindump.md` conclut **ship** à la portée de la correction F1, résolue par le retour textuel « Retour à BrainDump » du consentement ; la première revue ne signalait aucune autre correction matérielle. Ce verdict ne constitue pas une revue globale des dix thèmes. Les 72 tests et la compilation Liora, les 18 tests et la compilation BrainDump, ainsi que les parcours Chrome headless/Puppeteer locaux sont rapportés comme passés : routeurs et stockages réels, SQLite en mémoire côté BrainDump, identités, fournisseurs et contenu synthétiques. Kyros réel, production, états focus/erreur/chargement exhaustifs et mouvement normal restent non certifiés. Cette fusion documentaire s’appuie sur ces preuves et les sources sans relancer navigateur, tests ou détecteur ; aucune comp ni raster de produit n’a été créé.\n\nAdministration → Intégrations réutilise la liste de modules à état écrit et sélection bordée par l’accent, le formulaire de (650 px maximum) et les champs du thème. BrainDump expose nom, URL, identifiant du client, clé masquée et URL de retour en lecture ; laisser une clé vide conserve celle enregistrée. Les commandes Enregistrer le module, Tester la connexion et Activer / Désactiver restent distinctes. Le texte indique que changer URL, client ou clé déconnecte les autorisations personnelles. Les champs de salon, signature entrante et règles de publication ne sont pas proposés pour BrainDump : la surface conserve la portée personnelle des notes.\n\nComptes connectés reprend les lignes séparées par un filet et les états Module désactivé / Compte connecté / Compte personnel à connecter. Connecter demande le consentement dans BrainDump ; Ouvrir Notes datées rejoint la lecture dans Liora ; Déconnecter retire l’autorisation personnelle. Les actions se replient dans leur largeur, la liste de modules devient une colonne sous (700 px) et les lignes de compte s’empilent. Les boutons et les champs gardent les tokens du thème actif, sans nouvelle couleur ni ombre propres à cette intégration.\n\nEn 0.7.1, le lien BrainDump propose les intégrations disponibles avec nom de l’espace et nom du module, puis Connecter mon compte BrainDump / Renouveler l’autorisation BrainDump. « Lier mes notes BrainDump » reste distinct du consentement et n’est activable que pour un compte autorisé sur un module vérifié. Actualiser récupère les notes liées ; dernière récupération et erreur restent écrites. La ligne datée conserve sa grille (100 px / contenu flexible / actions), son écart de (22 px) et son padding vertical de (24 px) ; sous (760 px), la date passe au-dessus du contenu, l’écart à (10 px) et le titre de (21 px) à (19 px). Le tag BrainDump identifie une source de lecture, sans commandes Modifier / Supprimer. Les preuves 0.7.1 valident la liaison locale entre les applications et non un fournisseur en production.",
     "keyCharacteristics": [
       "Sidebar globale textuelle et index contextuels.",
       "Surfaces mates et états teintés par le thème.",
       "Manrope auto-hébergée, corps de travail 14 px.",
       "Dock mobile et tiroirs indépendants, états écrits.",
-      "Neuf choix : six palettes et trois univers structurants.",
+      "Dix choix : six palettes, Atelier, Orbital, Terminal et Lagune.",
       "Galerie isolée, états sémantiques et marqueurs SVG.",
       "Ressources personnelles et aides de rubrique.",
-      "Recherche explicite et suivi de lieu direct, ajout manuel dans la page."
+      "Recherche explicite et suivi de lieu direct, ajout manuel dans la page.",
+      "Index projets et pages contextuels, horizontaux sur mobile.",
+      "Cartes avec propriétés, édition Markdown et actions clavier visibles.",
+      "Pages publiées en lecture ; supervision fondée sur les mesures disponibles.",
+      "Gotify personnel avec actions et états de file explicites.",
+      "Thème de compte par défaut, opt-out propre au navigateur et au compte.",
+      "Index amis adjacent au fil plein hauteur, discussion isolée et retour sur mobile.",
+      "Notes personnelles datées, source BrainDump en lecture et connexions Agenda explicites.",
+      "Markdown sûr partagé avec barre complète, aperçu et ++souligné++."
     ],
     "rules": [
       {
@@ -710,7 +791,7 @@
     ],
     "dos": [
       "Do réutiliser la sidebar et les index contextuels.",
-      "Do conserver les neuf thèmes et leurs variables.",
+      "Do conserver les dix thèmes et leurs variables.",
       "Do garder la continuité du transcript et les retours à la ligne.",
       "Do rendre les actions visibles sur mobile et accessibles au clavier.",
       "Do garder le défilement du Kanban dans son cadre.",
@@ -718,7 +799,10 @@
       "Do isoler police et rayons des miniatures.",
       "Do utiliser warning/danger avec un état écrit.",
       "Do garder les repères de sélection fins à 1 px.",
-      "Do garder Mes lieux en recherche libre → résultat → état direct, ordre fournisseur et villes/adresses sélectionnables ; réserver rayon et tri par distance aux actions de proximité explicites."
+      "Do garder Mes lieux en recherche libre → résultat → état direct, ordre fournisseur et villes/adresses sélectionnables ; réserver rayon et tri par distance aux actions de proximité explicites.",
+      "Do garder index et conversation adjacents sur desktop, le retour explicite sur mobile et la suppression sur la même ligne que l’ami.",
+      "Do montrer les deux versions complètes d’un événement avant de résoudre un conflit.",
+      "Do conserver les limites de source BrainDump et de portée compte/navigateur dans les contrôles."
     ],
     "donts": [
       "Don't réintroduire un rail d’icônes séparé.",

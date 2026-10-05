@@ -3,6 +3,8 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes, createHmac } from "node:crypto";
 import pg from "pg";
+import { fixtureBrainDump } from "./fixtures/braindump.js";
+import { fixtureConnections } from "./fixtures/connections.js";
 import { fakeKyros } from "./fixtures/kyros.js";
 import { fixturePlaces } from "./fixtures/places.js";
 import type { Server } from "node:http";
@@ -25,6 +27,7 @@ process.env.KYROS_BASE_URL = "http://127.0.0.1:14312";
 process.env.BOOTSTRAP_OWNER_KYROS_ID = "test-owner";
 process.env.KYROS_RESOURCE_AUDIENCE = "kyros:liora";
 process.env.KYROS_ISSUER = "";
+let connections: Awaited<ReturnType<typeof fixtureConnections>>;
 let server: Server,
   placesProvider: Awaited<ReturnType<typeof fixturePlaces>>,
   provider: Awaited<ReturnType<typeof fakeKyros>>,
@@ -93,6 +96,12 @@ before(async () => {
   workspace = await seed();
   provider = await fakeKyros(14312, origin);
   placesProvider = await fixturePlaces(14316);
+  connections = await fixtureConnections(14318);
+  process.env.BRAINDUMP_BASE_URL = "http://127.0.0.1:14318";
+  process.env.BRAINDUMP_ALLOW_PRIVATE = "true";
+  process.env.GOOGLE_CALENDAR_TEST_ORIGIN = "http://127.0.0.1:14318";
+  process.env.GOOGLE_CALENDAR_CLIENT_ID = "fixture-client";
+  process.env.GOOGLE_CALENDAR_CLIENT_SECRET = "fixture-secret";
   const { createApp, errorHandler } = await import("../src/server/app.js");
   const app = createApp();
   app.use(
@@ -119,6 +128,7 @@ after(async () => {
   await new Promise<void>((r) => provider?.server.close(() => r()));
   await db?.pool.end();
   await placesProvider?.close();
+  await connections?.close();
 });
 test("Kyros PAR + PKCE login bootstraps only explicit owner, encrypted persistent session", async () => {
   const r = await call("/api/v1/me");
@@ -2344,6 +2354,926 @@ test("0.5 project archive and column deletion enforce task permissions", async (
     200,
   );
 });
+test("0.6 Kyros avatar is proxied and refresh preserves a local avatar", async () => {
+  const me = (await call("/api/v1/me")).body.data;
+  // Earlier upload tests may have established a local override; test provider synchronization explicitly.
+  const [original] = await db.query(
+    "SELECT avatar,avatar_key,avatar_mime FROM users WHERE id=$1",
+    [me.id],
+  );
+  try {
+    await db.query(
+      "UPDATE users SET avatar_key=NULL,avatar_mime=NULL WHERE id=$1",
+      [me.id],
+    );
+    provider.setAvatar(provider.issuer + "/avatar.png");
+    const freshCookie = await login();
+    const fresh = (await call("/api/v1/me", "GET", undefined, freshCookie)).body
+      .data;
+    assert.equal(fresh.avatar, `/api/v1/avatars/${me.id}?kyros=1`);
+    const image = await fetch(origin + fresh.avatar, {
+      headers: { cookie: freshCookie },
+    });
+    assert.equal(image.status, 200);
+    assert.match(image.headers.get("content-type")!, /image\/png/);
+    assert.equal(
+      Buffer.from(await image.arrayBuffer())
+        .subarray(0, 8)
+        .toString("hex"),
+      "89504e470d0a1a0a",
+    );
+    await db.query(
+      "UPDATE users SET avatar_key='local-override',avatar='/local-avatar' WHERE id=$1",
+      [me.id],
+    );
+    provider.setAvatar("javascript:alert(1)");
+    await db.query(
+      "UPDATE user_sessions SET access_expires_at=now() WHERE user_id=$1",
+      [me.id],
+    );
+    assert.equal(
+      (await call("/auth/refresh", "POST", {}, freshCookie)).status,
+      200,
+    );
+    assert.equal(
+      (await call("/api/v1/me", "GET", undefined, freshCookie)).body.data
+        .avatar,
+      "/local-avatar",
+    );
+    assert.equal(
+      (
+        await db.query("SELECT kyros_avatar_url FROM users WHERE id=$1", [
+          me.id,
+        ])
+      )[0].kyros_avatar_url,
+      null,
+    );
+  } finally {
+    await db.query(
+      "UPDATE users SET avatar=$2,avatar_key=$3,avatar_mime=$4 WHERE id=$1",
+      [me.id, original.avatar, original.avatar_key, original.avatar_mime],
+    );
+    provider.setAvatar(provider.issuer + "/avatar.png");
+  }
+});
+test("0.6 navigation preferences preserve other settings", async () => {
+  const original = (await call("/api/v1/me")).body.data.preferences;
+  assert.equal(
+    (
+      await call("/api/v1/me/navigation", "PATCH", {
+        collapsedNavigation: ["Équipe", "channel:test"],
+      })
+    ).status,
+    200,
+  );
+  const saved = (await call("/api/v1/me")).body.data.preferences;
+  assert.deepEqual(saved.collapsedNavigation, ["Équipe", "channel:test"]);
+  for (const [key, value] of Object.entries(original))
+    if (key !== "collapsedNavigation") assert.deepEqual(saved[key], value);
+  assert.equal(
+    (await call("/api/v1/me/navigation", "PATCH", { collapsedNavigation: [1] }))
+      .status,
+    400,
+  );
+});
+test("0.6 Gotify encrypts tokens and enforces current rights, preferences and retries", async () => {
+  const owner = (await call("/api/v1/me")).body.data.id;
+  const { unseal } = await import("../src/server/crypto.js");
+  const { processGotifyDeliveries } = await import("../src/server/gotify.js");
+  const flush = (send: Parameters<typeof processGotifyDeliveries>[0]) =>
+    processGotifyDeliveries(send, new Date(Date.now() + 1000));
+  // Local fixture transport is injected. No message is sent to a real Gotify server.
+  assert.equal(
+    (
+      await call("/api/v1/gotify", "PUT", {
+        url: "https://93.184.216.34",
+        token: "fixture-application-token",
+        enabled: true,
+      })
+    ).status,
+    200,
+  );
+  const settings = await call("/api/v1/gotify");
+  assert.equal(settings.status, 200);
+  assert.ok(
+    !JSON.stringify(settings.body).includes("fixture-application-token"),
+  );
+  assert.ok(!("token" in settings.body.connection));
+  const [stored] = await db.query(
+    "SELECT token FROM gotify_connections WHERE user_id=$1",
+    [owner],
+  );
+  assert.notEqual(stored.token, "fixture-application-token");
+  assert.equal(await unseal(stored.token), "fixture-application-token");
+  assert.equal(
+    (
+      await call("/api/v1/gotify", "PUT", {
+        url: "http://127.0.0.1:80",
+        token: "bad",
+        enabled: true,
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call("/api/v1/gotify", "PUT", {
+        url: "https://gotify.example/?token=bad",
+        token: "bad",
+        enabled: true,
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await call("/api/v1/gotify/test", "POST", { workspace })).status,
+    202,
+  );
+  let captured: any;
+  await flush(async (_url, token, body) => {
+    assert.equal(token, "fixture-application-token");
+    captured = body;
+    return 200;
+  });
+  assert.equal(captured.title, "Liora");
+  assert.ok(!JSON.stringify(captured).includes("Test en file"));
+  assert.equal((await call("/api/v1/gotify")).body.deliveries[0].state, "sent");
+  assert.equal(
+    (await call("/api/v1/gotify", "GET", undefined, memberCookie)).body
+      .connection,
+    null,
+  );
+  await call("/api/v1/gotify/test", "POST", { workspace });
+  await flush(async () => 503);
+  let pending = (await call("/api/v1/gotify")).body.deliveries.find(
+    (d: any) => d.state === "pending",
+  );
+  assert.equal(pending.attempts, 1);
+  assert.equal(pending.last_error, "HTTP 503");
+  assert.equal(
+    (
+      await call(
+        `/api/v1/gotify/deliveries/${pending.id}/cancel`,
+        "POST",
+        {},
+        memberCookie,
+      )
+    ).status,
+    409,
+  );
+  await db.query(
+    "UPDATE gotify_deliveries SET next_attempt_at=now(),attempts=4 WHERE id=$1",
+    [pending.id],
+  );
+  await flush(async () => 503);
+  assert.equal(
+    (await call("/api/v1/gotify")).body.deliveries.find(
+      (d: any) => d.id === pending.id,
+    ).state,
+    "failed",
+  );
+  assert.equal(
+    (await call(`/api/v1/gotify/deliveries/${pending.id}/retry`, "POST", {}))
+      .status,
+    200,
+  );
+  await flush(async () => 401);
+  assert.equal(
+    (await call("/api/v1/gotify")).body.deliveries.find(
+      (d: any) => d.id === pending.id,
+    ).state,
+    "failed",
+  );
+  await call("/api/v1/gotify/test", "POST", { workspace });
+  const [privateChannel] = await db.query(
+    "INSERT INTO channels(workspace_id,name,is_private) VALUES($1,'gotify-private',true) RETURNING id",
+    [workspace],
+  );
+  await db.query(
+    "INSERT INTO notifications(workspace_id,user_id,type,title,body,channel_id) VALUES($1,$2,'message','Secret','Private body',$3)",
+    [workspace, owner, privateChannel.id],
+  );
+  await db.query(
+    "UPDATE users SET preferences=jsonb_set(preferences,'{tasks}','false'::jsonb) WHERE id=$1",
+    [owner],
+  );
+  await db.query(
+    "INSERT INTO notifications(workspace_id,user_id,type,title,body) VALUES($1,$2,'task','Task','Secret task')",
+    [workspace, owner],
+  );
+  await db.query(
+    "UPDATE workspace_members SET state='disabled' WHERE user_id=$1 AND workspace_id=$2",
+    [owner, workspace],
+  );
+  try {
+    await flush(async () => {
+      throw Error("Must not deliver after rights revocation");
+    });
+  } finally {
+    await db.query(
+      "UPDATE workspace_members SET state='active' WHERE user_id=$1 AND workspace_id=$2",
+      [owner, workspace],
+    );
+  }
+  assert.equal(
+    (await call("/api/v1/gotify")).body.deliveries.filter(
+      (d: any) => d.state === "pending",
+    ).length,
+    0,
+  );
+  // Preference cancellation while the account is still active.
+  await db.query(
+    "INSERT INTO notifications(workspace_id,user_id,type,title,body) VALUES($1,$2,'task','Task','Secret task')",
+    [workspace, owner],
+  );
+  let sends = 0;
+  await flush(async () => {
+    sends++;
+    return 200;
+  });
+  assert.equal(sends, 0);
+  await db.query(
+    "UPDATE users SET preferences=jsonb_set(preferences,'{tasks}','true'::jsonb) WHERE id=$1",
+    [owner],
+  );
+  await call("/api/v1/gotify/test", "POST", { workspace });
+  pending = (await call("/api/v1/gotify")).body.deliveries.find(
+    (d: any) => d.state === "pending",
+  );
+  assert.equal(
+    (await call(`/api/v1/gotify/deliveries/${pending.id}/cancel`, "POST", {}))
+      .status,
+    200,
+  );
+  assert.equal((await call("/api/v1/gotify", "DELETE")).status, 200);
+  assert.equal((await call("/api/v1/gotify")).body.connection, null);
+});
+
+test("dated notes stay personal, BrainDump uses the verified Kyros owner and failed sync preserves the cache", async () => {
+  const me = (await call("/api/v1/me")).body.data;
+  const created = await call("/api/v1/notes", "POST", {
+    title: "Note personnelle",
+    content: "## Une idée",
+    due_at: "2026-10-06T10:00:00Z",
+  });
+  assert.equal(created.status, 201);
+  const id = created.body.data.id;
+  assert.equal(
+    (
+      await call(
+        "/api/v1/notes/" + id,
+        "PATCH",
+        { title: "Vol", content: "", due_at: "2026-10-06T10:00:00Z" },
+        memberCookie,
+      )
+    ).status,
+    404,
+  );
+  assert.ok(
+    [401, 403].includes(
+      (
+        await call(
+          "/api/v1/notes",
+          "POST",
+          { title: "Bot", content: "", due_at: "2026-10-06T10:00:00Z" },
+          "Bearer " + technicalToken,
+        )
+      ).status,
+    ),
+  );
+  const personalBot = randomBytes(32).toString("base64url");
+  const { hash: hashPersonal } = await import("../src/server/crypto.js");
+  await db.query(
+    "INSERT INTO technical_accounts(workspace_id,name,kind,token_hash) VALUES($1,'Notes forbidden service','service',$2)",
+    [workspace, hashPersonal(personalBot)],
+  );
+  assert.equal(
+    (await call("/api/v1/notes", "GET", undefined, "Bearer " + personalBot))
+      .status,
+    403,
+  );
+  connections.notes.push(
+    {
+      id: 1,
+      userId: me.kyros_user_id,
+      title: "Note BrainDump",
+      content: "Une **idée**",
+      type: "note",
+      dueAt: "2026-10-07T13:00:00Z",
+      updatedAt: "2026-10-05T10:00:00Z",
+      createdAt: "2026-10-05T10:00:00Z",
+      archivedAt: null,
+    },
+    {
+      id: 2,
+      userId: me.kyros_user_id,
+      title: "Sans date",
+      content: "",
+      type: "note",
+      dueAt: null,
+      updatedAt: "2026-10-05T10:00:00Z",
+      createdAt: "2026-10-05T10:00:00Z",
+      archivedAt: null,
+    },
+    {
+      id: 3,
+      userId: "other-kyros-subject",
+      title: "Secret",
+      content: "Autre compte",
+      type: "note",
+      dueAt: "2026-10-07T13:00:00Z",
+      updatedAt: "2026-10-05T10:00:00Z",
+      createdAt: "2026-10-05T10:00:00Z",
+      archivedAt: null,
+    },
+  );
+  assert.equal(
+    (await call("/api/v1/braindump", "PUT", { enabled: true })).status,
+    200,
+  );
+  assert.equal((await call("/api/v1/braindump/sync", "POST")).body.count, 1);
+  const list = (await call("/api/v1/notes")).body.data;
+  assert.equal(list.filter((n: any) => n.source === "braindump").length, 1);
+  assert.ok(!list.some((n: any) => n.title === "Secret"));
+  const imported = list.find((n: any) => n.source === "braindump");
+  assert.equal(
+    (await call("/api/v1/notes/" + imported.id, "DELETE")).status,
+    404,
+  );
+  connections.failBrain(true);
+  assert.equal((await call("/api/v1/braindump/sync", "POST")).status, 502);
+  assert.ok(
+    (await call("/api/v1/notes")).body.data.some(
+      (n: any) => n.id === imported.id,
+    ),
+  );
+  connections.failBrain(false);
+  connections.notes[0].dueAt = "2026-10-08T15:00:00Z";
+  await call("/api/v1/braindump/sync", "POST");
+  assert.equal(
+    new Date(
+      (await call("/api/v1/notes")).body.data.find(
+        (n: any) => n.id === imported.id,
+      ).due_at,
+    ).toISOString(),
+    "2026-10-08T15:00:00.000Z",
+  );
+  connections.notes[0].dueAt = null;
+  await call("/api/v1/braindump/sync", "POST");
+  assert.ok(
+    !(await call("/api/v1/notes")).body.data.some(
+      (n: any) => n.id === imported.id,
+    ),
+  );
+  await call("/api/v1/braindump", "PUT", { enabled: false });
+  assert.ok(
+    (await call("/api/v1/notes")).body.data.some((n: any) => n.id === id),
+  );
+});
+
+test("appearance patches preserve independent account preferences and accept the new theme", async () => {
+  const me = (await call("/api/v1/me")).body.data;
+  const before = me.preferences;
+  assert.equal(
+    (
+      await call("/api/v1/me/appearance", "PATCH", {
+        theme: "lagoon",
+        density: "compact",
+      })
+    ).status,
+    200,
+  );
+  const changed = (await call("/api/v1/me")).body.data.preferences;
+  assert.equal(changed.theme, "lagoon");
+  assert.deepEqual(changed.collapsedNavigation, before.collapsedNavigation);
+  assert.equal(changed.mentions, before.mentions);
+  await call("/api/v1/me/appearance", "PATCH", { fontSize: "large" });
+  assert.equal(
+    (await call("/api/v1/me")).body.data.preferences.theme,
+    "lagoon",
+  );
+  assert.equal(
+    (await call("/api/v1/me/appearance", "PATCH", { theme: "unknown" })).status,
+    400,
+  );
+});
+
+test("CalDAV discovery, conditional edits, privacy, device revocation and native event round trip", async () => {
+  const me = (await call("/api/v1/me")).body.data;
+  const cred = await call("/api/v1/calendar-sync", "POST", {
+    name: "Mac de test",
+  });
+  assert.equal(cred.status, 201);
+  const authorization =
+    "Basic " + Buffer.from(me.id + ":" + cred.body.password).toString("base64");
+  const dav = async (
+    path: string,
+    method: string,
+    body?: string,
+    extra: Record<string, string> = {},
+  ) =>
+    fetch(origin + path, {
+      method,
+      headers: {
+        authorization,
+        "content-type": method === "PUT" ? "text/calendar" : "application/xml",
+        ...extra,
+      },
+      body,
+    });
+  const discovery = await dav(
+    "/dav/",
+    "PROPFIND",
+    '<D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>',
+    { depth: "0" },
+  );
+  assert.equal(discovery.status, 207);
+  assert.match(await discovery.text(), new RegExp(me.id));
+  const home = "/dav/calendars/" + me.id + "/";
+  const props = await dav(home, "PROPFIND", "", { depth: "1" });
+  assert.equal(props.status, 207);
+  assert.match(await props.text(), /Mes notes datées/);
+  const path = home + workspace + "/native-test.ics";
+  const ics =
+    "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Fixture//FR\r\nBEGIN:VEVENT\r\nUID:native-test\r\nDTSTAMP:20261005T090000Z\r\nDTSTART;TZID=Europe/Paris:20261008T100000\r\nDTEND;TZID=Europe/Paris:20261008T110000\r\nSUMMARY:Depuis mon Mac\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+  const created = await dav(path, "PUT", ics, { "if-none-match": "*" });
+  assert.equal(created.status, 201);
+  const etag = created.headers.get("etag")!;
+  const events = (
+    await call(
+      "/api/v1/workspaces/" +
+        workspace +
+        "/calendar?start=2026-10-01&end=2026-10-31&timezone=Europe%2FParis",
+    )
+  ).body.data;
+  const native = events.find((e: any) => e.title === "Depuis mon Mac");
+  assert.ok(native);
+  assert.equal(
+    new Date(native.start_at).toISOString(),
+    "2026-10-08T08:00:00.000Z",
+  );
+  assert.equal(
+    (
+      await dav(path, "PUT", ics.replace("mon Mac", "un second Mac"), {
+        "if-match": '"obsolete"',
+      })
+    ).status,
+    412,
+  );
+  assert.equal(
+    (
+      await dav(path, "PUT", ics.replace("mon Mac", "un second Mac"), {
+        "if-match": etag,
+      })
+    ).status,
+    204,
+  );
+  const get = await dav(path, "GET");
+  assert.match(await get.text(), /un second Mac/);
+  const newTag = get.headers.get("etag")!;
+  await call(
+    "/api/v1/workspaces/" + workspace + "/calendar/" + native.id,
+    "PATCH",
+    { title: "Modifié dans Liora" },
+  );
+  const updated = await dav(path, "GET");
+  assert.notEqual(updated.headers.get("etag"), newTag);
+  assert.match(await updated.text(), /Modifié dans Liora/);
+  const report = await dav(
+    home + workspace + "/",
+    "REPORT",
+    '<C:calendar-multiget xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:"><D:prop><D:getetag/><C:calendar-data/></D:prop><D:href>' +
+      path +
+      "</D:href></C:calendar-multiget>",
+  );
+  assert.equal(report.status, 207);
+  assert.match(await report.text(), /Modifié dans Liora/);
+  assert.equal(
+    (
+      await dav(
+        "/dav/calendars/" + memberId + "/" + workspace + "/",
+        "PROPFIND",
+        "",
+        { depth: "1" },
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await dav(
+        home + workspace + "/",
+        "PROPFIND",
+        '<!DOCTYPE foo [<!ENTITY x SYSTEM "file:///etc/passwd">]><propfind/>',
+        { depth: "0" },
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await dav(path, "DELETE", undefined, {
+        "if-match": updated.headers.get("etag")!,
+      })
+    ).status,
+    204,
+  );
+  assert.equal((await dav(path, "GET")).status, 404);
+  assert.ok(
+    !JSON.stringify((await call("/api/v1/calendar-sync")).body).includes(
+      cred.body.password,
+    ),
+  );
+  const [{ password_hash }] = await db.query(
+    "SELECT password_hash FROM calendar_credentials WHERE id=$1",
+    [cred.body.data.id],
+  );
+  assert.notEqual(password_hash, cred.body.password);
+  assert.equal(
+    (
+      await call(
+        "/api/v1/calendar-sync/" + cred.body.data.id,
+        "DELETE",
+        undefined,
+        memberCookie,
+      )
+    ).status,
+    200,
+  );
+  assert.equal((await dav(home, "PROPFIND", "", { depth: "0" })).status, 207);
+  await call("/api/v1/calendar-sync/" + cred.body.data.id, "DELETE");
+  assert.equal((await dav(home, "PROPFIND", "", { depth: "0" })).status, 401);
+});
+
+test("Google OAuth session binding, encrypted tokens, bidirectional edits, conflicts and deletion", async () => {
+  const me = (await call("/api/v1/me")).body.data;
+  const connect = (await call("/api/v1/google-calendar/connect", "POST")).body;
+  const authResponse = await fetch(connect.url, { redirect: "manual" });
+  const callback = authResponse.headers.get("location")!;
+  const wrong = await fetch(callback, {
+    headers: { cookie: memberCookie },
+    redirect: "manual",
+  });
+  assert.equal(wrong.status, 400);
+  const valid = await fetch(callback, {
+    headers: { cookie },
+    redirect: "manual",
+  });
+  assert.equal(valid.status, 302);
+  const replay = await fetch(callback, {
+    headers: { cookie },
+    redirect: "manual",
+  });
+  assert.equal(replay.status, 400);
+  const [stored] = await db.query(
+    "SELECT tokens FROM google_calendar_connections WHERE user_id=$1",
+    [me.id],
+  );
+  assert.ok(!stored.tokens.includes("fixture-refresh"));
+  assert.equal(
+    (await call("/api/v1/google-calendar/calendars")).body.data[0].id,
+    "primary-fixture",
+  );
+  assert.equal(
+    (
+      await call("/api/v1/google-calendar", "PUT", {
+        workspace_id: workspace,
+        calendar_id: "primary-fixture",
+        enabled: true,
+      })
+    ).status,
+    200,
+  );
+  const event = (
+    await call("/api/v1/workspaces/" + workspace + "/calendar", "POST", {
+      title: "Google aller retour",
+      start_at: "2026-10-08T10:00:00Z",
+      end_at: "2026-10-08T11:00:00Z",
+      timezone: "Europe/Paris",
+    })
+  ).body.data;
+  const privateChannel = (
+    await call("/api/v1/workspaces/" + workspace + "/channels", "POST", {
+      name: "google-prive",
+      type: "text",
+      is_private: true,
+    })
+  ).body.data;
+  await call("/api/v1/workspaces/" + workspace + "/calendar", "POST", {
+    title: "Secret Google interdit",
+    start_at: "2026-10-08T10:00:00Z",
+    channel_id: privateChannel.id,
+  });
+  const first = await call("/api/v1/google-calendar/sync", "POST");
+  assert.equal(first.body.ok, true);
+  assert.ok(
+    ![...connections.events.values()].some(
+      (e) => e.summary === "Secret Google interdit",
+    ),
+  );
+  const [{ google_id }] = await db.query(
+    "SELECT google_id FROM google_calendar_links WHERE event_id=$1",
+    [event.id],
+  );
+  connections.changeGoogle(google_id, { summary: "Changé sur Android" });
+  assert.equal(
+    (await call("/api/v1/google-calendar/sync", "POST")).body.ok,
+    true,
+  );
+  assert.equal(
+    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
+      .body.data.title,
+    "Changé sur Android",
+  );
+  await call(
+    "/api/v1/workspaces/" + workspace + "/calendar/" + event.id,
+    "PATCH",
+    { title: "Changé sur Liora" },
+  );
+  await call("/api/v1/google-calendar/sync", "POST");
+  assert.equal(connections.events.get(google_id)!.summary, "Changé sur Liora");
+  connections.changeGoogle(google_id, { summary: "Version Google" });
+  await call(
+    "/api/v1/workspaces/" + workspace + "/calendar/" + event.id,
+    "PATCH",
+    { title: "Version Liora" },
+  );
+  const conflict = await call("/api/v1/google-calendar/sync", "POST");
+  assert.ok(conflict.body.conflicts > 0);
+  assert.equal(connections.events.get(google_id)!.summary, "Version Google");
+  assert.equal(
+    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
+      .body.data.title,
+    "Version Liora",
+  );
+  assert.ok(
+    (await call("/api/v1/google-calendar")).body.issues.some(
+      (i: any) => i.google_id === google_id,
+    ),
+  );
+  await call("/api/v1/google-calendar/resolve", "POST", {
+    google_id,
+    version: "google",
+  });
+  assert.equal(
+    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
+      .body.data.title,
+    "Version Google",
+  );
+  connections.changeGoogle(google_id, { status: "cancelled" });
+  await call("/api/v1/google-calendar/sync", "POST");
+  assert.equal(
+    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
+      .status,
+    404,
+  );
+  const e2 = (
+    await call("/api/v1/workspaces/" + workspace + "/calendar", "POST", {
+      title: "Supprimer depuis Liora",
+      start_at: "2026-10-10T10:00:00Z",
+    })
+  ).body.data;
+  await call("/api/v1/google-calendar/sync", "POST");
+  const [link2] = await db.query(
+    "SELECT google_id FROM google_calendar_links WHERE event_id=$1",
+    [e2.id],
+  );
+  await call(
+    "/api/v1/workspaces/" + workspace + "/calendar/" + e2.id,
+    "DELETE",
+  );
+  await call("/api/v1/google-calendar/sync", "POST");
+  assert.equal(connections.events.get(link2.google_id)!.status, "cancelled");
+  assert.equal(
+    (await call("/api/v1/google-calendar", "GET", undefined, memberCookie)).body
+      .connected,
+    false,
+  );
+  await call("/api/v1/google-calendar", "DELETE");
+  assert.equal((await call("/api/v1/google-calendar")).body.connected, false);
+});
+
+test("BrainDump integration uses real module routes, private consent, refresh and revocation", async () => {
+  provider.setSubject("test-owner");
+  const remote = await fixtureBrainDump(
+    14319,
+    origin + "/api/v1/integration-callback",
+  );
+  try {
+    const created = await call(
+      `/api/v1/workspaces/${workspace}/connectors`,
+      "POST",
+      {
+        provider: "braindump",
+        name: "BrainDump de test",
+        config: {
+          base_url: remote.origin,
+          client_id: remote.client.client_id,
+          allow_private: true,
+        },
+        api_key: remote.client.api_key,
+      },
+    );
+    assert.equal(created.status, 201);
+    const id = created.body.data.id;
+    assert.equal(created.body.incoming_url, undefined);
+    assert.ok(!JSON.stringify(created.body).includes(remote.client.api_key));
+    assert.equal(
+      (await db.query("SELECT * FROM webhooks WHERE integration_id=$1", [id]))
+        .length,
+      0,
+    );
+    assert.equal(
+      (
+        await call(
+          `/api/v1/workspaces/${workspace}/connectors/${id}/test`,
+          "POST",
+          {},
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await call("/api/v1/braindump", "PUT", {
+          enabled: true,
+          integration_id: id,
+        })
+      ).status,
+      409,
+    );
+    const consent = async () => {
+      const start = await call(
+        `/api/v1/workspaces/${workspace}/connections/${id}/start`,
+        "POST",
+        {},
+      );
+      assert.equal(start.status, 200);
+      const url = new URL(start.body.url);
+      const page = await fetch(url, { redirect: "manual" });
+      const html = await page.text();
+      const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1];
+      const sessionCookie = page.headers
+        .getSetCookie()
+        .map((c) => c.split(";")[0])
+        .join("; ");
+      const allowed = await fetch(remote.origin + "/integrations/authorize", {
+        method: "POST",
+        headers: {
+          origin: remote.origin,
+          cookie: sessionCookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          ...Object.fromEntries(url.searchParams),
+          csrf,
+          decision: "allow",
+        }),
+        redirect: "manual",
+      });
+      assert.equal(allowed.status, 302);
+      return allowed.headers.get("location")!;
+    };
+    const redirect = await consent();
+    const second = await login();
+    assert.equal(
+      (
+        await fetch(redirect, {
+          headers: { cookie: second },
+          redirect: "manual",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (await fetch(redirect, { headers: { cookie }, redirect: "manual" }))
+        .status,
+      302,
+    );
+    assert.equal(
+      (await fetch(redirect, { headers: { cookie }, redirect: "manual" }))
+        .status,
+      400,
+    );
+    const me = (await call("/api/v1/me")).body.data;
+    const noteId = remote.note("test-owner", { title: "Note privée datée" });
+    remote.note("test-owner", { title: "Sans date", dueAt: null });
+    remote.note("test-owner", { type: "task" });
+    remote.note("someone-else", { title: "Secret étranger" });
+    assert.ok(
+      (await call("/api/v1/braindump")).body.available.some(
+        (i: any) => i.id === id && i.connected,
+      ),
+    );
+    assert.equal(
+      (
+        await call("/api/v1/braindump", "PUT", {
+          enabled: true,
+          integration_id: id,
+        })
+      ).status,
+      200,
+    );
+    assert.equal((await call("/api/v1/braindump/sync", "POST")).body.count, 1);
+    const copied = (await call("/api/v1/notes")).body.data.find(
+      (n: any) => n.title === "Note privée datée",
+    );
+    assert.ok(copied);
+    assert.ok(
+      !(await call("/api/v1/notes")).body.data.some(
+        (n: any) => n.title === "Secret étranger" || n.title === "Sans date",
+      ),
+    );
+    remote.fail(true);
+    assert.equal((await call("/api/v1/braindump/sync", "POST")).status, 502);
+    assert.ok(
+      (await call("/api/v1/notes")).body.data.some(
+        (n: any) => n.id === copied.id,
+      ),
+    );
+    remote.fail(false);
+    const [beforeRefresh] = await db.query(
+      "SELECT tokens FROM integration_grants WHERE integration_id=$1 AND user_id=$2",
+      [id, me.id],
+    );
+    await db.query(
+      "UPDATE integration_grants SET expires_at=now()-interval '1 minute' WHERE integration_id=$1",
+      [id],
+    );
+    assert.equal((await call("/api/v1/braindump/sync", "POST")).status, 200);
+    const [afterRefresh] = await db.query(
+      "SELECT tokens FROM integration_grants WHERE integration_id=$1 AND user_id=$2",
+      [id, me.id],
+    );
+    assert.notEqual(afterRefresh.tokens, beforeRefresh.tokens);
+    remote.database
+      .prepare("UPDATE dumps SET due_at=NULL WHERE id=?")
+      .run(noteId);
+    await call("/api/v1/braindump/sync", "POST");
+    assert.ok(
+      !(await call("/api/v1/notes")).body.data.some(
+        (n: any) => n.id === copied.id,
+      ),
+    );
+    remote.database
+      .prepare("UPDATE dumps SET due_at='2026-10-07T10:00:00Z' WHERE id=?")
+      .run(noteId);
+    await call("/api/v1/braindump/sync", "POST");
+    const grant = remote.database
+      .prepare("SELECT id FROM app_grants WHERE revoked_at IS NULL")
+      .get();
+    remote.database
+      .prepare("UPDATE app_grants SET revoked_at=? WHERE id=?")
+      .run(Date.now(), grant.id);
+    assert.equal((await call("/api/v1/braindump/sync", "POST")).status, 409);
+    assert.equal((await call("/api/v1/braindump")).body.data.enabled, false);
+    assert.equal(
+      (await call("/api/v1/notes")).body.data.filter(
+        (n: any) => n.source === "braindump",
+      ).length,
+      0,
+    );
+    remote.setSubject("someone-else");
+    const foreign = await consent();
+    assert.equal(
+      (await fetch(foreign, { headers: { cookie }, redirect: "manual" }))
+        .status,
+      403,
+    );
+    remote.setSubject("test-owner");
+    const reconnect = await consent();
+    assert.equal(
+      (await fetch(reconnect, { headers: { cookie }, redirect: "manual" }))
+        .status,
+      302,
+    );
+    await call("/api/v1/braindump", "PUT", {
+      enabled: true,
+      integration_id: id,
+    });
+    await call("/api/v1/braindump/sync", "POST");
+    assert.equal(
+      (
+        await call(
+          `/api/v1/workspaces/${workspace}/connectors/${id}`,
+          "PATCH",
+          { enabled: false },
+        )
+      ).status,
+      200,
+    );
+    assert.equal((await call("/api/v1/braindump")).body.data.enabled, false);
+    assert.equal(
+      (await call("/api/v1/notes")).body.data.filter(
+        (n: any) => n.source === "braindump",
+      ).length,
+      0,
+    );
+  } finally {
+    await remote.close();
+  }
+});
+
 test("SSE delivers durable invalidations and session revocation closes access", async () => {
   const controller = new AbortController();
   const response = await fetch(

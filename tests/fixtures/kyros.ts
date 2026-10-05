@@ -13,10 +13,21 @@ export async function fakeKyros(port: number, appUrl: string) {
   let unavailable = false;
   let subject = "test-owner";
   let expiresIn = 3600;
+  let avatar: string | null = `${issuer}/avatar.png`;
   const app = express();
   app.use(express.json());
   app.get("/sso/v4/jwks", (_req, res) =>
     res.json({ keys: [{ ...jwk, kid: "test-key", alg: "RS256", use: "sig" }] }),
+  );
+  app.get("/avatar.png", (_req, res) =>
+    res
+      .type("png")
+      .send(
+        Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+          "base64",
+        ),
+      ),
   );
   app.post("/par", (req, res) => {
     if (
@@ -67,6 +78,7 @@ export async function fakeKyros(port: number, appUrl: string) {
       client_id: "liora-test",
       resource_aud: "kyros:liora",
       scope: "profile email offline_access",
+      avatar_url: avatar,
       name: sub === "test-owner" ? "Camille Martin" : "Alex Dupont",
     })
       .setProtectedHeader({ alg: "RS256", kid: "test-key" })
@@ -95,6 +107,9 @@ export async function fakeKyros(port: number, appUrl: string) {
     server,
     get rotations() {
       return rotations;
+    },
+    setAvatar(value: string | null) {
+      avatar = value;
     },
     setSubject(s: string) {
       subject = s;

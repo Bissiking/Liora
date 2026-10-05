@@ -1,4 +1,5 @@
 // src/client/Pages.tsx
+import { Markdown } from "./Markdown";
 import { useEffect, useState } from "react";
 import {
   FileText,
@@ -139,7 +140,7 @@ function ReadBlock({
     );
   switch (b.type) {
     case "heading":
-      return <h2>{b.content}</h2>;
+      return <Markdown text={`## ${b.content}`} />;
     case "divider":
       return <hr />;
     case "code":
@@ -149,7 +150,11 @@ function ReadBlock({
         </pre>
       );
     case "quote":
-      return <blockquote>{b.content}</blockquote>;
+      return (
+        <blockquote>
+          <Markdown text={b.content} />
+        </blockquote>
+      );
     case "checklist":
       return (
         <label className="check-line">
@@ -164,7 +169,9 @@ function ReadBlock({
             .split("\n")
             .filter(Boolean)
             .map((s, i) => (
-              <li key={i}>{s.replace(/^[-*] /, "")}</li>
+              <li key={i}>
+                <Markdown text={s.replace(/^[-*] /, "")} />
+              </li>
             ))}
         </ul>
       );
@@ -177,7 +184,7 @@ function ReadBlock({
         <p>{b.content}</p>
       );
     default:
-      return <p>{b.content}</p>;
+      return <Markdown text={b.content} />;
   }
 }
 const types = [
@@ -220,7 +227,7 @@ export function Pages({
     [dirty, setDirty] = useState(false),
     [create, setCreate] = useState(false),
     [saving, setSaving] = useState(false),
-    [preview, setPreview] = useState(!can("MANAGE_PAGES")),
+    [preview, setPreview] = useState(true),
     [historyOpen, setHistoryOpen] = useState(false),
     [history, setHistory] = useState<Row[]>([]),
     [comments, setComments] = useState<Row[]>([]),
@@ -322,7 +329,7 @@ export function Pages({
     <div className="pages-layout">
       <aside className="page-list">
         <header>
-          <h2>Les pages</h2>
+          <h2>Pages de l’équipe</h2>
           {edit && (
             <button
               className="icon-button"
@@ -364,7 +371,12 @@ export function Pages({
               }}
             >
               <FileText size={16} />
-              {p.title}
+              <span>
+                <strong>{p.title}</strong>
+                <small>
+                  {new Date(p.updated_at).toLocaleDateString("fr-FR")}
+                </small>
+              </span>
             </button>
           ))}
       </aside>
@@ -374,7 +386,9 @@ export function Pages({
             <header>
               <FileText size={35} />
               <h1>{page.title}</h1>
-              <p>Une mémoire commune, une équipe qui avance.</p>
+              <p className="muted">
+                Documentation de l’équipe · Révision {page.revision}
+              </p>
             </header>
             <div className="document-modes">
               {edit && (
@@ -617,7 +631,7 @@ export function Pages({
               {comments.map((c) => (
                 <article key={c.id}>
                   <strong>{c.name}</strong>
-                  <p>{c.content}</p>
+                  <Markdown text={c.content} />
                 </article>
               ))}
               <form

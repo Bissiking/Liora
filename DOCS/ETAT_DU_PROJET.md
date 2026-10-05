@@ -1,6 +1,10 @@
 # État du projet Liora
 
-Revue historique du 25 septembre 2026, complétée le 3 octobre 2026 : code local en 0.5.0 BETA. Références : [cahier des charges original](PROJECT_CHARTER.md), [charte d’implémentation](../PROJECT_CHARTER.md), [roadmap](../ROADMAP.md). Cette revue confronte les exigences aux sources, migrations et tests ; elle ne certifie pas le déploiement ni chaque parcours de la charte.
+Revue historique du 25 septembre 2026, complétée le 5 octobre 2026 : code local en 0.7.1 BETA. Références : [cahier des charges original](PROJECT_CHARTER.md), [charte d’implémentation](../PROJECT_CHARTER.md), [roadmap](../ROADMAP.md). Cette revue confronte les exigences aux sources, migrations et tests ; elle ne certifie pas le déploiement ni chaque parcours de la charte.
+
+## Livraison 0.6.0 — 5 octobre 2026
+
+Projets, cartes/Kanban et pages d’équipe remaniés ; Markdown commun, menus de cartes/colonnes, catégories repliables par compte, supervision et données personnelles structurées. Gotify personnel avec file durable et droits réévalués. Avatar Kyros synchronisé sans remplacer un avatar local. Migration 009 et version manifests alignés. [Périmètre et limites](RELEASE_0.6.0.md), [preuves locales](VALIDATION.md). L’installation réelle exige la migration 009 avant démarrage ; aucun déploiement distant ni fournisseur réel certifié.
 
 ## Livraison 0.5.0 — 3 octobre 2026
 
@@ -52,3 +56,11 @@ Le script `scripts/send-heartbeat.ts` vérifie Argos puis envoie à Liora avec u
 Les résultats exécutés pour ce lot sont consignés dans [VALIDATION.md](VALIDATION.md). Les fixtures Kyros/DropIt et les bases jetables locales ne constituent pas un test des fournisseurs déployés.
 
 Avant exploitation validée : sauvegarder puis appliquer la migration 006, déployer le code 0.4.7, configurer VAPID et tester un push sur appareil réel, installer l’émetteur sur Argus, observer une réception réelle puis une expiration et un retour, vérifier le SSO réel, une alerte entrante et une restauration séparée. Avant 1.0 : consolider droits et tests, effectuer audits sécurité/accessibilité et tests de charge, automatiser les backups, documenter OpenAPI et les runbooks.
+
+## Lot 0.7.0
+
+Implémenté : notes personnelles datées et récupération BrainDump sous identité Kyros ; Google Agenda OAuth avec mises à jour/suppressions des événements liés et conflits ; CalDAV par appareil ; préférence de thème synchronisée ou locale, Lagune ; refonte amis/conversations et outils Markdown enrichis. Les rendez-vous Google sans lien Liora ne sont pas importés dans l’espace d’équipe. Guide et configuration dans RELEASE_0.7.0.md ; qualification locale et validations externes séparées dans VALIDATION.md.
+
+## Intégration BrainDump — 0.7.1 du 5 octobre 2026
+
+BrainDump 2.1.0 rejoint DropIt dans les paramètres : configuration en base, consentement personnel et PKCE, même sujet/émetteur Kyros, lecture seule des notes datées, refresh rotatif, révocation et retrait des copies. Aucune publication des notes privées dans un salon. Migration Liora 011 et SQLite BrainDump additive 3. Configuration et limites : DOCS/RELEASE_0.7.1.md. Fournisseurs réels et déploiement restent à qualifier.

@@ -90,12 +90,23 @@ export function Friends({
   revision: number;
   fail: (e: unknown) => void;
 }) {
+  const preview = (text: string) =>
+    text
+      .replace(/(^|\n)\s{0,3}#{1,6}\s+/g, "$1")
+      .replace(/(\*\*|~~|\+\+|__|`)/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
   const [conversation, setConversation] = useState<Row | null>(null);
   const [friends, setFriends] = useState<Row[]>([]),
     [invites, setInvites] = useState<
       (Row & { accepted_by?: string; expires_at: string })[]
     >([]),
     [online, setOnline] = useState(false),
+    [filter, setFilter] = useState("all"),
+    [search, setSearch] = useState(""),
+    [loading, setLoading] = useState(true),
+    [loadError, setLoadError] = useState(""),
     [allowJoin, setAllowJoin] = useState(false),
     [link, setLink] = useState(""),
     [copied, setCopied] = useState(false),
@@ -107,10 +118,18 @@ export function Friends({
       api<Result>("/api/v1/invitations"),
     ])
       .then(([f, i]) => {
+        setLoadError("");
+        setLoading(false);
         setFriends(f.data);
+        setConversation((old) =>
+          old ? f.data.find((row) => row.id === old.id) || null : null,
+        );
         setInvites(i.data);
       })
-      .catch(fail);
+      .catch((e) => {
+        setLoading(false);
+        setLoadError(e.message);
+      });
   useEffect(load, [revision]);
   useEffect(() => {
     const timer = setInterval(load, 30000);
@@ -123,24 +142,163 @@ export function Friends({
     (i) => i.accepted_by || i.revoked || new Date(i.expires_at) <= new Date(),
   );
   return (
-    <div className="page friends-page">
+    <div
+      className={`page friends-page ${conversation ? "has-conversation" : ""}`}
+    >
       <header className="page-heading">
         <div>
           <h1>Amis</h1>
-          <p>Invitez, échangez, discutez.</p>
+          <p>Retrouvez vos échanges, même sans espace commun.</p>
         </div>
       </header>
 
-      {conversation ? (
-        <FriendMessenger
-          key={conversation.id}
-          friend={conversation}
-          userId={userId}
-          close={() => setConversation(null)}
-          onRead={load}
-        />
-      ) : (
-        <>
+      <div className="friends-workspace">
+        <aside className="friends-index" aria-label="Mes amis">
+          <label className="friend-search">
+            Rechercher un ami
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nom ou conversation…"
+            />
+          </label>
+          <div className="friend-filters segmented">
+            {[
+              ["all", "Tous"],
+              ["unread", "Non lus"],
+              ["online", "En ligne"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                aria-pressed={filter === key}
+                onClick={() => setFilter(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {loadError && (
+            <p className="error" role="alert">
+              {loadError}
+              <button onClick={load}>Réessayer</button>
+            </p>
+          )}
+          {loading && <p role="status">Chargement des amis…</p>}
+          <section className="friends-section">
+            <div className="friends-section-header static">
+              <Users size={18} />
+              <span>Mes amis · {friends.length}</span>
+            </div>
+            <div className="friends-section-body">
+              <div className="friends-list">
+                {friends
+                  .filter(
+                    (f) =>
+                      (filter !== "unread" || (f.unread_count || 0) > 0) &&
+                      (filter !== "online" || f.status !== "offline") &&
+                      (f.name + " " + (f.last_message || ""))
+                        .toLocaleLowerCase("fr")
+                        .includes(search.toLocaleLowerCase("fr")),
+                  )
+                  .sort(
+                    (a, b) =>
+                      Number((b.unread_count || 0) > 0) -
+                        Number((a.unread_count || 0) > 0) ||
+                      String(
+                        (b as Row & { last_message_at?: string })
+                          .last_message_at || "",
+                      ).localeCompare(
+                        String(
+                          (a as Row & { last_message_at?: string })
+                            .last_message_at || "",
+                        ),
+                      ) ||
+                      a.name.localeCompare(b.name, "fr"),
+                  )
+                  .map((f) => (
+                    <article
+                      key={f.id}
+                      className={`friend-row ${conversation?.id === f.id ? "selected" : ""}`}
+                    >
+                      <button
+                        className="friend-open"
+                        aria-label={`Écrire à ${f.name}`}
+                        aria-current={
+                          conversation?.id === f.id ? "true" : undefined
+                        }
+                        onClick={() => setConversation(f)}
+                      >
+                        <Avatar name={f.name} src={f.avatar} />
+                        <div className="friend-info">
+                          <strong>
+                            {f.name}
+                            {!!f.unread_count && (
+                              <span className="unread-count">
+                                {f.unread_count}
+                              </span>
+                            )}
+                          </strong>
+                          {f.last_message && (
+                            <small>
+                              {preview(f.last_message).slice(0, 90)}
+                            </small>
+                          )}
+                          <span className="friend-status">
+                            <span
+                              className={`presence-dot ${f.status === "offline" ? "offline" : ""}`}
+                            />
+                            {{
+                              available: "Disponible",
+                              busy: "Occupé",
+                              away: "Absent",
+                              offline: "Hors ligne",
+                            }[f.status] || f.status}
+                          </span>
+                        </div>
+                      </button>
+                      <div className="friend-actions">
+                        <button
+                          className="icon-button danger"
+                          aria-label={`Retirer ${f.name} des amis`}
+                          onClick={() => {
+                            if (confirm(`Retirer ${f.name} de vos amis ?`))
+                              void api(`/api/v1/friends/${f.id}`, "DELETE")
+                                .then(load)
+                                .catch(fail);
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+              </div>
+              {!loading &&
+                friends.length > 0 &&
+                !friends.some(
+                  (f) =>
+                    (filter !== "unread" || (f.unread_count || 0) > 0) &&
+                    (filter !== "online" || f.status !== "offline") &&
+                    (f.name + " " + (f.last_message || ""))
+                      .toLocaleLowerCase("fr")
+                      .includes(search.toLocaleLowerCase("fr")),
+                ) && (
+                  <p className="muted empty-hint">
+                    {filter === "unread"
+                      ? "Tout est lu."
+                      : "Aucun ami ne correspond à ce filtre."}
+                  </p>
+                )}
+              {!loading && !friends.length && (
+                <p className="muted empty-hint">
+                  Aucun ami pour le moment. Partagez une invitation pour
+                  commencer.
+                </p>
+              )}
+            </div>
+          </section>
+
           <section className="friends-section">
             <button
               className="friends-section-header"
@@ -231,85 +389,6 @@ export function Friends({
           </section>
 
           <section className="friends-section">
-            <div className="friends-section-header static">
-              <Users size={18} />
-              <span>Mes amis · {friends.length}</span>
-              <label
-                className="check-line compact"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <input
-                  type="checkbox"
-                  checked={online}
-                  onChange={(e) => setOnline(e.target.checked)}
-                />
-                En ligne
-              </label>
-            </div>
-            <div className="friends-section-body">
-              <div className="friends-list">
-                {friends
-                  .filter((f) => !online || f.status !== "offline")
-                  .map((f) => (
-                    <article key={f.id} className="friend-row">
-                      <Avatar name={f.name} src={f.avatar} />
-                      <div className="friend-info">
-                        <strong>
-                          {f.name}
-                          {!!f.unread_count && (
-                            <span className="unread-count">
-                              {f.unread_count}
-                            </span>
-                          )}
-                        </strong>
-                        {f.last_message && (
-                          <small>{f.last_message.slice(0, 90)}</small>
-                        )}
-                        <span className="friend-status">
-                          <span
-                            className={`presence-dot ${f.status === "offline" ? "offline" : ""}`}
-                          />
-                          {{
-                            available: "Disponible",
-                            busy: "Occupé",
-                            away: "Absent",
-                            offline: "Hors ligne",
-                          }[f.status] || f.status}
-                        </span>
-                      </div>
-                      <div className="friend-actions">
-                        <button
-                          aria-label={`Écrire à ${f.name}`}
-                          onClick={() => setConversation(f)}
-                        >
-                          <MessageSquare size={15} />
-                        </button>
-                        <button
-                          className="icon-button danger"
-                          aria-label={`Retirer ${f.name} des amis`}
-                          onClick={() => {
-                            if (confirm(`Retirer ${f.name} de vos amis ?`))
-                              void api(`/api/v1/friends/${f.id}`, "DELETE")
-                                .then(load)
-                                .catch(fail);
-                          }}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-              </div>
-              {!friends.length && (
-                <p className="muted empty-hint">
-                  Aucun ami pour le moment. Partagez une invitation pour
-                  commencer.
-                </p>
-              )}
-            </div>
-          </section>
-
-          <section className="friends-section">
             <button
               className="friends-section-header"
               onClick={() => setOpenSent(!openSent)}
@@ -323,16 +402,18 @@ export function Friends({
             </button>
             {openSent && (
               <div className="friends-section-body">
-                {sent.length ? (
+                {invites.length ? (
                   <div className="sent-list">
-                    {sent.map((i) => (
+                    {invites.map((i) => (
                       <article className="sent-row" key={i.id}>
                         <span className="sent-status">
                           {i.revoked
                             ? "Révoquée"
                             : i.accepted_by
                               ? "Acceptée"
-                              : "Expirée"}
+                              : new Date(i.expires_at) <= new Date()
+                                ? "Expirée"
+                                : "En attente"}
                         </span>
                         <span className="sent-date">
                           {new Date(i.expires_at).toLocaleDateString("fr-FR")}
@@ -357,8 +438,28 @@ export function Friends({
               </div>
             )}
           </section>
-        </>
-      )}
+        </aside>
+        <div className="friends-conversation">
+          {conversation ? (
+            <FriendMessenger
+              key={conversation.id}
+              friend={conversation}
+              userId={userId}
+              close={() => setConversation(null)}
+              onRead={load}
+            />
+          ) : (
+            <div className="friend-conversation-empty">
+              <MessageSquare size={32} />
+              <h2>Une conversation, un lien</h2>
+              <p>
+                Choisissez un ami pour retrouver vos échanges ou lui écrire. Les
+                messages restent disponibles à son retour.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

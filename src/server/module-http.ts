@@ -4,6 +4,11 @@ import https from "node:https";
 import { lookup } from "node:dns/promises";
 import { privateAddress } from "./network.js";
 import { assert } from "./errors.js";
+export class ModuleHttpError extends Error {
+  constructor(public status: number) {
+    super(`Le module a répondu HTTP ${status}`);
+  }
+}
 export async function moduleRequest(
   base: string,
   route: string,
@@ -12,6 +17,7 @@ export async function moduleRequest(
     body?: unknown;
     key?: string;
     userToken?: string;
+    userTokenHeader?: "x-dropit-user-token" | "x-braindump-user-token";
     allowPrivate?: boolean;
   } = {},
 ) {
@@ -71,7 +77,10 @@ export async function moduleRequest(
             : {}),
           ...(options.key ? { authorization: `Bearer ${options.key}` } : {}),
           ...(options.userToken
-            ? { "x-dropit-user-token": options.userToken }
+            ? {
+                [options.userTokenHeader || "x-dropit-user-token"]:
+                  options.userToken,
+              }
             : {}),
         },
       },
@@ -90,7 +99,7 @@ export async function moduleRequest(
             res.statusCode < 200 ||
             res.statusCode >= 300
           ) {
-            reject(Error(`Le module a répondu HTTP ${res.statusCode}`));
+            reject(new ModuleHttpError(res.statusCode || 502));
             return;
           }
           try {

@@ -1,4 +1,4 @@
-# Liora — charte directrice · 0.5.0 BETA
+# Liora — charte directrice · 0.7.1 BETA
 
 **Avant tout développement significatif, lire PROJECT_CHARTER.md.**
 
@@ -63,7 +63,7 @@ Surveillance indépendante de l’API Argos, de l’URL de santé Argus et d’u
 
 ## Versioning et roadmap
 
-SemVer, version courante **0.5.0 — BETA** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
+SemVer, version courante **0.7.1 — BETA** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
 
 ## Definition of Done et qualité
 
@@ -90,3 +90,17 @@ La 0.4.9 recompose les parcours autour d’un accueil personnel et de quatre gro
 ## Espace personnel et expérience 0.5.0 — décision du 3 octobre 2026
 
 Thèmes structurants, détection française de dates ancrée au message, carte personnelle À essayer / Visité, conversations durables entre amis indépendantes des espaces. Les lieux sont communs, les suivis et notes personnels ; visibilité des visites privée par défaut, partage volontaire aux amis ou aux membres connectés. À la demande de l’utilisateur, la recherche Photon/OpenStreetMap est libre : enseignes, campings, musées, villes et adresses, sans filtre Burger King. La catégorie historique Burger King est conservée, Lieu libre ajouté par migration 008. Recherche et ajout manuel alimentent le catalogue sur une action explicite. Les coordonnées restent avancées, et les suggestions ne sont pas importées automatiquement. Projets filtrables et vue liste, calendrier Mois / Agenda, administration et préférences guidées, aide enrichie. Voir DOCS/RELEASE_0.5.0.md. Les médias optionnels sont reportés au jalon suivant.
+
+## Expérience 0.6 — décision du 5 octobre 2026
+
+Refonte des projets, du Kanban, de la carte et des pages d’équipe dans les univers existants. Markdown CommonMark/GFM dans les contenus authored ; HTML ignoré, protocoles dangereux bloqués et images externes laissées aux aperçus existants. Clic droit, Maj+F10 et boutons d’actions exposent les mêmes opérations autorisées. Catégories globales et de salons repliables, préférence persistée sans écraser les autres réglages.
+
+Avatar issu du claim signé `avatar_url` de Kyros (ou `picture`) à la connexion et au refresh. Images servies depuis Liora avec limite, signature de fichier et redirections refusées ; avatar local prioritaire. L’avatar de la topbar est retiré. Gotify personnel opt-in : URL HTTPS publique, token d’application chiffré, file transactionnelle, cinq tentatives au maximum, expiration à 24 h, relance/annulation visibles, droits et préférences réévalués. Contenu générique pour préserver les conversations privées. Migration 009. Voir DOCS/RELEASE_0.6.0.md.
+
+## Expérience 0.7 — décision du 5 octobre 2026
+
+Notes datées personnelles et lien opt-in BrainDump sous identité Kyros vérifiée. Google Agenda demandé sur Android/Web : OAuth lié à la session, tokens chiffrés, synchronisation des événements de l’auteur hors salons privés, modifications/suppressions dans les deux sens et conflits explicites. Les autres rendez-vous Google ne sont pas importés dans l’espace. CalDAV séparé par appareil, accès révocable et droits réévalués ; notes en lecture seule. Thème de compte avec opt-out par navigateur et nouveau thème Lagune ; amis/conversations recomposés, Markdown enrichi sans HTML. Migration 010 et détails dans DOCS/RELEASE_0.7.0.md. Aucun fournisseur réel ou déploiement qualifié par les fixtures.
+
+## Intégration BrainDump — 0.7.1 du 5 octobre 2026
+
+BrainDump 2.1.0 rejoint DropIt dans les paramètres : configuration en base, consentement personnel et PKCE, même sujet/émetteur Kyros, lecture seule des notes datées, refresh rotatif, révocation et retrait des copies. Aucune publication des notes privées dans un salon. Migration Liora 011 et SQLite BrainDump additive 3. Configuration et limites : DOCS/RELEASE_0.7.1.md. Fournisseurs réels et déploiement restent à qualifier.

@@ -1,5 +1,7 @@
 # Intégrations LUMA — Liora 0.3.0 / DropIt 1.1.0
 
+Depuis Liora 0.7.1, Administration → Intégrations affiche et propose **DropIt et BrainDump**, les fournisseurs disponibles. BrainDump 2.1.0 utilise une délégation personnelle en lecture seule, sans webhook de salon : [configuration](RELEASE_0.7.1.md). Les autres connecteurs éventuels restent en base et leurs contrats API/webhook sont conservés ; les sections techniques ci-dessous décrivent ces contrats, pas des fournisseurs proposés dans les paramètres.
+
 Implémentation du 16 septembre 2026. Les réglages quotidiens des modules sont stockés en PostgreSQL et modifiables dans l’interface, sans redémarrage ni variable `.env` par module. La connexion DB, la clé maîtresse et le SSO de l’application restent dans la configuration de démarrage.
 
 ## Brancher DropIt

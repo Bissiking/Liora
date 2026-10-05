@@ -54,6 +54,12 @@ export const themes = [
     description: "Typographie monospace, angles nets et grille précise.",
     world: "technique",
   },
+  {
+    id: "lagoon",
+    name: "Lagune",
+    description: "Teintes minérales claires, accents turquoise et rythme aéré.",
+    world: "minéral",
+  },
 ] as const;
 export const themeIds = themes.map((t) => t.id);
 export function themeId(value: unknown) {

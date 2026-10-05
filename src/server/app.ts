@@ -30,8 +30,12 @@ import { commandRouter } from "./commands.js";
 import { calendarRouter } from "./calendar.js";
 import { remindersRouter } from "./reminders.js";
 import { favoritesRouter } from "./favorites.js";
+import { gotifyRouter } from "./gotify.js";
 import { pushRouter } from "./push.js";
 import { themeIds } from "../shared/themes.js";
+import { notesRouter } from "./notes.js";
+import { googleCalendarRouter } from "./google-calendar.js";
+import { caldavRouter, calendarCredentialsRouter } from "./caldav.js";
 import { personalRouter } from "./personal.js";
 export { VERSION };
 
@@ -141,6 +145,8 @@ export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
   );
   app.use("/auth", limiter(30));
   app.use("/api/webhooks", limiter(60));
+  app.get("/.well-known/caldav", (_req, res) => res.redirect(301, "/dav/"));
+  app.use("/dav", caldavRouter);
   app.use(
     express.json({
       limit: "1500kb",
@@ -167,6 +173,10 @@ export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
   app.use("/api/v1", authenticate);
   app.use(
     "/api/v1",
+    gotifyRouter,
+    notesRouter,
+    googleCalendarRouter,
+    calendarCredentialsRouter,
     socialRouter,
     personalRouter,
     avatarRouter,
@@ -189,6 +199,44 @@ export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
     );
     res.json({ data: u, workspaces, version: VERSION });
   });
+  app.patch("/api/v1/me/appearance", async (req, res) => {
+    assert(
+      req.actor.kind === "human",
+      403,
+      "HUMAN_REQUIRED",
+      "Compte humain requis.",
+    );
+    const b = z
+      .object({
+        theme: z.enum(themeIds).optional(),
+        density: z.enum(["comfortable", "compact"]).optional(),
+        fontSize: z.enum(["normal", "large"]).optional(),
+      })
+      .strict()
+      .parse(req.body);
+    await query(
+      "UPDATE users SET preferences=preferences||$2::jsonb WHERE id=$1",
+      [req.actor.id, JSON.stringify(b)],
+    );
+    res.json({ ok: true });
+  });
+  app.patch("/api/v1/me/navigation", async (req, res) => {
+    assert(
+      req.actor.kind === "human",
+      403,
+      "HUMAN_REQUIRED",
+      "Compte humain requis.",
+    );
+    const { collapsedNavigation } = z
+      .object({ collapsedNavigation: z.array(z.string().max(120)).max(200) })
+      .strict()
+      .parse(req.body);
+    await query(
+      "UPDATE users SET preferences=jsonb_set(preferences,'{collapsedNavigation}',$2::jsonb) WHERE id=$1",
+      [req.actor.id, JSON.stringify(collapsedNavigation)],
+    );
+    res.json({ ok: true });
+  });
   app.patch("/api/v1/me", async (req, res) => {
     assert(
       req.actor.kind === "human",
@@ -203,6 +251,10 @@ export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
         status: z.enum(["available", "busy", "away", "invisible"]),
         preferences: z
           .object({
+            collapsedNavigation: z
+              .array(z.string().max(120))
+              .max(200)
+              .default([]),
             theme: z.enum(themeIds).default("dark"),
             density: z.enum(["comfortable", "compact"]).default("comfortable"),
             fontSize: z.enum(["normal", "large"]).default("normal"),

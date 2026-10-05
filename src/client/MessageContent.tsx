@@ -1,6 +1,7 @@
 // src/client/MessageContent.tsx
 import { useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
+import { Markdown } from "./Markdown";
 import { api } from "./api";
 import type { Row } from "./types";
 import {
@@ -131,28 +132,21 @@ export function MessageContent({
     timezone?: string;
   }) => void;
 }) {
-  const urls = [...new Set(text.match(/https?:\/\/[^\s<>]+/g) || [])].slice(
-    0,
-    4,
-  );
+  const urls = [
+    ...new Set(text.match(/https?:\/\/[^\s<>\[\]()]+/g) || []),
+  ].slice(0, 4);
   return (
     <>
       <div className="message-text">
-        {text
-          .split(/(https?:\/\/[^\s<>]+|@\[[0-9a-f-]{36}\])/gi)
-          .map((part, i) =>
-            part.startsWith("@[") ? (
-              <span className="mention" key={i}>
-                {displayMentions(part, members)}
-              </span>
-            ) : /^https?:/.test(part) ? (
-              <a key={i} href={part} target="_blank" rel="noopener noreferrer">
-                {part.includes("/attachments/") ? "Pièce jointe" : part}
-              </a>
-            ) : (
-              part
-            ),
+        <Markdown
+          text={text}
+          mentionNames={Object.fromEntries(
+            members.flatMap((m) => [
+              [m.id, m.name],
+              ...(m.kyros_user_id ? [[m.kyros_user_id, m.name]] : []),
+            ]),
           )}
+        />
       </div>
       {detectedDates.length > 0 && (
         <div className="message-dates" aria-label="Dates détectées">

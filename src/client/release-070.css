@@ -1,0 +1,594 @@
+/* src/client/release-070.css — personal links and conversations, inherited theme grammar. */
+.markdown-format {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.markdown-format button {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 5px 8px;
+}
+.markdown-tools {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.markdown-tools .markdown-format {
+  flex: 1 1 400px;
+}
+.markdown u {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.conversation-composer-modes {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+}
+.conversation-composer-modes button {
+  font-size: 12px;
+  min-height: 32px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.conversation-composer-modes button[aria-expanded="true"],
+.conversation-composer-modes button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--selection);
+}
+.composer-preview {
+  max-height: 260px;
+  overflow: auto;
+  min-height: 72px;
+  padding: 12px;
+}
+.composer .markdown-format {
+  padding: 6px 10px;
+  border-block-end: 1px solid var(--line);
+}
+.friends-page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 18px;
+}
+.friends-workspace {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  border-block-start: 1px solid var(--line);
+}
+.friends-index {
+  overflow: auto;
+  min-width: 0;
+  padding: 18px 18px 0 0;
+  border-inline-end: 1px solid var(--line);
+}
+.friend-search {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.friend-filters {
+  margin-bottom: 20px;
+}
+.friend-filters button {
+  flex: 1;
+  padding: 6px;
+  font-size: 12px;
+}
+.friends-index .friends-section {
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  background: transparent;
+  margin: 0 0 20px;
+}
+.friends-index .friends-section-header {
+  padding: 8px 0;
+  font-size: 13px;
+}
+.friends-index .friends-section-body {
+  padding: 6px 0;
+}
+.friends-index .friend-row {
+  padding: 0;
+  gap: 0;
+  flex-wrap: nowrap;
+  border-block-end: 1px solid var(--line);
+  border-radius: 0;
+}
+.friends-index .friend-row.selected {
+  background: var(--selection);
+}
+.friend-open {
+  display: flex;
+  text-align: left;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  padding: 14px 6px;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.friend-open .friend-info {
+  flex: 1;
+  min-width: 0;
+}
+.friend-info strong {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.friend-info small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 190px;
+}
+.friends-index .friend-actions {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 4px;
+}
+.friend-status {
+  font-size: 11px;
+}
+.friends-conversation {
+  min-width: 0;
+  min-height: 0;
+  padding-inline-start: 24px;
+}
+.friend-conversation-empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 32px;
+  color: var(--muted);
+}
+.friend-conversation-empty h2 {
+  font-size: 23px;
+  color: var(--text);
+  margin: 0;
+}
+.friend-conversation-empty p {
+  max-width: 40ch;
+  margin: 0;
+  line-height: 1.65;
+}
+.friend-messenger {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.friend-messenger header {
+  padding: 18px 0;
+  border-block-end: 1px solid var(--line);
+}
+.friend-messenger header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.friend-messenger header p {
+  font-size: 12px;
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+.friend-message-list {
+  padding: 16px 0;
+  overflow: auto;
+  flex: 1;
+  min-height: 180px;
+}
+.friend-message-group {
+  display: flow-root;
+}
+.conversation-date {
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 22px 0 16px;
+}
+.friend-bubble {
+  border: 0;
+  border-radius: var(--radius-panel);
+  padding: 12px 16px;
+  max-width: min(85%, 65ch);
+  margin: 8px 0;
+}
+.friend-bubble.mine {
+  background: var(--selection);
+  margin-inline-start: auto;
+}
+.friend-bubble small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.friend-bubble .markdown {
+  line-height: 1.65;
+}
+.friend-messenger form {
+  display: block;
+  padding: 10px 0 0;
+  border-block-start: 1px solid var(--line);
+}
+.friend-messenger textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 70px;
+  max-height: 200px;
+}
+.friend-send-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.friend-send-row small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.invitation-card {
+  flex-wrap: wrap;
+}
+.friends-index .invitation-card-link {
+  min-width: 0;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.friends-index .invitation-card-link input {
+  width: 100%;
+}
+.friends-index .invitation-card-qr {
+  margin-inline: auto;
+}
+.chat-layout .message-scroll {
+  scrollbar-gutter: stable;
+}
+.chat-layout .composer-wrap {
+  background: var(--bg);
+}
+.notes-connection {
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  border-block: 1px solid var(--line);
+  padding: 20px 0;
+  margin-bottom: 24px;
+}
+.notes-connection h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.notes-connection p {
+  max-width: 62ch;
+  color: var(--muted);
+  line-height: 1.65;
+}
+.notes-connection small {
+  color: var(--muted);
+}
+.notes-connection-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  flex-shrink: 0;
+  max-width: 360px;
+}
+.notes-connection-actions > label:not(.check-line) {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.notes-connection-actions select {
+  width: 100%;
+  min-width: 0;
+}
+.notes-search {
+  display: grid;
+  gap: 6px;
+  max-width: 500px;
+  font-size: 13px;
+}
+.dated-note {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr) auto;
+  gap: 22px;
+  padding: 24px 0;
+  border-block-start: 1px solid var(--line);
+  align-items: start;
+}
+.dated-note time {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: 5px;
+}
+.dated-note time small {
+  display: block;
+  margin-top: 6px;
+}
+.dated-note-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.dated-note-heading h2 {
+  margin: 0;
+  font-size: 21px;
+  overflow-wrap: anywhere;
+}
+.dated-note .markdown {
+  max-width: 75ch;
+}
+.dated-note-actions {
+  display: flex;
+  gap: 6px;
+}
+.calendar-sync-disclosure {
+  border-block: 1px solid var(--line);
+  margin: 16px 0;
+  padding: 14px 0;
+}
+.calendar-sync-disclosure > summary,
+.caldav-settings > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+.calendar-sync {
+  display: grid;
+  gap: 32px;
+  padding-top: 18px;
+  max-width: 900px;
+}
+.calendar-sync section > header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.calendar-sync h2 {
+  margin: 0;
+  font-size: 21px;
+}
+.calendar-sync p {
+  max-width: 70ch;
+  line-height: 1.65;
+}
+.calendar-sync form {
+  display: grid;
+  gap: 16px;
+  margin-block: 20px;
+}
+.calendar-sync form > button {
+  justify-self: start;
+}
+.sync-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.sync-fields label,
+.calendar-sync form > label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.calendar-sync form > label.check-line {
+  display: flex;
+}
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 16px;
+}
+.calendar-sync small {
+  color: var(--muted);
+}
+.sync-conflicts {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+}
+.sync-conflicts article {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.sync-conflicts h4 {
+  margin: 0;
+}
+.sync-conflicts dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  font-size: 12px;
+}
+.sync-conflicts dt {
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.sync-conflicts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.sync-event-summary {
+  display: grid;
+  gap: 6px;
+}
+.sync-event-summary p {
+  margin: 0;
+}
+.sync-event-description {
+  white-space: pre-wrap;
+}
+.caldav-settings {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.caldav-devices article {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.caldav-devices small {
+  display: block;
+  margin-top: 4px;
+}
+.one-time-password {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.one-time-password label {
+  flex: 1;
+  min-width: 200px;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 1100px) {
+  .friends-workspace {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+  .friends-conversation {
+    padding-inline-start: 18px;
+  }
+}
+@media (max-width: 760px) {
+  .markdown-format button,
+  .conversation-composer-modes button {
+    min-height: 36px;
+  }
+  .friends-page {
+    padding: 14px;
+  }
+  .friends-workspace {
+    display: block;
+  }
+  .friends-index {
+    padding: 14px 0;
+    border: 0;
+    overflow: visible;
+  }
+  .friends-conversation {
+    display: none;
+    padding: 0;
+    height: 100%;
+  }
+  .friends-page.has-conversation .friends-index,
+  .friends-page.has-conversation > .page-heading {
+    display: none;
+  }
+  .friends-page.has-conversation .friends-conversation {
+    display: block;
+  }
+  .friends-page.has-conversation .friends-workspace {
+    height: 100%;
+    min-height: 0;
+  }
+  .friend-messenger {
+    height: 100%;
+    min-height: 0;
+  }
+  .friend-messenger header {
+    padding: 10px 0 14px;
+  }
+  .friend-message-list {
+    min-height: 120px;
+  }
+  .friend-open {
+    min-height: 72px;
+  }
+  .friend-info small {
+    max-width: 230px;
+  }
+  .friend-bubble {
+    max-width: 92%;
+    padding: 10px 12px;
+  }
+  .friend-send-row small {
+    max-width: 160px;
+    line-height: 1.5;
+  }
+  .notes-connection {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .notes-connection-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: start;
+  }
+  .dated-note {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .dated-note time {
+    grid-column: 1/-1;
+    display: flex;
+    gap: 8px;
+  }
+  .dated-note time small {
+    margin: 0;
+  }
+  .dated-note-heading {
+    align-items: start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .dated-note-heading h2 {
+    font-size: 19px;
+  }
+  .sync-fields,
+  .sync-conflicts dl {
+    grid-template-columns: 1fr;
+  }
+  .calendar-sync h2 {
+    font-size: 19px;
+  }
+  .sync-actions button {
+    min-height: 44px;
+  }
+  :root[data-theme="lagoon"] {
+    --space-page: 18px;
+  }
+}
+
+@media (max-width: 760px) {
+  .friends-index .friend-row {
+    flex-direction: row;
+    align-items: center;
+  }
+  .friends-index .friend-actions {
+    flex-direction: row;
+    width: auto;
+  }
+  .friends-index .friend-actions button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

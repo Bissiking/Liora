@@ -6,6 +6,7 @@ import {
   type ReactNode,
   type FormEvent,
 } from "react";
+import { MarkdownEditor } from "./Markdown";
 import { X, Plus, ArrowRight } from "lucide-react";
 export function Empty({
   title,
@@ -31,7 +32,9 @@ export function Modal({
   title,
   children,
   onClose,
+  className = "",
 }: {
+  className?: string;
   title: string;
   children: ReactNode;
   onClose: () => void;
@@ -42,7 +45,12 @@ export function Modal({
     return () => ref.current?.close();
   }, []);
   return (
-    <dialog ref={ref} onCancel={onClose}>
+    <dialog
+      className={className}
+      aria-label={title}
+      ref={ref}
+      onCancel={onClose}
+    >
       <header>
         <h2>{title}</h2>
         <button className="icon-button" aria-label="Fermer" onClick={onClose}>
@@ -60,6 +68,7 @@ export type Field = {
   value?: string;
   options?: { value: string; label: string }[];
   required?: boolean;
+  maxLength?: number;
 };
 export function FormDialog({
   title,
@@ -96,10 +105,13 @@ export function FormDialog({
     <Modal title={title} onClose={onClose}>
       <form className="form" onSubmit={submit}>
         {fields.map((f) => (
-          <label key={f.key}>
-            {f.label}
+          <div className="form-field" key={f.key}>
+            {f.type !== "textarea" && (
+              <label htmlFor={`field-${f.key}`}>{f.label}</label>
+            )}
             {f.options ? (
               <select
+                id={`field-${f.key}`}
                 name={f.key}
                 defaultValue={f.value}
                 required={f.required ?? true}
@@ -111,21 +123,24 @@ export function FormDialog({
                 ))}
               </select>
             ) : f.type === "textarea" ? (
-              <textarea
+              <MarkdownEditor
                 name={f.key}
-                defaultValue={f.value}
-                rows={4}
+                label={f.label}
+                value={f.value}
                 required={f.required ?? true}
+                maxLength={f.maxLength}
               />
             ) : (
               <input
+                id={`field-${f.key}`}
                 name={f.key}
                 type={f.type || "text"}
                 defaultValue={f.value}
                 required={f.required ?? true}
+                maxLength={f.maxLength}
               />
             )}
-          </label>
+          </div>
         ))}
         {error && (
           <p className="error" role="alert">

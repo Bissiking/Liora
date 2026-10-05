@@ -1,6 +1,6 @@
 # Roadmap Liora
 
-Revue du 3 octobre 2026 · version courante **0.5.0 BETA**. « Implémenté » ne vaut pas validation du déploiement. Bilan avec preuves et limites : [état du projet](DOCS/ETAT_DU_PROJET.md). Propositions : [Idées](DOCS/Idées.md).
+Revue du 5 octobre 2026 · version courante **0.7.1 BETA**. « Implémenté » ne vaut pas validation du déploiement. Bilan avec preuves et limites : [état du projet](DOCS/ETAT_DU_PROJET.md). Propositions : [Idées](DOCS/Idées.md).
 
 ## 0.1.0 — ALPHA
 
@@ -54,6 +54,18 @@ Accueil personnel, navigation regroupée par usage, index contextuel des salons,
 ## 0.5.0 — BETA · espace personnel et expérience
 
 Thèmes structurants et tokens extensibles, dates françaises stables, carte avec recherche libre de lieux/enseignes/adresses, ajout direct À essayer / Visité et partage volontaire, messagerie durable entre amis sans espace commun. Projets/tableau/liste et filtres, calendrier Mois/Agenda, réglages guidés et aide enrichie. Migrations 007/008. [Notes et limites](DOCS/RELEASE_0.5.0.md).
+
+## 0.6.0 — BETA · organisation et notifications
+
+Implémenté : index des projets, Kanban compact et filtrable, carte avec édition intégrée/propriétés/onglets, pages d’équipe en lecture initiale et index daté. Markdown GFM partagé, aperçus d’édition, menus contextuels des cartes/colonnes accessibles au clavier et par bouton mobile. Supervision avec recherche/états et latence min./moy./max., raccourcis et partages personnels en lignes. Avatar Kyros récupéré à la connexion/au refresh, avatar de la topbar retiré ; catégories de navigation/salons repliables et persistées. Gotify personnel chiffré, file durable, contrôle des droits à l’envoi, retry/cancel et test. Migration 009. [Notes et qualification](DOCS/RELEASE_0.6.0.md).
+
+## 0.7.0 — BETA · liens personnels
+
+Implémenté : Notes datées/BrainDump, Google Agenda Android/Web pour les événements Liora liés, CalDAV par appareil, thème de compte ou navigateur, Lagune, refonte amis/conversations et Markdown enrichi. Les exceptions de récurrence, invitations externes et import de rendez-vous Google non liés restent hors de ce connecteur. Configuration et qualification : DOCS/RELEASE_0.7.0.md.
+
+## Intégration BrainDump — 0.7.1 du 5 octobre 2026
+
+BrainDump 2.1.0 rejoint DropIt dans les paramètres : configuration en base, consentement personnel et PKCE, même sujet/émetteur Kyros, lecture seule des notes datées, refresh rotatif, révocation et retrait des copies. Aucune publication des notes privées dans un salon. Migration Liora 011 et SQLite BrainDump additive 3. Configuration et limites : DOCS/RELEASE_0.7.1.md. Fournisseurs réels et déploiement restent à qualifier.
 
 ## Jalon suivant — médias optionnels
 

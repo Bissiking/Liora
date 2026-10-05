@@ -23,11 +23,7 @@ type Rule = {
 };
 const providers = [
   ["dropit", "DropIt · fichiers personnels"],
-  ["github", "GitHub · dépôts et déploiements"],
-  ["nino", "Nino · médias et traitement"],
-  ["narra", "Narra · histoires et publications"],
-  ["argos", "Argos · événements"],
-  ["generic", "Autre module LUMA"],
+  ["braindump", "BrainDump · notes datées"],
 ];
 export function Integrations({
   base,
@@ -52,13 +48,19 @@ export function Integrations({
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
   const isDropIt = (selected?.provider || newProvider) === "dropit";
+  const isBrainDump = (selected?.provider || newProvider) === "braindump";
+  const moduleName = isBrainDump ? "BrainDump" : "DropIt";
   async function load() {
     const r = await api<{ data: Connector[]; callback_url: string }>(
       `${base}/connectors`,
     );
-    setRows(r.data);
+    const visible = r.data.filter((i) =>
+      ["dropit", "braindump"].includes(i.provider),
+    );
+    setRows(visible);
     setCallback(r.callback_url);
-    if (selected) setSelected(r.data.find((i) => i.id === selected.id) || null);
+    if (selected)
+      setSelected(visible.find((i) => i.id === selected.id) || null);
   }
   useEffect(() => {
     void load().catch(fail);
@@ -115,9 +117,9 @@ export function Integrations({
         }>(`${base}/connectors`, "POST", {
           ...body,
           provider: d.get("provider"),
-          channel_id: d.get("channel_id"),
+          ...(isBrainDump ? {} : { channel_id: d.get("channel_id") }),
         });
-        setSecret(r);
+        setSecret(r.incoming_url ? r : null);
         setSelected(r.data);
         setAdding(false);
       }
@@ -127,8 +129,8 @@ export function Integrations({
   return (
     <div className="integrations-panel">
       <p>
-        Connectez vos modules, puis choisissez où leurs événements doivent
-        arriver.
+        Connectez DropIt pour vos fichiers personnels ou BrainDump pour vos
+        notes datées.
       </p>
       <div className="integration-list">
         {rows.map((i) => (
@@ -208,16 +210,17 @@ export function Integrations({
               placeholder={
                 isDropIt
                   ? "https://dropit.exemple.fr"
-                  : "https://service.exemple.fr"
+                  : "https://braindump.exemple.fr"
               }
               required
             />
           </label>
-          {isDropIt && (
+          {(isDropIt || isBrainDump) && (
             <label>
-              Identifiant du client DropIt
+              Identifiant du client {moduleName}
               <input
                 name="client_id"
+                required={isBrainDump}
                 defaultValue={selected?.config.client_id}
               />
             </label>
@@ -229,6 +232,7 @@ export function Integrations({
               type="password"
               autoComplete="new-password"
               minLength={16}
+              required={isBrainDump && !selected?.has_key}
               placeholder={selected ? "Laisser vide pour conserver la clé" : ""}
             />
           </label>
@@ -240,7 +244,7 @@ export function Integrations({
             />
             Autoriser une adresse privée (droit de sécurité requis)
           </label>
-          {!selected && (
+          {!selected && !isBrainDump && (
             <label>
               Salon par défaut
               <select name="channel_id" required>
@@ -252,14 +256,14 @@ export function Integrations({
               </select>
             </label>
           )}
-          {isDropIt ? (
+          {isDropIt || isBrainDump ? (
             <>
               <p className="muted">
-                Dans DropIt → Applications connectées, créez une clé avec cette
-                URL de retour :
+                Dans {moduleName} → Applications connectées, créez une clé avec
+                cette URL de retour :
               </p>
               <input
-                aria-label="URL de retour DropIt"
+                aria-label={"URL de retour " + moduleName}
                 value={callback}
                 readOnly
               />
@@ -267,6 +271,13 @@ export function Integrations({
                 Modifier l’URL, le client ou la clé déconnecte les comptes
                 personnels. Les clés restent côté serveur.
               </p>
+              {isBrainDump && (
+                <p className="muted">
+                  Chaque compte autorise ensuite la lecture de ses notes datées
+                  dans Comptes connectés ou Notes datées. Les notes restent
+                  personnelles ; aucun contenu n’est publié dans un salon.
+                </p>
+              )}
             </>
           ) : (
             <p className="muted">
@@ -281,7 +292,7 @@ export function Integrations({
       )}
       {selected && (
         <>
-          {selected.provider !== "github" && (
+          {!isBrainDump && selected.provider !== "github" && (
             <label>
               Signature au prochain renouvellement
               <select
@@ -324,135 +335,138 @@ export function Integrations({
             >
               {selected.enabled ? "Désactiver" : "Activer"}
             </button>
-            <button
-              disabled={busy}
-              onClick={() => {
-                if (
-                  confirm(
-                    "Remplacer l’URL et la clé entrantes ? Les émetteurs devront être mis à jour.",
-                  )
-                )
-                  void run(async () =>
-                    setSecret(
-                      await api(
-                        `${base}/connectors/${selected.id}/incoming-key`,
-                        "POST",
-                        {
-                          signature_mode:
-                            selected.provider === "github"
-                              ? "github"
-                              : signatureMode,
-                        },
-                      ),
-                    ),
-                  );
-              }}
-            >
-              Renouveler la clé entrante
-            </button>
-          </div>
-          {selected.last_error && <p role="status">{selected.last_error}</p>}
-          <h2>Routage et automatisations</h2>
-          <p className="muted">
-            Sans règle, les événements vont au salon par défaut. Dès qu’une
-            règle existe, seuls les événements correspondants sont publiés. Une
-            colonne ajoute une tâche.
-          </p>
-          {rules.map((r) => (
-            <div className="integration-rule" key={r.id}>
-              <div>
-                <strong>{r.name}</strong>
-                <p>
-                  {r.event_pattern}
-                  {r.severity ? ` · ${r.severity}` : ""} →{" "}
-                  {channels.find((c) => c.id === r.channel_id)?.name || "Salon"}
-                  {r.column_id ? " + tâche" : ""}
-                </p>
-              </div>
+            {!isBrainDump && (
               <button
                 disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await api(
-                      `${base}/connectors/${selected.id}/rules/${r.id}`,
-                      "DELETE",
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Remplacer l’URL et la clé entrantes ? Les émetteurs devront être mis à jour.",
+                    )
+                  )
+                    void run(async () =>
+                      setSecret(
+                        await api(
+                          `${base}/connectors/${selected.id}/incoming-key`,
+                          "POST",
+                          {
+                            signature_mode:
+                              selected.provider === "github"
+                                ? "github"
+                                : signatureMode,
+                          },
+                        ),
+                      ),
                     );
-                    setRules(rules.filter((x) => x.id !== r.id));
-                  })
-                }
+                }}
               >
-                Supprimer
+                Renouveler la clé entrante
               </button>
-            </div>
-          ))}
-          <form
-            className="form connector-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = e.currentTarget,
-                d = new FormData(f);
-              void run(async () => {
-                const r = await api<{ data: Rule }>(
-                  `${base}/connectors/${selected.id}/rules`,
-                  "POST",
-                  {
-                    name: d.get("name"),
-                    event_pattern: d.get("event_pattern"),
-                    severity: d.get("severity"),
-                    channel_id: d.get("channel_id"),
-                    column_id: d.get("column_id") || null,
-                  },
-                );
-                setRules([...rules, r.data]);
-                f.reset();
-                setNotice("Règle ajoutée.");
-              });
-            }}
-          >
-            <label>
-              Nom de la règle
-              <input name="name" required maxLength={80} />
-            </label>
-            <label>
-              Événement
-              <input
-                name="event_pattern"
-                required
-                placeholder="github.issues.*"
-              />
-            </label>
-            <label>
-              Importance
-              <select name="severity">
-                <option value="">Toutes</option>
-                {["info", "warning", "error", "critical"].map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Publier dans
-              <select name="channel_id">
-                {channels.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Créer aussi une tâche
-              <select name="column_id">
-                <option value="">Aucune tâche</option>
-                {columns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button disabled={busy}>Ajouter la règle</button>
-          </form>
+            )}
+          </div>
+          {selected.last_error && <p role="status">{selected.last_error}</p>}
+          {!isBrainDump && (
+            <>
+              <h2>Routage et automatisations</h2>
+              <p className="muted">
+                Sans règle, les événements vont au salon par défaut. Dès qu’une
+                règle existe, seuls les événements correspondants sont publiés.
+                Une colonne ajoute une tâche.
+              </p>
+              {rules.map((r) => (
+                <div className="integration-rule" key={r.id}>
+                  <div>
+                    <strong>{r.name}</strong>
+                    <p>
+                      {r.event_pattern}
+                      {r.severity ? ` · ${r.severity}` : ""} →{" "}
+                      {channels.find((c) => c.id === r.channel_id)?.name ||
+                        "Salon"}
+                      {r.column_id ? " + tâche" : ""}
+                    </p>
+                  </div>
+                  <button
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await api(
+                          `${base}/connectors/${selected.id}/rules/${r.id}`,
+                          "DELETE",
+                        );
+                        setRules(rules.filter((x) => x.id !== r.id));
+                      })
+                    }
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              ))}
+              <form
+                className="form connector-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const f = e.currentTarget,
+                    d = new FormData(f);
+                  void run(async () => {
+                    const r = await api<{ data: Rule }>(
+                      `${base}/connectors/${selected.id}/rules`,
+                      "POST",
+                      {
+                        name: d.get("name"),
+                        event_pattern: d.get("event_pattern"),
+                        severity: d.get("severity"),
+                        channel_id: d.get("channel_id"),
+                        column_id: d.get("column_id") || null,
+                      },
+                    );
+                    setRules([...rules, r.data]);
+                    f.reset();
+                    setNotice("Règle ajoutée.");
+                  });
+                }}
+              >
+                <label>
+                  Nom de la règle
+                  <input name="name" required maxLength={80} />
+                </label>
+                <label>
+                  Événement
+                  <input name="event_pattern" required placeholder="dropit.*" />
+                </label>
+                <label>
+                  Importance
+                  <select name="severity">
+                    <option value="">Toutes</option>
+                    {["info", "warning", "error", "critical"].map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Publier dans
+                  <select name="channel_id">
+                    {channels.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Créer aussi une tâche
+                  <select name="column_id">
+                    <option value="">Aucune tâche</option>
+                    {columns.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button disabled={busy}>Ajouter la règle</button>
+              </form>
+            </>
+          )}
         </>
       )}
       {secret && (
@@ -471,9 +485,8 @@ export function Integrations({
               <input value={secret.signing_secret || ""} readOnly />
             </label>
             <p>
-              GitHub : secret du webhook et signature SHA-256. Modules LUMA :
-              signature HMAC sur l’horodatage et le corps JSON. Le guide API
-              décrit le format.
+              DropIt utilise la signature HMAC sur l’horodatage et le corps
+              JSON. Le guide API décrit le format.
             </p>
           </div>
         </Modal>
@@ -487,6 +500,7 @@ type Connection = {
   enabled: boolean;
   connected: boolean;
   state: string;
+  provider: string;
 };
 type RemoteFile = {
   id: string;
@@ -535,13 +549,13 @@ export function ConnectedAccounts({
   return (
     <div className="connected-accounts">
       <p>
-        Vos fichiers restent personnels. Choisir un lien de partage vous permet
-        ensuite de le publier.
+        Vos fichiers DropIt et vos notes BrainDump restent personnels. Chaque
+        service demande votre autorisation.
       </p>
       {!rows.length && (
         <p className="muted">
-          Aucun module DropIt configuré. Un administrateur peut l’ajouter dans
-          Intégrations.
+          Aucun module personnel configuré. Un administrateur peut l’ajouter
+          dans Intégrations.
         </p>
       )}
       {rows.map((r) => (
@@ -559,12 +573,17 @@ export function ConnectedAccounts({
           <div className="integration-actions">
             {r.connected ? (
               <>
-                <button
-                  disabled={busy || !r.enabled}
-                  onClick={() => void list(r.id)}
-                >
-                  Mes fichiers
-                </button>
+                {r.provider === "dropit" && (
+                  <button
+                    disabled={busy || !r.enabled}
+                    onClick={() => void list(r.id)}
+                  >
+                    Mes fichiers
+                  </button>
+                )}
+                {r.provider === "braindump" && (
+                  <a href="/#connected=braindump">Ouvrir Notes datées</a>
+                )}
                 <button
                   disabled={busy}
                   onClick={() => {
@@ -605,7 +624,11 @@ export function ConnectedAccounts({
       ))}
       {selected && (
         <>
-          <h2>Mes fichiers DropIt</h2>
+          <h2>Mes partages DropIt</h2>
+          <p className="muted">
+            Choisissez un partage pour obtenir son lien. Son expiration est
+            indiquée sur chaque ligne.
+          </p>
           {!files.length && !busy && (
             <p>
               Aucun fichier dans vos partages actifs. Ajoutez des fichiers dans

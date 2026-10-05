@@ -155,3 +155,54 @@ Routes globales réservées aux humains authentifiés. Elles ne dépendent pas d
 | GET     | `/places/:id/visitors`                            | Noms/avatars des visiteurs autorisés : soi, visites communautaires, ou visites partagées par les amis actuels. Pas de notes/date. Limite 100.                                                                                                                                                                                                                     |
 
 Les messages de salon acceptent désormais `timezone` optionnel (IANA, UTC par défaut). Les `detectedDates` renvoient `{originalText,index,start,end?,allDay,timezone}` et utilisent `created_at` / `detection_timezone` stockés ; les instants sont sérialisés en ISO UTC. Les profils acceptent les thèmes `atelier`, `orbit`, `terminal` en plus des six existants.
+
+## 0.6 — navigation et Gotify
+
+Toutes ces routes exigent une session humaine. Les mutations suivent le contrôle Origin habituel.
+
+- `PATCH /api/v1/me/navigation` : `{collapsedNavigation: string[]}`. Met à jour cette seule préférence ; les clés de salon comprennent l’identifiant du workspace.
+- `GET /api/v1/gotify` : `{connection: {url,enabled}|null, deliveries: [{id,state,attempts,last_error,created_at}]}`. Les données sont personnelles, vingt envois maximum, aucun token.
+- `PUT /api/v1/gotify` : `{url,token?,enabled}`. URL publique HTTPS/443 sans query/hash/credentials, token d’application requis pour une nouvelle destination, token chiffré. Remplacement/arrêt annule les envois pendants ou échoués.
+- `DELETE /api/v1/gotify` : déconnecte et supprime la file associée.
+- `POST /api/v1/gotify/test` : `{workspace: uuid}`, membership actif et VIEW_WORKSPACE requis. Réponse 202 : test en file.
+- `POST /api/v1/gotify/deliveries/:id/retry` : relance un échec personnel si la connexion est active. Droits réévalués par le worker.
+- `POST /api/v1/gotify/deliveries/:id/cancel` : annule un envoi personnel pending/failed. Autre état ou autre compte : 409.
+- `GET /api/v1/avatars/:id` : conserve l’avatar local prioritaire ; sinon image Kyros contrôlée, cache privé de cinq minutes. Image absente/indisponible : 404, initiales côté interface.
+
+Le format stocké des messages et blocs reste texte ; le rendu Markdown n’ajoute aucun HTML stocké. Les API projets/tableaux/cartes/pages conservent leurs contrats.
+
+## Notes et agendas — 0.7.0
+
+Toutes les routes ci-dessous, sauf `/dav/`, demandent la session humaine Kyros de Liora. Aucune clé technique n’accède aux notes ni aux connexions personnelles.
+
+| Route | Fonction |
+| --- | --- |
+| `GET /api/v1/notes?before=<uuid>` | Notes personnelles triées par date/id, 100 par page et `nextCursor`. |
+| `POST /api/v1/notes` | `{title,content,due_at}` ; date ISO avec offset obligatoire. |
+| `PATCH/DELETE /api/v1/notes/:id` | Notes Liora du propriétaire ; copies BrainDump en lecture seule. |
+| `GET/PUT /api/v1/braindump` | État/configuration disponible ; `{enabled}` pour lier/délier le compte. |
+| `POST /api/v1/braindump/sync` | Copie datée sous identité Kyros vérifiée, transactionnelle. |
+| `PATCH /api/v1/me/appearance` | Fusion atomique de `{theme?,density?,fontSize?}`, dix thèmes dont `lagoon`. |
+| `GET /api/v1/calendar-sync` | Accès CalDAV, serveur et identifiant ; aucun mot de passe retourné. |
+| `POST /api/v1/calendar-sync` | `{name}` ; mot de passe aléatoire affiché une seule fois, maximum dix appareils. |
+| `DELETE /api/v1/calendar-sync/:id` | Révocation limitée au compte courant. |
+| `GET /api/v1/google-calendar` | Connexion, statut, périmètre et conflits, sans jetons. |
+| `POST /api/v1/google-calendar/connect` | URL OAuth Google, état et PKCE liés à la session. |
+| `GET /api/v1/google-calendar/callback` | Consomme l’état à usage unique, échange le code et revient aux préférences. |
+| `GET /api/v1/google-calendar/calendars` | Agendas Google où le compte peut écrire. |
+| `PUT /api/v1/google-calendar` | `{workspace_id,calendar_id,enabled}` ; événements de l’auteur hors salons privés. |
+| `POST /api/v1/google-calendar/sync` | Passage manuel ; `{ok,count,conflicts?}` ou `{ok:false,error}` affiché en UI. |
+| `POST /api/v1/google-calendar/resolve` | `{google_id,version:"liora"|"google"}` ; choix personnel et synchronisation. |
+| `DELETE /api/v1/google-calendar` | Supprime autorisation/liens locaux ; événements existants conservés. |
+
+CalDAV sous `/dav/`, découverte `/.well-known/caldav` : Basic avec identifiant de compte et accès par appareil, HTTPS hors localhost. OPTIONS, PROPFIND Depth 0/1, REPORT calendar-query/multiget, GET/HEAD, PUT et DELETE. PUT/DELETE d’un événement existant exigent son ETag exact par `If-Match` ; une version obsolète retourne 412. Répétitions simples/ancrées et droits calendrier existants ; les notes datées forment une collection personnelle en lecture seule. Formats et limites dans RELEASE_0.7.0.md.
+
+## Intégration BrainDump — 0.7.1
+
+`POST /api/v1/workspaces/:id/connectors` accepte aussi `provider: "braindump"`, avec `name`, `api_key` et `config: {base_url,client_id,allow_private?}`. Aucun salon, webhook entrant ou compte technique n’est créé pour ce fournisseur. Les droits d’administration et la politique réseau habituelle s’appliquent. Le test de capacités exige le protocole 1, le même émetteur Kyros et le scope `notes:dated:read`.
+
+Les routes personnelles `POST /api/v1/workspaces/:id/connections/:integration/start` et `DELETE /api/v1/workspaces/:id/connections/:integration` utilisent le même consentement PKCE que DropIt ; l’état est lié à la session humaine. `/api/v1/integration-callback` exige le même sujet Kyros, chiffre les accès et refuse un état déjà consommé. Une déconnexion ou une désactivation retire les copies personnelles ; les notes originales BrainDump restent intactes.
+
+`GET /api/v1/braindump` ajoute `available`, liste des intégrations visibles et du consentement personnel, et `data.integration_id`. `PUT` accepte `{enabled,integration_id?}` ; l’activation exige une intégration testée et une autorisation personnelle. `POST /api/v1/braindump/sync` lit un instantané complet de 500 notes datées maximum, sous l’identité du propriétaire. Une autorisation révoquée renvoie 409 `CONNECT_REQUIRED` et supprime les copies ; une panne réseau conserve le cache. Le relais par variables d’environnement reste compatible pour les installations 0.7.0 sans intégration choisie.
+
+Protocole du fournisseur, configuration et migrations : [RELEASE_0.7.1.md](RELEASE_0.7.1.md) et `BrainDump/DOCS/LIORA_2.1.0.md` dans le dépôt voisin.

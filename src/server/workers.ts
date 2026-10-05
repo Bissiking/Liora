@@ -7,7 +7,9 @@ import { unseal } from "./crypto.js";
 import { validateOutboundUrl } from "./network.js";
 import { envTargets } from "./monitoring.js";
 import { processReminders } from "./experience-worker.js";
+import { processGotifyDeliveries } from "./gotify.js";
 import { processPushDeliveries } from "./push.js";
+import { processGoogleCalendars } from "./google-calendar.js";
 
 export async function checkMonitoring() {
   await transaction(async (db) => {
@@ -187,7 +189,12 @@ export function startWorkers() {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout>;
   const experienceTimers = new Set<ReturnType<typeof setTimeout>>();
-  for (const task of [processReminders, processPushDeliveries]) {
+  for (const task of [
+    processReminders,
+    processPushDeliveries,
+    processGotifyDeliveries,
+    processGoogleCalendars,
+  ]) {
     const run = async () => {
       try {
         await task();

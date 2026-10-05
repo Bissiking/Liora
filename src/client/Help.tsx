@@ -88,13 +88,23 @@ const guides = [
     ],
   },
   {
+    title: "Retrouver mes notes BrainDump avec une date",
+    category: "Intégrations",
+    steps: [
+      "Dans BrainDump → Applications connectées, créez une application Liora avec l’URL de retour de votre installation. Reportez identifiant et clé dans Administration → Intégrations → BrainDump, puis testez la connexion.",
+      "Dans Notes datées, choisissez BrainDump et connectez votre compte. Le même compte Kyros doit être utilisé dans les deux applications. Autorisez uniquement la lecture de vos notes datées.",
+      "Activez Lier mes notes BrainDump. Leur titre, contenu et date apparaissent ici ; ils se modifient dans BrainDump. Les tâches, autres types et notes sans date restent à la source.",
+      "Retirer l’autorisation dans BrainDump ou déconnecter dans Comptes connectés arrête l’accès. Une révocation détectée retire les copies BrainDump, en conservant les notes originales et les notes Liora.",
+    ],
+  },
+  {
     title: "Configurer un module et ses règles",
     category: "Administration",
     steps: [
-      "Dans Administration → Intégrations, ajoutez DropIt, GitHub, Nino, Narra ou un fournisseur générique. Les URL et clés sont enregistrées en base ; aucune variable de module n’est nécessaire.",
+      "Dans Administration → Intégrations, ajoutez DropIt ou BrainDump. Son URL et sa clé sont enregistrées en base ; aucune variable de module n’est nécessaire.",
       "Pour DropIt, ouvrez Applications connectées dans DropIt et créez une clé avec l’URL de retour indiquée par Liora. Reportez identifiant du client et clé API, puis testez la connexion.",
-      "Copiez l’URL entrante et le secret montrés à la création dans le service émetteur. GitHub utilise sa signature native ; les autres modules utilisent par défaut le HMAC horodaté Liora.",
-      "Créez une règle avec un type exact ou un préfixe comme github.issues.*, un salon et éventuellement une colonne de tâches. Dès qu’une règle existe, seuls les événements correspondants sont publiés.",
+      "Copiez l’URL entrante et le secret montrés à la création dans DropIt. Les événements utilisent par défaut le HMAC horodaté Liora.",
+      "Créez une règle avec un type exact ou le préfixe dropit.*, un salon et éventuellement une colonne de tâches. Dès qu’une règle existe, seuls les événements correspondants sont publiés.",
       "Le renouvellement change l’URL et le secret : mettez aussi à jour l’émetteur. Désactiver le module bloque ses événements et retire ses connexions personnelles.",
     ],
   },

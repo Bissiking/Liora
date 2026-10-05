@@ -1,4 +1,4 @@
-# Liora · 0.5.0 BETA
+# Liora · 0.7.1 BETA
 
 Un espace LUMA pour discuter, organiser les projets et recevoir les signaux des applications.
 
@@ -80,3 +80,9 @@ Collaboration avancée, invitations/amis, aperçus et tutoriels : [notes de vers
 Refonte UX 0.4.9 : accueil, navigation par usage, commande rapide et parcours mobile. [Notes de version](DOCS/RELEASE_0.4.9.md). Qualification dédiée : `E2E_UX_ONLY=1 npm run test:e2e` (base PostgreSQL jetable `_e2e`).
 
 Version 0.5.0 : thèmes structurants, dates françaises, carte personnelle en recherche libre et messages entre amis, projets et calendrier remaniés, réglages guidés. [Notes de version](DOCS/RELEASE_0.5.0.md). Appliquer les migrations 007/008 avant démarrage. Qualification : `E2E_050_ONLY=1 npm run test:e2e` (base jetable `_e2e`, recherche et tuiles simulées).
+
+Version 0.6.0 : projets/Kanban/cartes/pages d’équipe remaniés, Markdown, menus contextuels, Gotify personnel, avatar Kyros et catégories repliables. [Notes 0.6](DOCS/RELEASE_0.6.0.md). Appliquer la migration 009 avant démarrage. Qualification ciblée : `npm run test:e2e:060` (base jetable `_e2e`, Kyros fixture, Gotify désactivé).
+
+La 0.7.0 ajoute notes datées/BrainDump, synchronisation Google Agenda dans les deux sens, CalDAV, thème de compte avec opt-out par appareil, Lagune et refonte amis/conversations. Migration **010** et configuration des fournisseurs : [guide 0.7.0](DOCS/RELEASE_0.7.0.md).
+
+La **0.7.1** configure BrainDump 2.1.0 comme une intégration, avec clé applicative et autorisation personnelle. Appliquer la migration 011 ; [guide et mise à jour BrainDump](DOCS/RELEASE_0.7.1.md). Parcours ciblé : `npm run test:e2e:braindump`.

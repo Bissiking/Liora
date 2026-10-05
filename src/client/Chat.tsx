@@ -22,6 +22,7 @@ import {
   Terminal,
   CalendarDays,
 } from "lucide-react";
+import { Markdown, MarkdownToolbar } from "./Markdown";
 import { api, collection } from "./api";
 import type { Row, Result, User } from "./types";
 import { ConnectedAccounts } from "./Integrations";
@@ -72,6 +73,8 @@ export function Chat({
     [access, setAccess] = useState(false);
   const [messages, setMessages] = useState<Row[]>([]),
     [draft, setDraft] = useState(""),
+    [format, setFormat] = useState(false),
+    [markdownPreview, setMarkdownPreview] = useState(false),
     [detectedDates, setDetectedDates] = useState<
       Array<{
         originalText: string;
@@ -171,6 +174,7 @@ export function Chat({
           }),
         );
         setDraft("");
+        setMarkdownPreview(false);
         setDetectedDates([]);
         if (detectDebounce.current) clearTimeout(detectDebounce.current);
         return;
@@ -630,8 +634,41 @@ export function Chat({
               </div>
             )}
             <form className="composer" onSubmit={send}>
+              <div className="conversation-composer-modes">
+                <button
+                  type="button"
+                  aria-expanded={format}
+                  onClick={() => {
+                    setFormat(!format);
+                    setMarkdownPreview(false);
+                  }}
+                >
+                  Mettre en forme
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={markdownPreview}
+                  onClick={() => setMarkdownPreview(!markdownPreview)}
+                >
+                  {markdownPreview ? "Écrire" : "Aperçu"}
+                </button>
+              </div>
+              {format && !markdownPreview && (
+                <MarkdownToolbar
+                  value={draft}
+                  onChange={setDraft}
+                  textareaRef={textarea}
+                />
+              )}
+              {markdownPreview && (
+                <div className="composer-preview">
+                  <Markdown text={draft || "Votre aperçu apparaîtra ici."} />
+                </div>
+              )}
+
               <textarea
                 ref={textarea}
+                hidden={markdownPreview}
                 aria-label={`Message dans ${channel.name}`}
                 placeholder={`Écrire dans #${channel.name}…`}
                 value={draft}

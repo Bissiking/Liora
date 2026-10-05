@@ -108,9 +108,7 @@ export async function createAuthorizationRequest(
       true,
     );
   }
-  const payload = (await response
-    .json()
-    .catch(() => ({}))) as {
+  const payload = (await response.json().catch(() => ({}))) as {
     request_uri?: string;
   } & KyrosErrorPayload;
   if (!response.ok || !payload.request_uri) {
@@ -310,4 +308,27 @@ export async function verifyKyrosToken(token: string): Promise<JWTPayload> {
       false,
     );
   return payload;
+}
+
+// Only identity claims from a verified token reach this helper.
+export function kyrosAvatar(claims: JWTPayload): string | null {
+  const raw = claims.avatar_url ?? claims.picture;
+  if (typeof raw !== "string" || !raw || raw.length > 2048) return null;
+  try {
+    const base = getKyrosConfig().baseUrl,
+      url = new URL(raw, base);
+    if (url.username || url.password) return null;
+    if (
+      url.protocol !== "https:" &&
+      !(
+        url.protocol === "http:" &&
+        url.origin === new URL(base).origin &&
+        ["127.0.0.1", "localhost"].includes(url.hostname)
+      )
+    )
+      return null;
+    return url.href;
+  } catch {
+    return null;
+  }
 }

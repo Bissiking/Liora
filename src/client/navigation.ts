@@ -14,6 +14,7 @@ import {
   Shield,
   AlarmClock,
   MapPin,
+  StickyNote,
 } from "lucide-react";
 export const navigation = [
   { id: "home", label: "Accueil", icon: House, group: "Mon espace" },
@@ -48,6 +49,7 @@ export const navigation = [
     permission: "VIEW_PAGES",
   },
   { id: "calendar", label: "Calendrier", icon: CalendarDays, group: "Équipe" },
+  { id: "notes", label: "Notes datées", icon: StickyNote, group: "Mon espace" },
   { id: "friends", label: "Amis", icon: Users, group: "Mon espace" },
   {
     id: "monitoring",

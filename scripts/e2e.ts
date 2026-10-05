@@ -5,7 +5,9 @@ import { randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import pg from "pg";
 import puppeteer from "puppeteer";
+import { fixtureConnections } from "../tests/fixtures/connections.js";
 import { fixtureDropIt } from "../tests/fixtures/dropit.js";
+import { fixtureBrainDump } from "../tests/fixtures/braindump.js";
 import { fakeKyros } from "../tests/fixtures/kyros.js";
 import { fixturePlaces } from "../tests/fixtures/places.js";
 const origin = "http://localhost:14320";
@@ -38,6 +40,15 @@ Object.assign(process.env, {
   VAPID_SUBJECT: "",
   PLACES_GEOCODER_URL: "http://127.0.0.1:14326/photon",
 });
+if (process.env.E2E_070_ONLY === "1")
+  Object.assign(process.env, {
+    NODE_ENV: "test",
+    BRAINDUMP_BASE_URL: "http://127.0.0.1:14328",
+    BRAINDUMP_ALLOW_PRIVATE: "true",
+    GOOGLE_CALENDAR_TEST_ORIGIN: "http://127.0.0.1:14328",
+    GOOGLE_CALENDAR_CLIENT_ID: "fixture-client",
+    GOOGLE_CALENDAR_CLIENT_SECRET: "fixture-secret",
+  });
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
 await db.query("DROP SCHEMA public CASCADE");
@@ -49,10 +60,16 @@ await migrate();
 await seed();
 const provider = await fakeKyros(14322, origin);
 const placesProvider = await fixturePlaces(14326);
+const connections070 =
+  process.env.E2E_070_ONLY === "1" ? await fixtureConnections(14328) : null;
 const dropit = await fixtureDropIt(
   14324,
   origin + "/api/v1/integration-callback",
 );
+const brainModule =
+  process.env.E2E_BRAINDUMP_ONLY === "1"
+    ? await fixtureBrainDump(14329, origin + "/api/v1/integration-callback")
+    : null;
 await mkdir(".impeccable/review", { recursive: true });
 let server: ChildProcess;
 function start() {
@@ -90,6 +107,7 @@ start();
 await ready();
 const browser = await puppeteer.launch({
   headless: true,
+  protocolTimeout: 30000,
   executablePath:
     process.env.CHROME_PATH ||
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -99,7 +117,18 @@ const page = await browser.newPage();
 const failures: string[] = [];
 const expectedOfflineResponses = new Set<string>();
 const expectedPlaceSearchResponses = new Set<string>();
+const expectedRevokedBrainDumpResponses = new Set<string>();
 page.on("response", async (response) => {
+  if (
+    process.env.E2E_BRAINDUMP_ONLY === "1" &&
+    response.status() === 409 &&
+    new URL(response.url()).pathname === "/api/v1/braindump/sync"
+  ) {
+    try {
+      if ((await response.json()).error?.code === "CONNECT_REQUIRED")
+        expectedRevokedBrainDumpResponses.add(response.url());
+    } catch {}
+  }
   if (
     response.status() === 503 &&
     new URL(response.url()).pathname === "/api/v1/places/search" &&
@@ -124,6 +153,9 @@ function assertNoBrowserErrors() {
       (message) =>
         ![...expectedOfflineResponses, ...expectedPlaceSearchResponses].some(
           (url) => message.includes("503") && message.endsWith(url),
+        ) &&
+        ![...expectedRevokedBrainDumpResponses].some(
+          (url) => message.includes("409") && message.endsWith(url),
         ),
     ),
     [],
@@ -195,6 +227,739 @@ async function waitText(text: string) {
     text,
   );
 }
+async function verifyBrainDump() {
+  const remote = brainModule!;
+  const ownNote = remote.note("test-owner", {
+    title: "Préparer la rencontre · démonstration",
+    content:
+      "## Une idée pour lundi\n\nUne **note personnelle** à retrouver dans Liora.",
+  });
+  remote.note("test-owner", {
+    title: "Note sans date · démonstration",
+    dueAt: null,
+  });
+  remote.note("someone-else", { title: "Secret d’un autre compte" });
+  remote.note("test-owner", {
+    title: "Tâche à garder dans BrainDump",
+    type: "task",
+  });
+  const capture = async (name: string, fullPage = true) => {
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await page.screenshot({
+      path: ".impeccable/review/brain-" + name + ".png",
+      fullPage,
+    });
+  };
+  await page.goto(remote.origin + "/integrations", {
+    waitUntil: "networkidle0",
+  });
+  await page.type(
+    '#client-form input[name="redirect_uri"]',
+    origin + "/api/v1/integration-callback",
+  );
+  await page.click("#client-form button");
+  await page.waitForSelector("#credentials:not([hidden])");
+  const credentials = await page.evaluate(() => ({
+    id: (document.querySelector("#client-id") as HTMLInputElement).value,
+    key: (document.querySelector("#api-key") as HTMLInputElement).value,
+  }));
+  await capture("applications-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  await capture("applications-mobile");
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.goto(origin, { waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".home-page");
+  await click("Administration");
+  await click("Intégrations");
+  await click("Ajouter un module");
+  await page.select('.connector-form select[name="provider"]', "braindump");
+  assert.equal(await page.$('.connector-form select[name="channel_id"]'), null);
+  await page.type(
+    '.connector-form input[name="name"]',
+    "BrainDump · démonstration",
+  );
+  await page.type('.connector-form input[name="base_url"]', remote.origin);
+  await page.type('.connector-form input[name="client_id"]', credentials.id);
+  await page.type('.connector-form input[name="api_key"]', credentials.key);
+  await page.click('.connector-form input[name="allow_private"]');
+  await click("Enregistrer le module");
+  await page.waitForFunction(
+    () =>
+      document.querySelector(".connector-form h2")?.textContent ===
+      "Configuration du module",
+  );
+  assert.equal(await page.$("dialog[open]"), null);
+  await click("Tester la connexion");
+  await waitText("Connexion vérifiée.");
+  assert.ok(
+    !(await page.evaluate(() =>
+      document
+        .querySelector(".integrations-panel")
+        ?.textContent?.includes("Routage et automatisations"),
+    )),
+  );
+  await capture("configuration-desktop");
+  await page.evaluate(() =>
+    [...document.querySelectorAll("button")]
+      .find((b) => b.textContent?.trim() === "Tester la connexion")
+      ?.scrollIntoView({ block: "end" }),
+  );
+  await capture("configuration-desktop-actions", false);
+  await page.evaluate(() => {
+    document.querySelectorAll("*").forEach((element) => {
+      if (element.scrollTop) element.scrollTop = 0;
+    });
+    window.scrollTo(0, 0);
+  });
+  await page.setViewport({ width: 390, height: 844 });
+  await capture("configuration-mobile");
+  await page.evaluate(() => {
+    const button = [...document.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes("Tester la connexion"),
+    );
+    button?.scrollIntoView({ block: "end" });
+  });
+  await capture("configuration-mobile-actions", false);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.setViewport({ width: 1440, height: 1000 });
+  await click("Notes datées");
+  await page.waitForSelector(".notes-connection-actions select");
+  await click("Connecter mon compte BrainDump");
+  await page.waitForSelector('form[action="/integrations/authorize"]');
+  await capture("consent-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  await capture("consent-mobile");
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.setViewport({ width: 1440, height: 1000 });
+  await click("Autoriser la lecture des notes datées");
+  await page.waitForSelector(".notes-page");
+  await page.waitForSelector(
+    '.notes-connection input[type="checkbox"]:not(:disabled)',
+  );
+  await page.click('.notes-connection input[type="checkbox"]');
+  await waitText("Préparer la rencontre · démonstration");
+  assert.ok(
+    !(await page.evaluate(() =>
+      document
+        .querySelector(".notes-page")
+        ?.textContent?.includes("Secret d’un autre compte"),
+    )),
+  );
+  assert.ok(
+    !(await page.evaluate(() =>
+      document
+        .querySelector(".notes-page")
+        ?.textContent?.includes("Note sans date · démonstration"),
+    )),
+  );
+  await capture("notes-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  await capture("notes-mobile");
+  await page.evaluate(() =>
+    document.querySelector(".dated-note")?.scrollIntoView({ block: "start" }),
+  );
+  await capture("notes-mobile-content", false);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+    true,
+  );
+  await page.setViewport({ width: 1440, height: 1000 });
+  remote.database
+    .prepare("UPDATE dumps SET title=? WHERE id=?")
+    .run("Rencontre mise à jour · démonstration", ownNote);
+  await click("Actualiser");
+  await waitText("Rencontre mise à jour · démonstration");
+  await page.goto(remote.origin + "/integrations", {
+    waitUntil: "networkidle0",
+  });
+  page.once("dialog", (dialog) => void dialog.accept());
+  await click("Retirer l’accès à mes notes");
+  await waitText("Accès retiré.");
+  await page.goto(origin + "/#connected=braindump", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.waitForSelector(".notes-page");
+  await click("Actualiser");
+  await waitText("Autorisation BrainDump retirée ou clé refusée");
+  assert.equal(await page.$(".dated-note"), null);
+  console.log(
+    "BRAINDUMP PASS: actual application/consent/token/notes/revoke routes and SQLite fixture, application creation, configuration/test, private dated note sync/update, remote revocation and responsive UI. Kyros identities and data are synthetic.",
+  );
+}
+async function verify070() {
+  const me = await page.evaluate(async () => {
+    const r = await fetch("/api/v1/me");
+    return r.json();
+  });
+  const user = me.data,
+    w = me.workspaces[0];
+  const request = async (path: string, method = "GET", body?: unknown) =>
+    page.evaluate(
+      async (p, m, b) => {
+        const r = await fetch(p, {
+          method: m,
+          headers: { "content-type": "application/json" },
+          body: b ? JSON.stringify(b) : undefined,
+        });
+        return { status: r.status, body: await r.json() };
+      },
+      path,
+      method,
+      body,
+    );
+  const capture = async (name: string) => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: ".impeccable/review/070-" + name + ".png",
+      fullPage: true,
+    });
+  };
+  connections070!.notes.push({
+    id: 1,
+    userId: user.kyros_user_id,
+    title: "Préparer la prochaine rencontre",
+    content:
+      "## Les idées à garder\n\n> Une conversation commence par une idée.\n\n++Les notes restent personnelles++.\n\n- Présenter la 0.7\n- Reprendre les retours",
+    type: "note",
+    dueAt: new Date(Date.now() + 86400000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    archivedAt: null,
+  });
+  const friend = (
+    await db.query(
+      "INSERT INTO users(kyros_user_id,name,status) VALUES('friend-070','Camille · démonstration','invisible') RETURNING id",
+    )
+  ).rows[0];
+  await db.query("INSERT INTO friendships(user_a,user_b) VALUES($1,$2)", [
+    ...[user.id, friend.id].sort(),
+  ]);
+  await db.query(
+    "INSERT INTO friend_messages(sender_id,recipient_id,content,client_id) VALUES($1,$2,$3,$4)",
+    [
+      friend.id,
+      user.id,
+      "## Une idée pour lundi\n\n> On garde les échanges au même endroit.\n\n++À préparer ensemble++ et **à notre rythme**.",
+      crypto.randomUUID(),
+    ],
+  );
+  await click("Amis");
+  await page.waitForSelector(".friend-open");
+  await capture("friends-desktop");
+  await page.click(".friend-open");
+  await page.waitForSelector("#friend-draft");
+  await page.type("#friend-draft", "Le lien tient dans une note.");
+  await page.click(
+    ".friend-messenger .conversation-composer-modes button:first-child",
+  );
+  await page.focus("#friend-draft");
+  await page.keyboard.down("Control");
+  await page.keyboard.press("a");
+  await page.keyboard.up("Control");
+  await page.evaluate(() => {
+    const t = document.querySelector("#friend-draft") as HTMLTextAreaElement;
+    t.setSelectionRange(0, t.value.length);
+  });
+  await page.click('.friend-messenger [aria-label="Souligner"]');
+  await page.click(
+    ".friend-messenger .conversation-composer-modes button:last-child",
+  );
+  await page.waitForSelector(".friend-messenger .composer-preview u");
+  await capture("conversation-desktop");
+  await page.click(".friend-messenger .primary");
+  await page.waitForSelector(".friend-bubble.mine u");
+  assert.equal(
+    await page.$eval("#friend-draft", (e) => (e as HTMLTextAreaElement).value),
+    "",
+  );
+  await click("Notes datées");
+  await page.waitForSelector(".notes-connection input");
+  await page.waitForFunction(
+    () =>
+      !(document.querySelector(".notes-connection input") as HTMLInputElement)
+        .disabled,
+  );
+  await page.click(".notes-connection input");
+  await page.waitForSelector(".dated-note");
+  await capture("notes-desktop");
+  await page.click(".notes-page .page-heading .primary");
+  await page.waitForSelector("#field-title");
+  await page.type("#field-title", "Le point de vendredi");
+  await page.type("dialog textarea", "++Texte local++");
+  await page.click("dialog footer .primary");
+  await page.waitForFunction(
+    () => document.querySelectorAll(".dated-note").length === 2,
+  );
+  await click("Préférences");
+  await click("Apparence");
+  await page.click('input[value="lagoon"]');
+  await page.click(".settings-panel .settings-save button");
+  await page.waitForFunction(
+    () => document.documentElement.dataset.theme === "lagoon",
+  );
+  await capture("lagoon-gallery-desktop");
+  await click("Notes datées");
+  await page.waitForSelector(".dated-note");
+  await capture("lagoon-desktop");
+  await click("Préférences");
+  await click("Apparence");
+  const second = await page.browserContext().newPage();
+  await second.goto(origin);
+  await second.waitForFunction(
+    () => document.documentElement.dataset.theme === "lagoon",
+  );
+  await second.close();
+  await page.click('input[value="terminal"]');
+  await page.click('.settings-panel input[type="checkbox"]');
+  await page.click(".settings-panel .settings-save button");
+  await page.waitForFunction(
+    () => document.documentElement.dataset.theme === "terminal",
+  );
+  assert.equal(
+    (await request("/api/v1/me")).body.data.preferences.theme,
+    "lagoon",
+  );
+  await page.reload();
+  await page.waitForFunction(
+    () => document.documentElement.dataset.theme === "terminal",
+  );
+  await click("Préférences");
+  await click("Apparence");
+  await page.click('.settings-panel input[type="checkbox"]');
+  await page.click('input[value="dark"]');
+  await page.click(".settings-panel .settings-save button");
+  await page.waitForFunction(
+    () => document.documentElement.dataset.theme === "dark",
+  );
+  await click("Synchronisation Agenda");
+  await page.waitForSelector(".calendar-sync .primary");
+  await click("Connecter Google Agenda");
+  await page.waitForFunction(
+    () => location.hash === "#google-calendar=connected",
+  );
+  await page.waitForSelector(".calendar-sync select");
+  await page.waitForFunction(
+    () => document.querySelectorAll(".calendar-sync select option").length >= 4,
+  );
+  await page.click('.calendar-sync form input[type="checkbox"]');
+  await click("Enregistrer le lien Google");
+  await page.waitForFunction(
+    () =>
+      !(
+        Array.from(document.querySelectorAll(".calendar-sync button")).find(
+          (b) => b.textContent?.includes("Synchroniser maintenant"),
+        ) as HTMLButtonElement
+      )?.disabled,
+  );
+  const event = (
+    await request("/api/v1/workspaces/" + w.id + "/calendar", "POST", {
+      title: "Préparer Liora 0.7 · démonstration",
+      description: "Les notes et les conversations se rejoignent.",
+      start_at: new Date(Date.now() + 3600000).toISOString(),
+      end_at: new Date(Date.now() + 7200000).toISOString(),
+      timezone: "Europe/Paris",
+    })
+  ).body.data;
+  await click("Synchroniser maintenant");
+  await page.waitForFunction(() =>
+    document
+      .querySelector('.calendar-sync [role="status"]')
+      ?.textContent?.includes("terminée"),
+  );
+  const googleId = [...connections070!.events.values()].find(
+    (e) => e.extendedProperties?.private?.liora_event_id === event.id,
+  )!.id;
+  connections070!.changeGoogle(googleId, {
+    summary: "Modifié depuis Android · démonstration",
+  });
+  await click("Synchroniser maintenant");
+  await page.waitForFunction(() =>
+    document
+      .querySelector('.calendar-sync [role="status"]')
+      ?.textContent?.includes("terminée"),
+  );
+  assert.equal(
+    (await request("/api/v1/workspaces/" + w.id + "/calendar/" + event.id)).body
+      .data.title,
+    "Modifié depuis Android · démonstration",
+  );
+  connections070!.changeGoogle(googleId, {
+    summary: "Version Google · démonstration",
+    description: "Rencontre prolongée depuis Google · démonstration",
+    end: {
+      dateTime: new Date(Date.now() + 10800000).toISOString(),
+      timeZone: "Europe/Paris",
+    },
+  });
+  await request(
+    "/api/v1/workspaces/" + w.id + "/calendar/" + event.id,
+    "PATCH",
+    {
+      title: "Version Liora · démonstration",
+      description: "Rencontre d’une heure depuis Liora · démonstration",
+    },
+  );
+  await click("Synchroniser maintenant");
+  await page.waitForSelector(".sync-conflicts article");
+  await waitText("Rencontre prolongée depuis Google · démonstration");
+  await waitText("Rencontre d’une heure depuis Liora · démonstration");
+  assert.equal(
+    await page.$$eval(".sync-event-summary", (items) =>
+      items.every((item) => item.textContent?.includes("Fin :")),
+    ),
+    true,
+  );
+  await page.$eval(".sync-conflicts", (element) =>
+    element.scrollIntoView({ block: "center", behavior: "instant" }),
+  );
+  await capture("google-conflict-desktop");
+  await click("Conserver Google");
+  await page.waitForFunction(() => !document.querySelector(".sync-conflicts"));
+  assert.equal(
+    (await request("/api/v1/workspaces/" + w.id + "/calendar/" + event.id)).body
+      .data.title,
+    "Version Google · démonstration",
+  );
+  await page.click(".caldav-settings summary");
+  await page.type(".caldav-settings form input", "Mac · démonstration");
+  await click("Créer un accès CalDAV");
+  await page.waitForSelector(".one-time-password");
+  await capture("calendar-sync-desktop");
+  await click("Masquer");
+  await click("Conversations");
+  await page.waitForSelector(".composer textarea");
+  await page.type(".composer textarea", "## Un sujet à partager");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.up("Shift");
+  await page.type(".composer textarea", "> La note prend forme.");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.up("Shift");
+  await page.type(".composer textarea", "++Un détail utile++");
+  await page.click(".composer .conversation-composer-modes button:last-child");
+  await page.waitForSelector(".composer-preview h2");
+  await capture("chat-preview-desktop");
+  await page.click(".send-button");
+  await page.waitForSelector(".message-scroll .markdown u");
+  await page.setViewport({ width: 390, height: 844 });
+  for (const [label, selector, name] of [
+    ["Amis", ".friends-page", "friends-mobile"],
+    ["Notes datées", ".notes-page", "notes-mobile"],
+    ["Préférences", ".settings-layout", "appearance-mobile"],
+  ] as const) {
+    await click(label);
+    await page.waitForSelector(selector);
+    if (label === "Préférences") {
+      await click("Apparence");
+    }
+    if (label === "Notes datées") await page.waitForSelector(".dated-note");
+    if (label === "Amis") await page.waitForSelector(".friend-open");
+    await capture(name);
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth + 1,
+      ),
+      true,
+      name + " overflows",
+    );
+  }
+  await click("Amis");
+  await page.waitForSelector(".friend-open");
+  await page.click(".friend-open");
+  await page.waitForSelector(".friend-bubble");
+  await capture("conversation-mobile");
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+    true,
+  );
+  await click("Préférences");
+  await click("Synchronisation Agenda");
+  await page.waitForSelector(".calendar-sync select");
+  await capture("calendar-sync-mobile");
+  await page.click(".caldav-settings summary");
+  await page.waitForSelector(".caldav-devices article");
+  // Dialogs are confirmations of explicit test actions.
+  console.log(
+    "0.7 PASS: BrainDump notes, personal note CRUD, Markdown and underline preview/send, account/device theme isolation and second-tab recovery, Google OAuth/edit/conflict, CalDAV device creation, friend desktop/mobile without overflow. All providers are local fixtures.",
+  );
+}
+
+async function verify060() {
+  const workspace = (
+    await db.query("SELECT id FROM workspaces WHERE name='LUMA'")
+  ).rows[0].id;
+  const base = `/api/v1/workspaces/${workspace}`;
+  async function screen(name: string) {
+    await page.evaluate(() => document.fonts.ready);
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `overflow on ${name}`,
+    );
+    await page.screenshot({
+      path: `.impeccable/review/060-${name}.png`,
+      fullPage: false,
+    });
+  }
+  await page.waitForFunction(
+    () =>
+      !!document.querySelector<HTMLImageElement>(".profile-button img")
+        ?.naturalWidth,
+  );
+  assert.equal(await page.$(".topbar-right .avatar"), null);
+  await page.click('.nav-group[aria-label="Équipe"] .nav-collapse');
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('.nav-group[aria-label="Équipe"] .nav-collapse')
+        ?.getAttribute("aria-expanded") === "false",
+  );
+  await page.waitForFunction(async () =>
+    (
+      await fetch("/api/v1/me").then((r) => r.json())
+    ).data.preferences.collapsedNavigation?.includes("Équipe"),
+  );
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".home-page");
+  assert.equal(
+    await page.$eval('.nav-group[aria-label="Équipe"] .nav-collapse', (e) =>
+      e.getAttribute("aria-expanded"),
+    ),
+    "false",
+  );
+  await page.click('.nav-group[aria-label="Équipe"] .nav-collapse');
+  const taskId = (
+    await db.query(
+      "SELECT t.id FROM tasks t JOIN board_columns c ON c.id=t.column_id ORDER BY c.position,t.position,t.id LIMIT 1",
+    )
+  ).rows[0].id;
+  await db.query("UPDATE tasks SET description=$2,checklist=$3 WHERE id=$1", [
+    taskId,
+    "## Objectif\n\n**Une carte lisible** avec du contexte.\n\n- Préparer la version\n- Vérifier le parcours\n\n```ts\nconst version = '0.6.0';\n```",
+    JSON.stringify([
+      { text: "Vérifier le rendu desktop", done: true },
+      { text: "Valider le mobile", done: false },
+    ]),
+  ]);
+  await click("Projets");
+  await page.waitForSelector(".task-card");
+  await screen("projects-desktop");
+  await page.click(".task-filter-panel > summary");
+  await page.select('[aria-label="Filtrer par priorité"]', "urgent");
+  await waitText("Aucune carte ne correspond aux filtres.");
+  await page.select('[aria-label="Filtrer par priorité"]', "");
+  await page.click(".task-filter-panel > summary");
+  await page.click(".task-card", { button: "right" });
+  await page.waitForSelector('[role="menu"]');
+  await screen("menu-desktop");
+  await page.keyboard.press("Escape");
+  assert.equal(await page.$('[role="menu"]'), null);
+  await page.focus(".task-card");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("F10");
+  await page.keyboard.up("Shift");
+  await page.waitForSelector('[role="menu"]');
+  await page.keyboard.press("Enter");
+  await page.waitForSelector(".task-dialog");
+  await page.waitForSelector(".task-dialog .markdown strong");
+  await screen("card-desktop");
+  await click("Modifier");
+  await page.waitForSelector(".task-dialog .markdown-editor textarea");
+  await page.focus(".task-dialog .markdown-editor textarea");
+  await page.keyboard.press("End");
+  await page.keyboard.type("\n\n**Ajout enregistré en Markdown**");
+  await page.click(".task-dialog .markdown-editor button:nth-child(2)");
+  await page.waitForSelector(".markdown-editor .markdown");
+  await page.click(".task-dialog button.primary");
+  await page.waitForSelector(".task-dialog .markdown-editor", { hidden: true });
+  assert.match(
+    (await db.query("SELECT description FROM tasks WHERE id=$1", [taskId]))
+      .rows[0].description,
+    /Ajout enregistré/,
+  );
+  await page.click(".detail-tabs button:nth-child(2)");
+  await page.type(
+    ".task-dialog .markdown-editor textarea",
+    "**Décision** : publier après validation.",
+  );
+  await page.click(".task-dialog button.primary");
+  await page.waitForSelector(".task-comment strong");
+  await page.click(".detail-tabs button:nth-child(1)");
+  await page.click('dialog [aria-label="Fermer"]');
+  await page.click(".task-card .card-actions");
+  await click("Dupliquer la carte");
+  await waitText("(copie)");
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*) n FROM tasks WHERE title LIKE '%(copie)' AND workspace_id=$1",
+        [workspace],
+      )
+    ).rows[0].n,
+    "1",
+  );
+  await page.click(".task-card .card-actions");
+  const targetColumn = (
+    await page.$$eval('[role="menuitem"]', (els) =>
+      els.map((e) => e.textContent || ""),
+    )
+  ).find((t) => t.startsWith("Déplacer vers"))!;
+  await click(targetColumn);
+  await page.waitForFunction(
+    (name) =>
+      [...document.querySelectorAll(".kanban-column")].some(
+        (c) =>
+          c.querySelector("h2")?.textContent === name &&
+          c.querySelector(".task-title"),
+      ),
+    {},
+    targetColumn.replace("Déplacer vers ", ""),
+  );
+  await click("Pages de l'équipe");
+  await page.waitForSelector(".document-block .markdown");
+  assert.equal(await page.$(".document-block textarea"), null);
+  await screen("pages-desktop");
+  await click("Modifier");
+  await page.waitForSelector(".document-block textarea");
+  await page.focus(".block-text textarea");
+  await page.$eval(".block-text textarea", (element) => {
+    const field = element as HTMLTextAreaElement;
+    field.setSelectionRange(field.value.length, field.value.length);
+  });
+  await page.keyboard.type("\n\n**La mémoire de l’équipe.**");
+  await click("Enregistrer");
+  await page.waitForFunction(
+    () => !document.body.innerText.includes("Modifications non enregistrées"),
+  );
+  await click("Aperçu");
+  await page.waitForSelector(".document-block .markdown strong");
+  await click("Supervision");
+  await page.waitForSelector(".monitor-target");
+  await screen("servers-desktop");
+  await click("Préférences");
+  await click("Notifications");
+  await page.waitForSelector(".gotify-fields");
+  await page.type('.gotify-fields input[type="url"]', "https://93.184.216.34");
+  await page.type(
+    '.gotify-fields input[type="password"]',
+    "synthetic-gotify-token",
+  );
+  await page.click('.gotify-settings input[type="checkbox"]'); // Saved disabled: no real network delivery in browser QA.
+  await click("Enregistrer Gotify");
+  await waitText("Configuration Gotify enregistrée.");
+  await screen("gotify-desktop");
+  for (const [route, selector, name] of [
+    ["Projets", ".task-card", "projects-mobile"],
+    ["Pages de l'équipe", ".document", "pages-mobile"],
+    ["Supervision", ".monitor-target", "servers-mobile"],
+    ["Préférences", ".settings-layout", "personal-mobile"],
+  ]) {
+    await page.setViewport({ width: 390, height: 844 });
+    // Navigation helper activates the same router; the drawer itself is checked separately below.
+    await click(route);
+    await page.waitForSelector(selector);
+    if (route === "Préférences") {
+      await click("Notifications");
+      await page.waitForSelector(".gotify-fields");
+    }
+    await screen(name);
+    if (route === "Préférences") {
+      await page.$eval(".gotify-settings", (e) =>
+        e.scrollIntoView({ block: "start" }),
+      );
+      await screen("gotify-mobile");
+    }
+    if (route === "Projets") {
+      await page.click(".task-card .card-actions");
+      await page.waitForSelector('[role="menu"]');
+      await screen("menu-mobile");
+      await page.keyboard.press("Escape");
+      await page.click(`[data-task-id="${taskId}"] .task-title`);
+      await page.waitForSelector(".task-dialog");
+      await screen("card-mobile");
+      await page.click('dialog [aria-label="Fermer"]');
+    }
+  }
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.evaluate(async () => {
+    await fetch("/api/v1/integrations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: "Dépôt de démonstration",
+        url: "https://github.com/example/demo",
+      }),
+    });
+  });
+  await click("Raccourcis personnels");
+  await page.waitForSelector(".integration-link");
+  await screen("services-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  await screen("services-mobile");
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.goto(
+    `${origin}/#workspace=${workspace}&view=projects&task=${taskId}`,
+    { waitUntil: "domcontentloaded" },
+  );
+  await page.waitForSelector(".task-dialog");
+  await page.click('dialog [aria-label="Fermer"]');
+  await click("Conversations");
+  await page.waitForSelector(".channel-group .nav-collapse");
+  await page.click(".channel-group .nav-collapse");
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector(".channel-group .nav-collapse")
+        ?.getAttribute("aria-expanded") === "false",
+  );
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector(".channel-group .nav-collapse");
+  assert.equal(
+    await page.$eval(".channel-group .nav-collapse", (e) =>
+      e.getAttribute("aria-expanded"),
+    ),
+    "false",
+  );
+  await page.setViewport({ width: 390, height: 844 });
+  await page.click('[aria-label="Ouvrir la navigation"]');
+  await page.waitForSelector(".sidebar.open");
+  await screen("sidebar-mobile");
+  await page.click('[aria-label="Fermer la navigation"]');
+  console.log(
+    "0.6 PASS: persisted navigation, Kyros avatar proxy, Markdown edition/comments, card context menus keyboard/mobile, duplication/move, page reader/editor, supervision, Gotify disabled configuration, desktop/mobile without overflow. Providers are fixtures; no real Gotify message sent.",
+  );
+}
+
 async function verifyExperience() {
   await page.setViewport({ width: 1440, height: 1000 });
   await page.click(".topbar");
@@ -939,7 +1704,7 @@ async function verify050() {
   await page.click('[aria-label="Écrire à Ami hors ligne"]');
   await page.waitForSelector("#friend-draft");
   await page.type("#friend-draft", "Ce message t’attend à ton retour.");
-  await page.click(".friend-messenger form button");
+  await page.click(".friend-messenger form button.primary");
   await page.waitForSelector(".friend-bubble.mine");
   assert.equal(
     (
@@ -1146,6 +1911,21 @@ async function runBrowserChecks() {
   });
   await page.click('a[href="/auth/login"]');
   await page.waitForSelector(".home-page");
+  if (process.env.E2E_BRAINDUMP_ONLY === "1") {
+    await verifyBrainDump();
+    assertNoBrowserErrors();
+    return;
+  }
+  if (process.env.E2E_070_ONLY === "1") {
+    await verify070();
+    assertNoBrowserErrors();
+    return;
+  }
+  if (process.env.E2E_060_ONLY === "1") {
+    await verify060();
+    assertNoBrowserErrors();
+    return;
+  }
   if (process.env.E2E_050_ONLY === "1") {
     await verify050();
     assertNoBrowserErrors();
@@ -1553,25 +2333,56 @@ async function runBrowserChecks() {
     fullPage: false,
   });
 
-  await click("Intégrations");
-  await click("Ajouter un module");
-  await page.select('.connector-form select[name="provider"]', "github");
-  assert.equal(await page.$('.connector-form input[name="client_id"]'), null);
-  assert.equal(await page.$('[aria-label="URL de retour DropIt"]'), null);
-  await page.type('.connector-form input[name="name"]', "GitHub navigateur");
-  await page.type(
-    '.connector-form input[name="base_url"]',
-    "https://api.github.com",
+  const integrationChannel = (
+    await db.query(
+      "SELECT id FROM channels WHERE workspace_id=$1 AND name='general'",
+      [workspaceId],
+    )
+  ).rows[0].id;
+  assert.equal(
+    await page.evaluate(
+      async ({ workspaceId, integrationChannel }) => {
+        const response = await fetch(
+          `/api/v1/workspaces/${workspaceId}/connectors`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              provider: "github",
+              name: "GitHub navigateur",
+              config: { base_url: "https://api.github.com" },
+              channel_id: integrationChannel,
+            }),
+          },
+        );
+        return response.status;
+      },
+      { workspaceId, integrationChannel },
+    ),
+    201,
   );
-  await click("Enregistrer le module");
-  await page.waitForSelector("dialog[open]");
-  await page.click('dialog [aria-label="Fermer"]');
-  assert.equal(await page.$('.connector-form input[name="client_id"]'), null);
+  await click("Intégrations");
+  await page.waitForSelector(".integration-list");
+  assert.equal(
+    await page.$eval(".integration-list", (element) =>
+      element.textContent?.includes("GitHub navigateur"),
+    ),
+    false,
+  );
+  await click("Ajouter un module");
+  assert.deepEqual(
+    await page.$$eval(
+      '.connector-form select[name="provider"] option',
+      (options) => options.map((option) => (option as HTMLOptionElement).value),
+    ),
+    ["dropit", "braindump"],
+  );
+  assert.ok(await page.$('.connector-form input[name="client_id"]'));
+  assert.ok(await page.$('[aria-label="URL de retour DropIt"]'));
   await page.screenshot({
-    path: ".impeccable/review/github-desktop.png",
+    path: ".impeccable/review/dropit-settings-desktop.png",
     fullPage: false,
   });
-  await click("Ajouter un module");
   await page.type('.connector-form input[name="name"]', "DropIt navigateur");
   await page.type('.connector-form input[name="base_url"]', dropit.origin);
   await page.type('.connector-form input[name="client_id"]', dropit.client.id);
@@ -1656,6 +2467,7 @@ async function runBrowserChecks() {
   );
   await page.click('dialog [aria-label="Fermer"]');
   await click("Pages de l’équipe");
+  await click("Modifier");
   await page.waitForSelector(".document-block textarea");
   await page.click(".document-block textarea");
   await page.keyboard.press("End");
@@ -1852,13 +2664,19 @@ async function runBrowserChecks() {
   await page.evaluate(() => {
     const btn = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".integration-list button"),
-    ).find((b) => b.innerText.includes("GitHub navigateur"));
+    ).find((b) => b.innerText.includes("DropIt navigateur"));
     btn?.click();
   });
   await page.waitForSelector('.connector-form input[name="base_url"]');
-  assert.equal(await page.$('.connector-form input[name="client_id"]'), null);
+  assert.ok(await page.$('.connector-form input[name="client_id"]'));
+  assert.equal(
+    await page.$eval(".integration-list", (element) =>
+      element.textContent?.includes("GitHub navigateur"),
+    ),
+    false,
+  );
   await page.screenshot({
-    path: ".impeccable/review/github-mobile.png",
+    path: ".impeccable/review/dropit-settings-mobile.png",
     fullPage: false,
   });
   await page.goto(dropit.origin + "/integrations");
@@ -1901,4 +2719,6 @@ try {
   await pool.end();
   await dropit.close();
   await placesProvider.close();
+  await connections070?.close();
+  await brainModule?.close();
 }

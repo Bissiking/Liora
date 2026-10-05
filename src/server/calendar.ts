@@ -31,8 +31,9 @@ const fields = {
   color: z.string().regex(/^(#[0-9a-fA-F]{6})?$/),
   reminder_minutes: z.coerce.number().int().min(0).max(10080).nullable(),
 };
-const eventSchema = z.object(fields).strict();
-function validateDates(row: Record<string, any>) {
+export const calendarSchema = z.object(fields).strict();
+const eventSchema = calendarSchema;
+export function validateDates(row: Record<string, any>) {
   assert(
     !row.end_at || Date.parse(row.end_at) > Date.parse(row.start_at),
     400,
@@ -250,7 +251,7 @@ calendarRouter.patch("/calendar/:id", async (req, res) => {
       "reminder_minutes",
     ].some((k) => k in patch);
     const [updated] = await query(
-      `UPDATE calendar_events SET title=$3,description=$4,start_at=$5,"end"=$6,timezone=$7,all_day=$8,recurrence=$9,channel_id=$10,color=$11,reminder_minutes=$12,next_reminder_at=$13,reminder_initialized=true,updated_at=now() WHERE id=$1 AND workspace_id=$2 RETURNING *,"end" AS end_at`,
+      `UPDATE calendar_events SET title=$3,description=$4,start_at=$5,"end"=$6,timezone=$7,all_day=$8,recurrence=$9,channel_id=$10,color=$11,reminder_minutes=$12,next_reminder_at=$13,reminder_initialized=true,updated_at=now(),dav_data=NULL WHERE id=$1 AND workspace_id=$2 RETURNING *,"end" AS end_at`,
       [
         id,
         w,

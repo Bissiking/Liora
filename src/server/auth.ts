@@ -9,6 +9,7 @@ import { query, transaction } from "./db.js";
 import { token, hash, seal, unseal } from "./crypto.js";
 import { assert, HttpError } from "./errors.js";
 import {
+  kyrosAvatar,
   createPkce,
   createAuthorizationRequest,
   exchangeAuthorizationCode,
@@ -98,6 +99,11 @@ export async function authenticate(
             new Date(Number(claims.exp) * 1000),
             fresh.refresh_token_expires_at,
           ],
+          db,
+        );
+        await query(
+          "UPDATE users SET kyros_avatar_url=$2,avatar=CASE WHEN avatar_key IS NULL THEN CASE WHEN $2::text IS NULL THEN NULL ELSE '/api/v1/avatars/'||id::text||'?kyros=1' END ELSE avatar END WHERE id=$1",
+          [s.user_id, kyrosAvatar(claims)],
           db,
         );
         s.expires_at = fresh.refresh_token_expires_at;
@@ -209,7 +215,7 @@ authRouter.get("/callback", async (req, res) => {
   const raw = token();
   await transaction(async (db) => {
     const [user] = await query(
-      `INSERT INTO users(kyros_user_id,name,last_login_at) VALUES($1,$2,now()) ON CONFLICT(kyros_user_id) DO UPDATE SET last_login_at=now() RETURNING *`,
+      `INSERT INTO users(kyros_user_id,name,kyros_avatar_url,last_login_at) VALUES($1,$2,$3,now()) ON CONFLICT(kyros_user_id) DO UPDATE SET last_login_at=now(),kyros_avatar_url=EXCLUDED.kyros_avatar_url RETURNING *`,
       [
         claims.sub,
         String(
@@ -218,7 +224,13 @@ authRouter.get("/callback", async (req, res) => {
             claims.preferred_username ||
             "Membre LUMA",
         ).slice(0, 80),
+        kyrosAvatar(claims),
       ],
+      db,
+    );
+    await query(
+      "UPDATE users SET avatar=CASE WHEN $2::text IS NULL THEN NULL ELSE '/api/v1/avatars/'||id::text||'?kyros=1' END WHERE id=$1 AND avatar_key IS NULL",
+      [user.id, kyrosAvatar(claims)],
       db,
     );
     assert(!user.disabled, 403, "ACCOUNT_DISABLED", "Ce compte est désactivé.");

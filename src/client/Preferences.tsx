@@ -13,8 +13,11 @@ import { api, fileData } from "./api";
 import type { User, Row, Result } from "./types";
 import { ConnectedAccounts } from "./Integrations";
 import { playSound } from "./sound";
+import { deviceAppearance, saveDeviceAppearance } from "./theme-preference";
+import { CalendarSync } from "./CalendarSync";
 import { themes } from "../shared/themes";
 import { HelpHint, preferenceHelp } from "./HelpHint";
+import { GotifySettings } from "./GotifySettings";
 import { PushSettings } from "./PushSettings";
 export function Preferences({
   user,
@@ -28,14 +31,17 @@ export function Preferences({
   fail: (e: unknown) => void;
 }) {
   const [tab, setTab] = useState(
-      location.hash.startsWith("#connected=dropit") ? "connections" : "profile",
+      location.hash.startsWith("#google-calendar=")
+        ? "agenda"
+        : location.hash.startsWith("#connected=dropit")
+          ? "connections"
+          : "profile",
     ),
     [sessions, setSessions] = useState<Row[]>([]),
     [saved, setSaved] = useState(false),
     [saving, setSaving] = useState(false),
-    [chosenTheme, setChosenTheme] = useState(
-      String(user.preferences.theme || "dark"),
-    );
+    [chosenTheme, setChosenTheme] = useState(deviceAppearance(user).theme);
+  const [syncTheme, setSyncTheme] = useState(deviceAppearance(user).sync);
   useEffect(() => {
     if (location.hash.startsWith("#connected=dropit"))
       history.replaceState(null, "", location.pathname);
@@ -63,7 +69,8 @@ export function Preferences({
         ...user.preferences,
       };
     for (const k of ["theme", "density", "fontSize", "dmPolicy", "soundVolume"])
-      if (d.has(k)) prefs[k as "theme"] = String(d.get(k));
+      if (d.has(k) && (k !== "theme" || syncTheme))
+        prefs[k as "theme"] = String(d.get(k));
     for (const k of [
       "mentions",
       "argos",
@@ -80,12 +87,21 @@ export function Preferences({
     ])
       if (d.has(`present_${k}`)) prefs[k as "mentions"] = d.get(k) === "on";
     try {
-      await api("/api/v1/me", "PATCH", {
-        name: d.get("name") || user.name,
-        bio: d.get("bio") ?? user.bio,
-        status: d.get("status") || user.status,
-        preferences: prefs,
-      });
+      if (tab === "appearance")
+        await api("/api/v1/me/appearance", "PATCH", {
+          ...(syncTheme ? { theme: chosenTheme } : {}),
+          density: prefs.density,
+          fontSize: prefs.fontSize,
+        });
+      else
+        await api("/api/v1/me", "PATCH", {
+          name: d.get("name") || user.name,
+          bio: d.get("bio") ?? user.bio,
+          status: d.get("status") || user.status,
+          preferences: prefs,
+        });
+      if (tab === "appearance")
+        saveDeviceAppearance(user.id, syncTheme, chosenTheme);
       await reload();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -102,6 +118,7 @@ export function Preferences({
     ["privacy", "Confidentialité et chat", Shield],
     ["sessions", "Sessions et appareils", Monitor],
     ["connections", "Comptes connectés", Monitor],
+    ["agenda", "Synchronisation Agenda", Monitor],
     ["integrations", "Raccourcis personnels", Monitor],
   ] as const;
   return (
@@ -132,10 +149,13 @@ export function Preferences({
       <section className="settings-panel">
         <h1>{sections.find((s) => s[0] === tab)?.[1]}</h1>
         <p className="muted">Vos réglages personnels, sur tous vos espaces.</p>
-        <HelpHint title={preferenceHelp[tab].title}>
-          {preferenceHelp[tab].text}
+        <HelpHint title={preferenceHelp[tab]?.title || "Vos agendas"}>
+          {preferenceHelp[tab]?.text ||
+            "Connectez Google Agenda ou ajoutez Liora comme compte CalDAV."}
         </HelpHint>
-        {tab === "connections" ? (
+        {tab === "agenda" ? (
+          <CalendarSync workspace={base.split("/").at(-1) || ""} />
+        ) : tab === "connections" ? (
           <ConnectedAccounts base={base} fail={fail} />
         ) : tab === "sessions" ? (
           <div>
@@ -239,6 +259,19 @@ export function Preferences({
             )}
             {tab === "appearance" && (
               <>
+                <label className="check-line">
+                  <input
+                    type="checkbox"
+                    checked={syncTheme}
+                    onChange={(e) => setSyncTheme(e.target.checked)}
+                  />
+                  Synchroniser le thème de mon compte sur cet appareil
+                </label>
+                <p className="muted">
+                  {syncTheme
+                    ? "Votre choix sera retrouvé à la connexion sur vos autres appareils synchronisés."
+                    : "Ce choix reste dans ce navigateur. Le thème enregistré dans votre compte est conservé."}
+                </p>
                 <fieldset className="theme-gallery">
                   <legend>Choisissez votre univers</legend>
                   {themes.map((t) => (
@@ -341,6 +374,7 @@ export function Preferences({
             {tab === "notifications" && (
               <>
                 <PushSettings base={base} />
+                <GotifySettings base={base} />
                 <label>
                   Volume des sons
                   <select
@@ -398,10 +432,17 @@ function PersonalIntegrations({ fail }: { fail: (e: unknown) => void }) {
         Vos raccourcis privés vers GitHub et vos services. Ils n’activent ni
         synchronisation ni accès OAuth.
       </p>
+      <h3>Mes services</h3>
+      {!rows.length && (
+        <p className="muted">
+          Gardez vos liens utiles ici. Ajoutez votre premier service ci-dessous.
+        </p>
+      )}
       {rows.map((r) => (
         <div className="integration-link" key={r.id}>
           <a href={r.url} target="_blank" rel="noopener noreferrer">
-            {r.name}
+            <strong>{r.name}</strong>
+            <small>{new URL(r.url).hostname}</small>
           </a>
           <button
             type="button"
@@ -415,22 +456,24 @@ function PersonalIntegrations({ fail }: { fail: (e: unknown) => void }) {
           </button>
         </div>
       ))}
-      <label>
-        Nom du service
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="GitHub"
-        />
-      </label>
-      <label>
-        Adresse HTTPS
-        <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://github.com/…"
-        />
-      </label>
+      <div className="personal-service-fields">
+        <label>
+          Nom du service
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="GitHub"
+          />
+        </label>
+        <label>
+          Adresse HTTPS
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://github.com/…"
+          />
+        </label>
+      </div>
       <button
         type="button"
         disabled={!name || !url}

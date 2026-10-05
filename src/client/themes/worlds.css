@@ -161,3 +161,27 @@ select,
     padding: var(--space-page);
   }
 }
+
+:root[data-theme="lagoon"],
+.theme-preview[data-theme="lagoon"] {
+  --bg: #edf4f1;
+  --surface: #fffdf8;
+  --surface-2: #e1ede7;
+  --side: #dce9e4;
+  --text: #19352f;
+  --muted: #516c61;
+  --line: #bdd0c6;
+  --accent: #236e60;
+  --accent-ink: #ffffff;
+  --hover: #d0e1d8;
+  --radius-control: 10px;
+  --radius-panel: 14px;
+  --radius-card: 12px;
+  --space-page: 30px;
+  --space-row: 18px;
+  --heading-weight: 650;
+  --danger: #a12738;
+  --success: #20643b;
+  --warning: #7c5813;
+  color-scheme: light;
+}

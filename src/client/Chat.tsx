@@ -22,6 +22,11 @@ import {
   Terminal,
   CalendarDays,
 } from "lucide-react";
+import { WebhookEmbed } from "./WebhookEmbed";
+import { ChannelContextPanel } from "./ChannelContextPanel";
+import { ChannelSettings } from "./ChannelSettings";
+import { EntityMenu, EntityMenuButton } from "./ContextMenuProvider";
+import { Users, Settings as SettingsIcon } from "lucide-react";
 import { Markdown, MarkdownToolbar } from "./Markdown";
 import { api, collection } from "./api";
 import type { Row, Result, User } from "./types";
@@ -64,6 +69,12 @@ export function Chat({
   targetMessage: string;
   clearTarget: () => void;
 }) {
+  const canCompose =
+    can("SEND_MESSAGE") &&
+    !channel.archived &&
+    (channel.type !== "announcement" || can("MANAGE_CHANNEL"));
+  const [contextOpen, setContextOpen] = useState(false),
+    [settingsOpen, setSettingsOpen] = useState(false);
   const [focused, setFocused] = useState<Row | null>(null);
   const [pickEmoji, setPickEmoji] = useState(false),
     [followBusy, setFollowBusy] = useState(false),
@@ -113,6 +124,25 @@ export function Chat({
     textarea = useRef<HTMLTextAreaElement>(null),
     file = useRef<HTMLInputElement>(null),
     atBottom = useRef(true);
+  const readMarker = useRef("");
+  function markRead(last: Row | undefined) {
+    if (
+      !last ||
+      pinned ||
+      !atBottom.current ||
+      document.visibilityState !== "visible" ||
+      readMarker.current === last.id
+    )
+      return;
+    readMarker.current = last.id;
+    void api(`${base}/channels/${channel.id}/read`, "POST", {
+      through: last.id,
+    })
+      .then(refresh)
+      .catch(() => {
+        readMarker.current = "";
+      });
+  }
   useEffect(() => {
     setDraft("");
     setReply(null);
@@ -121,6 +151,7 @@ export function Chat({
     setMessages([]);
     setAttachments([]);
     setFollow(false);
+    readMarker.current = "";
     void api<{ data: { following: boolean } }>(
       `${base}/channels/${channel.id}/follow`,
     )
@@ -136,6 +167,7 @@ export function Chat({
       .then((r) => {
         if (gone) return;
         setMessages(r.data);
+        markRead(r.data.at(-1));
         setCursor(r.nextCursor || null);
         if (atBottom.current)
           setTimeout(() => end.current?.scrollIntoView({ block: "end" }), 30);
@@ -148,14 +180,16 @@ export function Chat({
   useEffect(() => {
     void Promise.all([
       api<Result>(`${base}/emojis`),
-      collection(`${base}/members`),
+      api<{ data: { members: Row[] } }>(
+        `${base}/channels/${channel.id}/context`,
+      ),
     ])
       .then(([e, m]) => {
         setEmojis(e.data);
-        setMembers(m.data);
+        setMembers(m.data.members);
       })
       .catch(fail);
-  }, [base]);
+  }, [base, channel.id]);
   const [dropitOpen, setDropitOpen] = useState(false);
   const [commandResult, setCommandResult] = useState<{
     title: string;
@@ -222,6 +256,24 @@ export function Chat({
       setDraft(
         (old) =>
           `${old}${old ? "\n" : ""}${location.origin}${base}/attachments/${r.data.id}`,
+      );
+    } catch (e) {
+      fail(e);
+    }
+  }
+  async function openContextMessage(id: string) {
+    try {
+      const r = await api<{ data: Row }>(`${base}/messages/${id}`);
+      if (!r.data) return;
+      setPinned(false);
+      setFocused(r.data);
+      setContextOpen(false);
+      setTimeout(
+        () =>
+          document
+            .getElementById(`message-${id}`)
+            ?.scrollIntoView({ block: "center" }),
+        60,
       );
     } catch (e) {
       fail(e);
@@ -354,6 +406,22 @@ export function Chat({
               {follow ? "Suivi" : "Notifications"}
             </span>
           </button>
+          <button
+            className="icon-button"
+            aria-label="Membres et contexte"
+            onClick={() => setContextOpen(true)}
+          >
+            <Users size={19} />
+          </button>
+          {can("MANAGE_CHANNEL") && !channel.is_dm && (
+            <button
+              className="icon-button"
+              aria-label="Paramètres du canal"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <SettingsIcon size={19} />
+            </button>
+          )}
         </header>
         {notice && (
           <div className="chat-notice" role="status">
@@ -373,6 +441,7 @@ export function Chat({
             const el = scroll.current;
             atBottom.current =
               !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+            if (atBottom.current) markRead(messages.at(-1));
           }}
         >
           {pinned && !messages.length && (
@@ -401,7 +470,7 @@ export function Chat({
             >
               Charger les messages précédents
             </button>
-          ) : (
+          ) : !messages.length && !focused ? (
             <div className="conversation-intro">
               <span className="intro-symbol">
                 <Hash size={31} />
@@ -415,7 +484,7 @@ export function Chat({
               </p>
               <span className="intro-rule" />
             </div>
-          )}
+          ) : null}
           <div className="day-divider">
             <span>
               {messages.length
@@ -431,9 +500,90 @@ export function Chat({
             ? [focused, ...messages]
             : messages
           ).map((m) => (
-            <article className="message" id={`message-${m.id}`} key={m.id}>
+            <EntityMenu
+              className="message"
+              key={m.id}
+              label={`Message de ${m.author_name}`}
+              actions={[
+                {
+                  label: "Copier le texte",
+                  run: () =>
+                    void navigator.clipboard.writeText(m.content).catch(fail),
+                },
+                {
+                  label: "Copier l’ID",
+                  run: () =>
+                    void navigator.clipboard.writeText(m.id).catch(fail),
+                },
+                ...(can("ADD_REACTION")
+                  ? [
+                      {
+                        label: "Ajouter une réaction",
+                        run: () => setEmojiFor(m.id),
+                      },
+                    ]
+                  : []),
+                ...(canCompose
+                  ? [
+                      {
+                        label: "Répondre",
+                        run: () => {
+                          setReply(m);
+                          textarea.current?.focus();
+                        },
+                      },
+                    ]
+                  : []),
+                ...(channel.threads_enabled !== false
+                  ? [{ label: "Ouvrir le fil", run: () => setThread(m) }]
+                  : []),
+                ...(m.user_id === user.id && can("EDIT_OWN_MESSAGE")
+                  ? [
+                      {
+                        label: "Modifier",
+                        run: () => {
+                          setEdit(m);
+                          setDraft(m.content);
+                          textarea.current?.focus();
+                        },
+                      },
+                    ]
+                  : []),
+                ...(can("MANAGE_MESSAGES")
+                  ? [
+                      {
+                        label: m.pinned_at ? "Désépingler" : "Épingler",
+                        run: () =>
+                          void api(`${base}/messages/${m.id}/pin`, "PUT", {
+                            pinned: !m.pinned_at,
+                          })
+                            .then(refresh)
+                            .catch(fail),
+                      },
+                    ]
+                  : []),
+                ...((
+                  m.user_id === user.id
+                    ? can("DELETE_OWN_MESSAGE")
+                    : can("MANAGE_MESSAGES")
+                )
+                  ? [
+                      {
+                        label: "Supprimer",
+                        danger: true,
+                        run: () => {
+                          if (confirm("Supprimer ce message ?"))
+                            void api(`${base}/messages/${m.id}`, "DELETE")
+                              .then(refresh)
+                              .catch(fail);
+                        },
+                      },
+                    ]
+                  : []),
+              ]}
+            >
               <Avatar name={m.author_name || "Liora"} src={m.author_avatar} />
-              <div className="message-body">
+              <div className="message-body" id={`message-${m.id}`}>
                 <div className="message-meta">
                   <strong>{m.author_name}</strong>
                   {m.author_kind !== "human" && (
@@ -460,67 +610,89 @@ export function Chat({
                     <Pin size={12} /> Message épinglé
                   </small>
                 )}
-                <MessageContent
-                  text={m.content}
-                  base={base}
-                  channel={channel.id}
-                  members={[...members, ...(m.mentions || [])]}
-                  previews={user.preferences.linkPreviews !== false}
-                  detectedDates={m.detectedDates || []}
-                  onDateClick={(d) =>
-                    can("CREATE_CALENDAR_EVENT") &&
-                    setEventFromDate({
-                      ...d,
-                      start:
-                        typeof d.start === "string"
-                          ? new Date(d.start)
-                          : d.start,
-                      end:
-                        d.end && typeof d.end === "string"
-                          ? new Date(d.end)
-                          : d.end,
-                    })
-                  }
-                />
-                <button className="thread-link" onClick={() => setThread(m)}>
-                  <MessageSquare size={14} />
-                  {m.reply_count
-                    ? `${m.reply_count} réponse${m.reply_count > 1 ? "s" : ""}`
-                    : "Ouvrir le fil"}
-                </button>
-                <div className="reactions">
-                  {[...new Set(m.reactions.map((r) => r.emoji))].map((e) => (
-                    <button
-                      key={e}
-                      className={
-                        m.reactions.some(
-                          (r) => r.emoji === e && r.actor_id === user.id,
-                        )
-                          ? "selected"
-                          : ""
-                      }
-                      onClick={() =>
-                        void api(`${base}/messages/${m.id}/reactions`, "POST", {
-                          emoji: e,
+                {m.rich_content ? (
+                  <WebhookEmbed
+                    message={m.rich_content}
+                    base={base}
+                    channel={channel.id}
+                  />
+                ) : (
+                  <>
+                    <MessageContent
+                      text={m.content}
+                      base={base}
+                      channel={channel.id}
+                      members={[...members, ...(m.mentions || [])]}
+                      previews={user.preferences.linkPreviews !== false}
+                      detectedDates={m.detectedDates || []}
+                      onDateClick={(d) =>
+                        can("CREATE_CALENDAR_EVENT") &&
+                        setEventFromDate({
+                          ...d,
+                          start:
+                            typeof d.start === "string"
+                              ? new Date(d.start)
+                              : d.start,
+                          end:
+                            d.end && typeof d.end === "string"
+                              ? new Date(d.end)
+                              : d.end,
                         })
-                          .then(refresh)
-                          .catch(fail)
                       }
-                    >
-                      {e.startsWith(":") ? (
-                        <img
-                          className="custom-emoji"
-                          src={`${base}/attachments/${emojis.find((x) => `:${x.name}:` === e)?.attachment_id}`}
-                          alt={e}
-                        />
-                      ) : (
-                        e
-                      )}
-                      <span>
-                        {m.reactions.filter((r) => r.emoji === e).length}
-                      </span>
-                    </button>
-                  ))}
+                    />
+                  </>
+                )}
+                {channel.threads_enabled !== false && (
+                  <button className="thread-link" onClick={() => setThread(m)}>
+                    <MessageSquare size={14} />
+                    {m.reply_count
+                      ? `${m.reply_count} réponse${m.reply_count > 1 ? "s" : ""}`
+                      : "Ouvrir le fil"}
+                  </button>
+                )}
+                <div className="reactions">
+                  {[...new Set(m.reactions.map((r) => r.emoji))].map((e) => {
+                    const Reaction = can("ADD_REACTION") ? "button" : "span";
+                    return (
+                      <Reaction
+                        key={e}
+                        className={
+                          m.reactions.some(
+                            (r) => r.emoji === e && r.actor_id === user.id,
+                          )
+                            ? "selected"
+                            : ""
+                        }
+                        onClick={
+                          can("ADD_REACTION")
+                            ? () =>
+                                void api(
+                                  `${base}/messages/${m.id}/reactions`,
+                                  "POST",
+                                  {
+                                    emoji: e,
+                                  },
+                                )
+                                  .then(refresh)
+                                  .catch(fail)
+                            : undefined
+                        }
+                      >
+                        {e.startsWith(":") ? (
+                          <img
+                            className="custom-emoji"
+                            src={`${base}/attachments/${emojis.find((x) => `:${x.name}:` === e)?.attachment_id}`}
+                            alt={e}
+                          />
+                        ) : (
+                          e
+                        )}
+                        <span>
+                          {m.reactions.filter((r) => r.emoji === e).length}
+                        </span>
+                      </Reaction>
+                    );
+                  })}
                 </div>
               </div>
               <div className="message-actions">
@@ -564,16 +736,18 @@ export function Chat({
                     <Smile size={16} />
                   </button>
                 )}
-                <button
-                  className="icon-button"
-                  aria-label="Répondre"
-                  onClick={() => {
-                    setReply(m);
-                    textarea.current?.focus();
-                  }}
-                >
-                  <Reply size={16} />
-                </button>
+                {canCompose && (
+                  <button
+                    className="icon-button"
+                    aria-label="Répondre"
+                    onClick={() => {
+                      setReply(m);
+                      textarea.current?.focus();
+                    }}
+                  >
+                    <Reply size={16} />
+                  </button>
+                )}
                 {m.user_id === user.id && can("EDIT_OWN_MESSAGE") && (
                   <button
                     className="icon-button"
@@ -612,7 +786,7 @@ export function Chat({
                   }
                 />
               )}
-            </article>
+            </EntityMenu>
           ))}
           <div ref={end} />
         </div>
@@ -840,51 +1014,46 @@ export function Chat({
           <p className="padded muted">Ce salon est en lecture seule.</p>
         )}
       </section>
-      <aside className="context-panel">
-        <h2>{channel.is_dm ? "Conversation privée" : "Dans ce salon"}</h2>
-        <div className="context-description">
-          <Hash size={20} />
-          <strong>Un fil commun</strong>
-          <p>
-            {channel.is_dm
-              ? "Seuls les deux participants peuvent lire ces messages."
-              : channel.is_private
-                ? "Les accès à ce salon sont définis par les gestionnaires de l’espace."
-                : channel.description ||
-                  "Les échanges qui font avancer notre équipe."}
-          </p>
-        </div>
-        <section>
-          <h3>
-            <span className="tiny-dot" />
-            En ligne dans l’espace <span>{presence.length}</span>
-          </h3>
-          {presence.map((p) => (
-            <div className="presence-person" key={p.id}>
-              <Avatar name={p.name} small />
-              <span>
-                {p.name}
-                <small>
-                  {p.status === "busy"
-                    ? "Occupé"
-                    : p.status === "away"
-                      ? "Absent"
-                      : "Disponible"}
-                </small>
-              </span>
-              <i />
-            </div>
-          ))}
-        </section>
-        <div className="context-bottom">
-          <Activity size={20} />
-          <p>
-            Chaque signal a sa place.
-            <br />
-            <span>Gardons les échanges utiles.</span>
-          </p>
-        </div>
-      </aside>
+      <ChannelContextPanel
+        base={base}
+        channel={channel}
+        presence={presence}
+        revision={revision}
+        can={can}
+        fail={fail}
+        mention={(id) => {
+          setDraft((d) => d + ` @[${id}] `);
+          textarea.current?.focus();
+        }}
+        openThread={setThread}
+        openMessage={(id) => void openContextMessage(id)}
+      />
+      {contextOpen && (
+        <ChannelContextPanel
+          base={base}
+          channel={channel}
+          presence={presence}
+          revision={revision}
+          can={can}
+          fail={fail}
+          mention={(id) => {
+            setDraft((d) => d + ` @[${id}] `);
+            textarea.current?.focus();
+          }}
+          openThread={setThread}
+          openMessage={(id) => void openContextMessage(id)}
+          close={() => setContextOpen(false)}
+        />
+      )}
+      {settingsOpen && (
+        <ChannelSettings
+          base={base}
+          channel={channel}
+          can={can}
+          close={() => setSettingsOpen(false)}
+          refresh={refresh}
+        />
+      )}
       {pickEmoji && (
         <EmojiPicker
           custom={emojis.map((e) => `:${e.name}:`)}

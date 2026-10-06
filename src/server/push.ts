@@ -188,21 +188,32 @@ export async function processPushDeliveries(
 ) {
   if (!pushConfig()) return;
   await transaction(async (db) => {
-    const rows = await query(
-      `SELECT d.*,s.user_id,s.session_id,s.subscription FROM push_deliveries d JOIN push_subscriptions s ON s.id=d.subscription_id WHERE d.state='pending' AND d.next_attempt_at<=$1 ORDER BY d.created_at LIMIT 20 FOR UPDATE OF d SKIP LOCKED`,
-      [now],
-      db,
-    );
-    for (const d of rows) {
-      // Re-evaluate membership, session, preferences and private-channel visibility immediately before delivery.
-      const [n] = await query(
-        `SELECT n.* FROM notifications n JOIN users u ON u.id=n.user_id JOIN user_sessions s ON s.id=$3 AND s.user_id=u.id JOIN workspace_members m ON m.workspace_id=n.workspace_id AND m.user_id=u.id JOIN roles r ON r.id=m.role_id WHERE n.id=$1 AND n.user_id=$2 AND n.state='unread' AND s.expires_at>now() AND NOT u.disabled AND m.state='active' AND 'VIEW_WORKSPACE'=ANY(r.permissions) AND (n.type<>'argos' OR ('VIEW_MONITORING'=ANY(r.permissions) AND COALESCE((u.preferences->>'argos')::boolean,true))) AND (n.type<>'task' OR COALESCE((u.preferences->>'tasks')::boolean,true)) AND (n.type<>'mention' OR COALESCE((u.preferences->>'mentions')::boolean,true)) AND (n.type<>'message' OR COALESCE((u.preferences->>CASE WHEN EXISTS(SELECT 1 FROM channels dm WHERE dm.id=n.channel_id AND dm.is_dm) THEN 'directMessages' ELSE 'messages' END)::boolean,true)) AND (n.channel_id IS NULL OR EXISTS(SELECT 1 FROM channels c WHERE c.id=n.channel_id AND c.workspace_id=n.workspace_id AND ${visibleChannel("c", "$2", "r.permissions")}))`,
-        [d.notification_id, d.user_id, d.session_id],
+    const rows: any[] = [];
+    for (const table of ["push_deliveries", "personal_push_deliveries"]) {
+      const batch = await query(
+        `SELECT d.*,s.user_id,s.session_id,s.subscription,'${table}' queue_table FROM ${table} d JOIN push_subscriptions s ON s.id=d.subscription_id WHERE d.state='pending' AND d.next_attempt_at<=$1 ORDER BY d.created_at LIMIT 20 FOR UPDATE OF d SKIP LOCKED`,
+        [now],
         db,
       );
+      rows.push(...batch);
+    }
+    for (const d of rows) {
+      // Re-evaluate membership, session, preferences and private-channel visibility immediately before delivery.
+      const [n] =
+        d.queue_table === "personal_push_deliveries"
+          ? await query(
+              "SELECT n.* FROM personal_notifications n JOIN users u ON u.id=n.user_id JOIN user_sessions s ON s.id=$3 AND s.user_id=u.id WHERE n.id=$1 AND n.user_id=$2 AND n.state='unread' AND s.expires_at>now() AND NOT u.disabled",
+              [d.notification_id, d.user_id, d.session_id],
+              db,
+            )
+          : await query(
+              `SELECT n.* FROM notifications n JOIN users u ON u.id=n.user_id JOIN user_sessions s ON s.id=$3 AND s.user_id=u.id JOIN workspace_members m ON m.workspace_id=n.workspace_id AND m.user_id=u.id JOIN roles r ON r.id=m.role_id WHERE n.id=$1 AND n.user_id=$2 AND n.state='unread' AND s.expires_at>now() AND NOT u.disabled AND m.state='active' AND 'VIEW_WORKSPACE'=ANY(r.permissions) AND (n.type<>'argos' OR ('VIEW_MONITORING'=ANY(r.permissions) AND COALESCE((u.preferences->>'argos')::boolean,true))) AND (n.type<>'task' OR COALESCE((u.preferences->>'tasks')::boolean,true)) AND (n.type<>'mention' OR COALESCE((u.preferences->>'mentions')::boolean,true)) AND (n.type<>'message' OR COALESCE((u.preferences->>CASE WHEN EXISTS(SELECT 1 FROM channels dm WHERE dm.id=n.channel_id AND dm.is_dm) THEN 'directMessages' ELSE 'messages' END)::boolean,true)) AND (n.channel_id IS NULL OR EXISTS(SELECT 1 FROM channels c WHERE c.id=n.channel_id AND c.workspace_id=n.workspace_id AND ${visibleChannel("c", "$2", "r.permissions")}))`,
+              [d.notification_id, d.user_id, d.session_id],
+              db,
+            );
       if (!n) {
         await query(
-          "UPDATE push_deliveries SET state='cancelled' WHERE id=$1",
+          `UPDATE ${d.queue_table} SET state='cancelled' WHERE id=$1`,
           [d.id],
           db,
         );
@@ -216,7 +227,9 @@ export async function processPushDeliveries(
             title: "Liora",
             body: "Une nouvelle notification vous attend dans votre espace.",
             tag: `liora-${n.id}`,
-            url: `/#workspace=${n.workspace_id}&view=notifications`,
+            url: n.workspace_id
+              ? `/#workspace=${n.workspace_id}&view=notifications`
+              : "/#view=notifications",
           },
         );
       } catch {
@@ -236,7 +249,7 @@ export async function processPushDeliveries(
         (status === 0 || status === 429 || status >= 500) &&
         d.attempts < 4;
       await query(
-        "UPDATE push_deliveries SET state=$2,attempts=attempts+1,next_attempt_at=$3,last_error=$4 WHERE id=$1",
+        `UPDATE ${d.queue_table} SET state=$2,attempts=attempts+1,next_attempt_at=$3,last_error=$4 WHERE id=$1`,
         [
           d.id,
           ok ? "sent" : retry ? "pending" : "failed",
@@ -246,10 +259,11 @@ export async function processPushDeliveries(
         db,
       );
     }
-    await query(
-      "DELETE FROM push_deliveries WHERE state<>'pending' AND created_at<now()-interval '30 days'",
-      [],
-      db,
-    );
+    for (const table of ["push_deliveries", "personal_push_deliveries"])
+      await query(
+        `DELETE FROM ${table} WHERE state<>'pending' AND created_at<now()-interval '30 days'`,
+        [],
+        db,
+      );
   });
 }

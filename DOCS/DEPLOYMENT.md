@@ -1,5 +1,7 @@
 # Déploiement
 
+Pour la préversion 1.0.0-beta.1, suivre d’abord [RELEASE_1.0.0.md](RELEASE_1.0.0.md) : sauvegarde, restauration isolée, migrations 012–015 et qualification avant bascule. Aucune production déployée pendant le développement. Les instructions Google 0.x sont historiques ; configuration calendrier courante dans [CALDAV.md](CALDAV.md).
+
 ## Node direct
 
 Node 22.12+ (24 utilisé localement), PostgreSQL 17+, reverse proxy HTTPS. Une instance Liora initialement. Configurer `.env` à partir de `.env.example` sans écraser un fichier existant. Secrets hors Git. `APP_URL` est l’origine publique exacte et le callback Kyros doit correspondre.

@@ -1,5 +1,11 @@
 # Sécurité
 
+## Préversion 1.0
+
+Les capacités de canal héritent du rôle puis des exceptions de rôle/utilisateur ; garde de membership, compte actif, salon privé/DM et permission effective à chaque accès. Owner ne reçoit pas d’override. Les gestionnaires ne peuvent accorder un droit qu’ils ne possèdent pas. Les nouvelles files personnelles sont liées au propriétaire et réévaluées avant livraison, avec payload push/Gotify générique sans contenu privé. Rich content webhook validé et médias via réseau contrôlé ; secrets absents des historiques de réception.
+
+Les tables Google historiques sont conservées sans code de lecture/synchronisation runtime. Les Pages restent une API autorisée historique. Pour un rollback, restaurer une base cohérente : un ancien code ne sait pas appliquer les nouveaux overrides. La qualification locale et la revue UI ne remplacent pas un audit sécurité/charge externe avant stable.
+
 ## Kyros v4
 
 Configurer une application Kyros **SSO v4**, code d’autorisation + PKCE S256 et PAR. Callback exact : `${APP_URL}/auth/callback`. Scopes par défaut `profile email offline_access`. Si des scopes supplémentaires sont configurés, ils sont tous exigés dans le JWT. `KYROS_AUDIENCE` désigne l’audience JWT globale ; `KYROS_RESOURCE_AUDIENCE` doit être identique à celle de l’application Kyros.

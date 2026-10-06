@@ -2,6 +2,19 @@
 export type Row = {
   id: string;
   unread_count?: number;
+  mention_count?: number;
+  workspace_id?: string;
+  workspace_name?: string;
+  source_base?: string;
+  capabilities?: string[];
+  slowmode_seconds?: number;
+  threads_enabled?: boolean;
+  username?: string;
+  bio?: string;
+  rich_content?: import("../shared/webhook-message").WebhookMessage;
+  http_status?: number;
+  sent_at?: string;
+  last_attempt_at?: string;
   last_message?: string;
   event_types?: string[];
   avatar?: string;

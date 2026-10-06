@@ -8,7 +8,7 @@ const guides = [
     steps: [
       "L’accueil réunit vos raccourcis et ce qui demande votre attention. La boîte de réception conserve les notifications de l’espace.",
       "Mon espace regroupe les outils personnels. Mes lieux et vos conversations entre amis restent accessibles même sans espace de travail.",
-      "Projets, pages et calendrier servent à l’équipe. Les rubriques visibles dépendent de vos permissions dans l’espace sélectionné.",
+      "Projets et calendrier servent à l’équipe. Les rubriques visibles dépendent de vos permissions dans l’espace sélectionné.",
       "Ouvrez la recherche rapide avec le bouton Rechercher ou le raccourci clavier indiqué. Les réglages personnels se trouvent dans Préférences ; ceux de l’équipe dans Administration.",
     ],
   },
@@ -178,18 +178,7 @@ const guides = [
       "Dans les accès du salon, sélectionnez les groupes autorisés. Les gestionnaires de salons gardent accès aux salons privés ; les conversations directes restent exclues de cette règle.",
     ],
   },
-  {
-    title: "Rédiger une page et vérifier son aperçu",
-    category: "Pages",
-    steps: [
-      "Ouvrez Pages de l’équipe, puis créez une page ou choisissez-en une.",
-      "Ajoutez des blocs : texte, titre, liste, code, citation, lien ou contenu embarqué.",
-      "Le bouton Aperçu utilise le même rendu que la lecture. Avant enregistrement, il inclut votre brouillon ; les autres voient uniquement la version publiée.",
-      "Pour embarquer un board, un message ou une intégration, renseignez son identifiant. Copiez l’identifiant d’un message avec son bouton de copie. Les droits du lecteur restent appliqués.",
-      "Les modifications de blocs différents peuvent être fusionnées. Deux modifications du même bloc provoquent un conflit, sans écraser votre brouillon.",
-      "L’historique conserve les versions précédentes. Les commentaires permettent d’échanger sans modifier la page.",
-    ],
-  },
+
   {
     title: "Organiser les tâches et utiliser un modèle",
     category: "Projets",
@@ -214,7 +203,6 @@ const guides = [
       "⌘/Ctrl + 4 : ouvrir les Rappels.",
       "⌘/Ctrl + 5 : ouvrir les Favoris.",
       "⌘/Ctrl + 6 : ouvrir la Boîte de réception.",
-      "⌘/Ctrl + 7 : ouvrir les Pages.",
       "⌘/Ctrl + , : ouvrir les Préférences.",
       "⌘/Ctrl + / : ouvrir l'Aide.",
       "Échap : fermer la navigation latérale ou un dialogue.",

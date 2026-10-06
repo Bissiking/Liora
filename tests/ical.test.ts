@@ -8,7 +8,6 @@ import {
   etag,
   foldIcal,
 } from "../src/server/ical.js";
-import { googleEvent, fromGoogle } from "../src/server/google-calendar.js";
 const event = {
   id: "00000000-0000-4000-8000-000000000010",
   workspace_id: "00000000-0000-4000-8000-000000000011",
@@ -86,33 +85,6 @@ test("iCalendar all-day dates have exclusive end and reject unsupported series o
     /seul événement/,
   );
 });
-test("Google mapping round-trips times, all-day dates and optional end, and rejects unsupported recurrence", () => {
-  const g = googleEvent(event, "owner");
-  const b = fromGoogle(g, event);
-  assert.equal(b.start_at, event.start_at);
-  assert.equal(b.end_at, event.end);
-  assert.equal(b.recurrence, "weekly");
-  assert.equal(b.reminder_minutes, 15);
-  const noEnd = { ...event, end: null };
-  assert.equal(fromGoogle(googleEvent(noEnd, "owner"), noEnd).end_at, null);
-  const day = {
-    ...event,
-    all_day: true,
-    start_at: "2026-03-28T23:00:00Z",
-    end: "2026-03-29T22:00:00Z",
-    recurrence: "none",
-  };
-  assert.equal(fromGoogle(googleEvent(day, "owner"), day).all_day, true);
-  assert.throws(
-    () =>
-      fromGoogle(
-        { ...g, recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=TU,TH"] },
-        event,
-      ),
-    /répétition/,
-  );
-});
-
 test("calendar exports preserve Liora month-end and leap-day anchors", () => {
   for (const row of [
     {
@@ -142,9 +114,5 @@ test("calendar exports preserve Liora month-end and leap-day anchors", () => {
     it.next();
     const second = it.next()!;
     assert.equal(second.day, 28);
-    assert.equal(
-      fromGoogle(googleEvent(row, "owner"), row).recurrence,
-      row.recurrence,
-    );
   }
 });

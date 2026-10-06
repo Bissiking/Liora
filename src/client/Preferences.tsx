@@ -14,7 +14,7 @@ import type { User, Row, Result } from "./types";
 import { ConnectedAccounts } from "./Integrations";
 import { playSound } from "./sound";
 import { deviceAppearance, saveDeviceAppearance } from "./theme-preference";
-import { CalendarSync } from "./CalendarSync";
+import { CalDavSettings } from "./CalDavSettings";
 import { themes } from "../shared/themes";
 import { HelpHint, preferenceHelp } from "./HelpHint";
 import { GotifySettings } from "./GotifySettings";
@@ -31,7 +31,7 @@ export function Preferences({
   fail: (e: unknown) => void;
 }) {
   const [tab, setTab] = useState(
-      location.hash.startsWith("#google-calendar=")
+      false
         ? "agenda"
         : location.hash.startsWith("#connected=dropit")
           ? "connections"
@@ -151,10 +151,10 @@ export function Preferences({
         <p className="muted">Vos réglages personnels, sur tous vos espaces.</p>
         <HelpHint title={preferenceHelp[tab]?.title || "Vos agendas"}>
           {preferenceHelp[tab]?.text ||
-            "Connectez Google Agenda ou ajoutez Liora comme compte CalDAV."}
+            "Ajoutez Liora à votre application de calendrier avec CalDAV."}
         </HelpHint>
         {tab === "agenda" ? (
-          <CalendarSync workspace={base.split("/").at(-1) || ""} />
+          <CalDavSettings />
         ) : tab === "connections" ? (
           <ConnectedAccounts base={base} fail={fail} />
         ) : tab === "sessions" ? (

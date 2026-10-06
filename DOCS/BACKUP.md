@@ -1,5 +1,7 @@
 # Sauvegarde et restauration
 
+Depuis 1.0.0-beta.1, la sauvegarde PostgreSQL complète inclut également `personal_reminders`, `personal_notifications`, les deux files personnelles, `channel_overrides`, `channel_read_states`, `channel_read_cutoff` et `webhook_receipts`. Conserver Pages et anciennes tables Google. Un ancien serveur ne sait pas appliquer les exceptions de canal : revenir à 0.7.1 exige une restauration cohérente avec cette version ; ne pas réutiliser une base 1.0 ayant reçu des exceptions. [Guide de mise à niveau](RELEASE_1.0.0.md).
+
 Sauvegarder ensemble PostgreSQL, le répertoire UPLOAD_DIR et la configuration chiffrée hors dépôt. SESSION_SECRET est indispensable pour relire les tokens de sessions et secrets d’envoi ; perdre cette clé impose reconnexion et recréation des secrets. Les clés Kyros privées restent chez Kyros.
 
 La 0.5.0 ajoute des données personnelles à inclure dans la sauvegarde PostgreSQL : `friend_messages`, `place_categories`, `places` et `place_entries`. Vérifier en restauration l’historique entre amis, les notes et la confidentialité des visites, avec deux identités distinctes.

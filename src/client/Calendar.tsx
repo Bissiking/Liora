@@ -1,4 +1,5 @@
 // src/client/Calendar.tsx
+import { EntityMenu } from "./ContextMenuProvider";
 import { useEffect, useState } from "react";
 import {
   ChevronLeft,
@@ -8,7 +9,7 @@ import {
   Trash2,
   Star,
 } from "lucide-react";
-import { CalendarSync } from "./CalendarSync";
+import { CalDavSettings } from "./CalDavSettings";
 import { api } from "./api";
 import { Empty, FormDialog, Modal, type Field } from "./ui";
 import type { Row, Result } from "./types";
@@ -81,6 +82,7 @@ export function Calendar({
       .finally(() => {
         if (!gone) setLoading(false);
       });
+
     return () => {
       gone = true;
     };
@@ -218,6 +220,28 @@ export function Calendar({
       e.end_at ? new Date(Date.parse(e.end_at) - 1) : e.start_at,
       e.all_day ? e.timezone : zone(),
     ) >= k;
+  const eventActions = (e: Row) => [
+    { label: "Voir l’événement", run: () => setSelected(e) },
+    {
+      label: "Copier l’ID",
+      run: () => void navigator.clipboard.writeText(e.id).catch(fail),
+    },
+    ...(e.user_id === userId || can("MANAGE_CALENDAR")
+      ? [
+          { label: "Modifier la série", run: () => edit(e) },
+          {
+            label: "Supprimer la série",
+            danger: true,
+            run: () => {
+              if (confirm("Supprimer cet événement et sa série ?"))
+                void api(`${base}/calendar/${e.id}`, "DELETE")
+                  .then(refresh)
+                  .catch(fail);
+            },
+          },
+        ]
+      : []),
+  ];
   const agenda = filtered.filter((e) => !day || fallsOn(e, day));
   return (
     <div className="page calendar-page">
@@ -236,7 +260,10 @@ export function Calendar({
           </button>
         )}
       </header>
-      <details className="calendar-sync-disclosure"><summary>Synchroniser mes agendas</summary><CalendarSync workspace={base.split("/").at(-1)}/></details>
+      <details className="calendar-sync-disclosure">
+        <summary>Synchroniser mes agendas</summary>
+        <CalDavSettings />
+      </details>
       <div className="calendar-summary">
         <strong>{filtered.length} rendez-vous ce mois-ci</strong>
         <span>
@@ -348,13 +375,18 @@ export function Calendar({
                       )}
                     </button>
                     {items.slice(0, 3).map((e) => (
-                      <button
+                      <EntityMenu
                         key={e.occurrence_id}
-                        className="calendar-event"
-                        onClick={() => setSelected(e)}
+                        label={`Événement ${e.title}`}
+                        actions={eventActions(e)}
                       >
-                        {e.title}
-                      </button>
+                        <button
+                          className="calendar-event"
+                          onClick={() => setSelected(e)}
+                        >
+                          {e.title}
+                        </button>
+                      </EntityMenu>
                     ))}
                     {items.length > 3 && (
                       <button
@@ -391,24 +423,29 @@ export function Calendar({
               </Empty>
             ) : (
               agenda.map((e) => (
-                <button
-                  className="calendar-agenda-row"
+                <EntityMenu
                   key={e.occurrence_id}
-                  onClick={() => setSelected(e)}
+                  label={`Événement ${e.title}`}
+                  actions={eventActions(e)}
                 >
-                  <time>
-                    {label(e)}
-                    {e.all_day ? " · Toute la journée" : ""}
-                  </time>
-                  <strong>{e.title}</strong>
-                  <span>
-                    {e.recurrence !== "none"
-                      ? recurrenceLabels[
-                          e.recurrence as keyof typeof recurrenceLabels
-                        ]
-                      : ""}
-                  </span>
-                </button>
+                  <button
+                    className="calendar-agenda-row"
+                    onClick={() => setSelected(e)}
+                  >
+                    <time>
+                      {label(e)}
+                      {e.all_day ? " · Toute la journée" : ""}
+                    </time>
+                    <strong>{e.title}</strong>
+                    <span>
+                      {e.recurrence !== "none"
+                        ? recurrenceLabels[
+                            e.recurrence as keyof typeof recurrenceLabels
+                          ]
+                        : ""}
+                    </span>
+                  </button>
+                </EntityMenu>
               ))
             )}
           </section>

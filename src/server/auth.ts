@@ -102,8 +102,17 @@ export async function authenticate(
           db,
         );
         await query(
-          "UPDATE users SET kyros_avatar_url=$2,avatar=CASE WHEN avatar_key IS NULL THEN CASE WHEN $2::text IS NULL THEN NULL ELSE '/api/v1/avatars/'||id::text||'?kyros=1' END ELSE avatar END WHERE id=$1",
-          [s.user_id, kyrosAvatar(claims)],
+          "UPDATE users SET username=$3,kyros_avatar_url=$2,avatar=CASE WHEN avatar_key IS NULL THEN CASE WHEN $2::text IS NULL THEN NULL ELSE '/api/v1/avatars/'||id::text||'?kyros=1' END ELSE avatar END WHERE id=$1",
+          [
+            s.user_id,
+            kyrosAvatar(claims),
+            typeof (claims.username ?? claims.preferred_username) === "string"
+              ? String(claims.username ?? claims.preferred_username).slice(
+                  0,
+                  80,
+                )
+              : null,
+          ],
           db,
         );
         s.expires_at = fresh.refresh_token_expires_at;
@@ -215,7 +224,7 @@ authRouter.get("/callback", async (req, res) => {
   const raw = token();
   await transaction(async (db) => {
     const [user] = await query(
-      `INSERT INTO users(kyros_user_id,name,kyros_avatar_url,last_login_at) VALUES($1,$2,$3,now()) ON CONFLICT(kyros_user_id) DO UPDATE SET last_login_at=now(),kyros_avatar_url=EXCLUDED.kyros_avatar_url RETURNING *`,
+      `INSERT INTO users(kyros_user_id,name,kyros_avatar_url,username,last_login_at) VALUES($1,$2,$3,$4,now()) ON CONFLICT(kyros_user_id) DO UPDATE SET last_login_at=now(),kyros_avatar_url=EXCLUDED.kyros_avatar_url,username=EXCLUDED.username RETURNING *`,
       [
         claims.sub,
         String(
@@ -225,6 +234,9 @@ authRouter.get("/callback", async (req, res) => {
             "Membre LUMA",
         ).slice(0, 80),
         kyrosAvatar(claims),
+        typeof (claims.username ?? claims.preferred_username) === "string"
+          ? String(claims.username ?? claims.preferred_username).slice(0, 80)
+          : null,
       ],
       db,
     );

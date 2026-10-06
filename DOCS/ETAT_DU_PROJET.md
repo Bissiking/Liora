@@ -1,5 +1,9 @@
 # État du projet Liora
 
+## Développement 1.0 — 6 octobre 2026
+
+Version locale **1.0.0-beta.1**, navigation personnel/workspace et fonctionnalités du brief implémentées. [Livraison, migrations 012–015 et limites](RELEASE_1.0.0.md) · [CalDAV officiel](CALDAV.md). Tests locaux : 76/76 et E2E Chrome réussis ; aucune qualification de production ou de clients CalDAV natifs. Les sections suivantes décrivent les états historiques 0.x, dont Google et Pages qui ne sont plus proposés par l’interface actuelle.
+
 Revue historique du 25 septembre 2026, complétée le 5 octobre 2026 : code local en 0.7.1 BETA. Références : [cahier des charges original](PROJECT_CHARTER.md), [charte d’implémentation](../PROJECT_CHARTER.md), [roadmap](../ROADMAP.md). Cette revue confronte les exigences aux sources, migrations et tests ; elle ne certifie pas le déploiement ni chaque parcours de la charte.
 
 ## Livraison 0.6.0 — 5 octobre 2026
@@ -64,3 +68,7 @@ Implémenté : notes personnelles datées et récupération BrainDump sous ident
 ## Intégration BrainDump — 0.7.1 du 5 octobre 2026
 
 BrainDump 2.1.0 rejoint DropIt dans les paramètres : configuration en base, consentement personnel et PKCE, même sujet/émetteur Kyros, lecture seule des notes datées, refresh rotatif, révocation et retrait des copies. Aucune publication des notes privées dans un salon. Migration Liora 011 et SQLite BrainDump additive 3. Configuration et limites : DOCS/RELEASE_0.7.1.md. Fournisseurs réels et déploiement restent à qualifier.
+
+## Préparation 1.0.0 — 5 octobre 2026
+
+Audit du commit `fa93d20` et plan structurel réalisés avant implémentation, conformément au [brief](BRIEF_1.0.0.md). [Audit](AUDIT_1.0.0.md) : 72 tests locaux verts, build réussi, suite Puppeteer desktop/mobile réussie ; défauts et écarts à la cible documentés. [Plan fichier par fichier](PLAN_1.0.0.md) : séparation personnel/workspace, canaux/droits, profils/menus/webhooks, retrait Google et Pages de l’UX, CalDAV officiel, CSS puis thèmes. Aucune migration ni modification applicative dans cette préparation ; Liora reste 0.7.1 BETA. La production et les clients CalDAV réels ne sont pas qualifiés par ces résultats locaux.

@@ -1,4 +1,6 @@
 // src/server/admin.ts
+import { processWebhookMessage } from "./webhooks.js";
+import { webhookMessageSchema } from "../shared/webhook-message.js";
 import { Router } from "express";
 import { z } from "zod";
 import { query, transaction } from "./db.js";
@@ -17,7 +19,7 @@ adminRouter.get("/members", async (req, res) => {
   await authorize(req.actor, w, "VIEW_WORKSPACE");
   const after = req.query.after ? z.uuid().parse(req.query.after) : null;
   const rows = await query(
-    "SELECT u.id,u.name,u.kyros_user_id,u.avatar,u.status,u.last_login_at,m.role_id,m.state,r.name role_name,r.is_owner FROM workspace_members m JOIN users u ON u.id=m.user_id JOIN roles r ON r.id=m.role_id WHERE m.workspace_id=$1 AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT 501",
+    "SELECT u.id,u.name,u.username,u.bio,u.kyros_user_id,u.avatar,u.status,u.last_login_at,m.role_id,m.state,r.name role_name,r.is_owner FROM workspace_members m JOIN users u ON u.id=m.user_id JOIN roles r ON r.id=m.role_id WHERE m.workspace_id=$1 AND ($2::uuid IS NULL OR u.id>$2) ORDER BY u.id LIMIT 501",
     [w, after],
   );
   const more = rows.length > 500;
@@ -70,13 +72,13 @@ adminRouter.patch("/members/:id", async (req, res) => {
   await authorize(req.actor, w, "MANAGE_MEMBERS");
   const b = z
     .object({
-      role_id: z.uuid(),
-      state: z.enum(["active", "disabled", "banned"]),
+      role_id: z.uuid().optional(),
+      state: z.enum(["active", "disabled", "banned"]).optional(),
     })
     .parse(req.body);
   await transaction(async (db) => {
     const [old] = await query(
-      "SELECT r.is_owner FROM workspace_members m JOIN roles r ON r.id=m.role_id WHERE m.workspace_id=$1 AND m.user_id=$2 FOR UPDATE OF m",
+      "SELECT m.role_id,m.state,r.is_owner FROM workspace_members m JOIN roles r ON r.id=m.role_id WHERE m.workspace_id=$1 AND m.user_id=$2 FOR UPDATE OF m",
       [w, id],
       db,
     );
@@ -86,16 +88,18 @@ adminRouter.patch("/members/:id", async (req, res) => {
       "OWNER_PROTECTED",
       "Le propriétaire ne peut pas être désactivé ou rétrogradé ici.",
     );
+    const roleId = b.role_id ?? old.role_id;
+    const state = b.state ?? old.state;
     const [r] = await query(
       "SELECT id,permissions FROM roles WHERE id=$1 AND workspace_id=$2 AND NOT is_owner",
-      [b.role_id, w],
+      [roleId, w],
       db,
     );
     assert(r, 400, "INVALID_ROLE", "Rôle invalide.");
     for (const p of r.permissions) await authorize(req.actor, w, p);
     await query(
       "UPDATE workspace_members SET role_id=$3,state=$4 WHERE workspace_id=$1 AND user_id=$2",
-      [w, id, b.role_id, b.state],
+      [w, id, roleId, state],
       db,
     );
     await audit(w, req.actor.id, "member.updated", id, db);
@@ -268,7 +272,7 @@ adminRouter.post("/webhooks", async (req, res) => {
   const raw = token();
   const row = await transaction(async (db) => {
     const [t] = await query(
-      "INSERT INTO technical_accounts(workspace_id,name,kind) VALUES($1,$2,'service') RETURNING id",
+      "INSERT INTO technical_accounts(workspace_id,name,kind,permissions) VALUES($1,$2,'service',ARRAY['VIEW_CHANNEL','READ_MESSAGE','SEND_MESSAGE','MENTION_USERS']) RETURNING id",
       [w, b.name],
       db,
     );
@@ -306,7 +310,7 @@ adminRouter.get("/outbound", async (req, res) => {
       [w],
     ),
     deliveries: await query(
-      "SELECT id,state,attempts,last_error,created_at FROM webhook_deliveries WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 50",
+      "SELECT id,state,attempts,last_error,created_at,http_status,last_attempt_at,sent_at,outbound_id FROM webhook_deliveries WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 50",
       [w],
     ),
   });
@@ -473,4 +477,39 @@ adminRouter.post("/events", async (req, res) => {
   res
     .status(201)
     .json({ data: await emit(w, b.type, req.actor.id, b.payload) });
+});
+
+adminRouter.get("/webhooks/:id/history", async (req, res) => {
+  const w = z.uuid().parse(req.workspaceId),
+    id = z.uuid().parse(req.params.id);
+  await authorize(req.actor, w, "VIEW_WEBHOOKS");
+  const [hook] = await query(
+    "SELECT channel_id FROM webhooks WHERE id=$1 AND workspace_id=$2",
+    [id, w],
+  );
+  assert(hook, 404, "NOT_FOUND", "Webhook introuvable.");
+  await channelAccess(req.actor, w, hook.channel_id);
+  res.json({
+    data: await query(
+      "SELECT id,http_status,mode,is_test,error,created_at FROM webhook_receipts WHERE webhook_id=$1 AND workspace_id=$2 ORDER BY created_at DESC LIMIT 50",
+      [id, w],
+    ),
+  });
+});
+adminRouter.post("/webhooks/:id/test", async (req, res) => {
+  const w = z.uuid().parse(req.workspaceId),
+    id = z.uuid().parse(req.params.id);
+  await authorize(req.actor, w, "MANAGE_WEBHOOK");
+  const b = webhookMessageSchema.parse(req.body);
+  const data = await transaction(async (db) => {
+    const [hook] = await query(
+      "SELECT * FROM webhooks WHERE id=$1 AND workspace_id=$2 AND NOT revoked FOR SHARE",
+      [id, w],
+      db,
+    );
+    assert(hook, 404, "NOT_FOUND", "Webhook introuvable ou révoqué.");
+    await channelAccess(req.actor, w, hook.channel_id);
+    return processWebhookMessage(hook, b, db, undefined, true);
+  });
+  res.status(202).json({ data });
 });

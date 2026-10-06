@@ -38,9 +38,9 @@ export function ContextMenu({
     };
     const escape = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "Tab") {
-        e.preventDefault();
-        close();
+        if (e.key === "Escape") e.preventDefault();
         menu.trigger.focus({ preventScroll: true });
+        close();
       }
     };
     document.addEventListener("pointerdown", dismiss);

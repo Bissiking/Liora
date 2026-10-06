@@ -11,6 +11,26 @@ import { calendarReminderAt } from "./calendar.js";
 import { HttpError } from "./errors.js";
 export async function processReminders(now = new Date()) {
   await transaction(async (db) => {
+    const personal = await query(
+      "SELECT p.* FROM personal_reminders p JOIN users u ON u.id=p.user_id AND NOT u.disabled WHERE p.state IN ('pending','snoozed') AND p.remind_at<=$1 ORDER BY p.remind_at LIMIT 100 FOR UPDATE OF p SKIP LOCKED",
+      [now],
+      db,
+    );
+    for (const r of personal) {
+      await query(
+        "INSERT INTO personal_notifications(user_id,title,body) VALUES($1,$2,$3)",
+        [r.user_id, r.title, r.body],
+        db,
+      );
+      const next = r.recurring
+        ? nextOccurrence(r.anchor_at, r.recurring_interval, r.timezone, now)
+        : null;
+      await query(
+        "UPDATE personal_reminders SET state=$2,remind_at=COALESCE($3,remind_at),last_fired_at=$4,updated_at=now() WHERE id=$1",
+        [r.id, next ? "pending" : "done", next, now],
+        db,
+      );
+    }
     const legacy = await query(
       "SELECT * FROM calendar_events WHERE NOT reminder_initialized LIMIT 100 FOR UPDATE SKIP LOCKED",
       [],

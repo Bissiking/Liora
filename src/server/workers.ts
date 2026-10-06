@@ -9,7 +9,6 @@ import { envTargets } from "./monitoring.js";
 import { processReminders } from "./experience-worker.js";
 import { processGotifyDeliveries } from "./gotify.js";
 import { processPushDeliveries } from "./push.js";
-import { processGoogleCalendars } from "./google-calendar.js";
 
 export async function checkMonitoring() {
   await transaction(async (db) => {
@@ -125,7 +124,7 @@ async function deliver(url: string, body: string, secret: string) {
   const address = await validateOutboundUrl(url);
   const u = new URL(url);
   const timestamp = String(Math.floor(Date.now() / 1000));
-  await new Promise<void>((resolve, reject) => {
+  return await new Promise<number>((resolve, reject) => {
     const req = https.request(
       u,
       {
@@ -143,8 +142,13 @@ async function deliver(url: string, body: string, secret: string) {
       (res) => {
         res.resume();
         if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300)
-          resolve();
-        else reject(Error(`HTTP ${res.statusCode}`));
+          resolve(res.statusCode);
+        else
+          reject(
+            Object.assign(Error("Destination refusée"), {
+              status: res.statusCode,
+            }),
+          );
       },
     );
     req.setTimeout(5000, () => req.destroy(Error("timeout")));
@@ -160,24 +164,42 @@ export async function processDeliveries() {
       db,
     );
     for (const d of rows) {
+      if (d.outbound_id) {
+        const [source] = await query(
+          "SELECT enabled FROM outbound_webhooks WHERE id=$1 FOR SHARE",
+          [d.outbound_id],
+          db,
+        );
+        if (!source?.enabled) {
+          await query(
+            "UPDATE webhook_deliveries SET state='cancelled',last_error='Webhook désactivé' WHERE id=$1",
+            [d.id],
+            db,
+          );
+          continue;
+        }
+      }
       try {
-        await deliver(
+        const status = await deliver(
           d.url,
           JSON.stringify(d.payload),
           await unseal<string>(d.secret),
         );
         await query(
-          "UPDATE webhook_deliveries SET state='sent',attempts=attempts+1,last_error=null WHERE id=$1",
-          [d.id],
+          "UPDATE webhook_deliveries SET state='sent',attempts=attempts+1,last_error=null,http_status=$2,last_attempt_at=now(),sent_at=now() WHERE id=$1",
+          [d.id, status],
           db,
         );
-      } catch {
+      } catch (error) {
         await query(
-          "UPDATE webhook_deliveries SET attempts=attempts+1,state=$2,last_error='Destination inaccessible ou refusée',next_attempt_at=now()+($3*interval '1 second') WHERE id=$1",
+          "UPDATE webhook_deliveries SET attempts=attempts+1,state=$2,last_error='Destination inaccessible ou refusée',next_attempt_at=now()+($3*interval '1 second'),http_status=$4,last_attempt_at=now() WHERE id=$1",
           [
             d.id,
             d.attempts >= 4 ? "failed" : "pending",
             Math.min(3600, 30 * 2 ** d.attempts),
+            error && typeof error === "object" && "status" in error
+              ? Number(error.status) || null
+              : null,
           ],
           db,
         );
@@ -193,7 +215,6 @@ export function startWorkers() {
     processReminders,
     processPushDeliveries,
     processGotifyDeliveries,
-    processGoogleCalendars,
   ]) {
     const run = async () => {
       try {

@@ -1,8 +1,12 @@
-# Liora · 0.7.1 BETA
+# Liora · 1.0.0-beta.1
 
 Un espace LUMA pour discuter, organiser les projets et recevoir les signaux des applications.
 
 **Avant tout développement significatif, lire [PROJECT_CHARTER.md](PROJECT_CHARTER.md).** La demande originale est conservée dans [DOCS/PROJECT_CHARTER.md](DOCS/PROJECT_CHARTER.md).
+
+## Préversion 1.0
+
+Navigation personnel/workspace, canaux avec permissions effectives, profils et panneau contextuel, menus centralisés, webhooks TEXT/EMBED, CalDAV comme parcours officiel. Appliquer les migrations **012–015** après sauvegarde ; aucune migration historique ne change. [Livraison et qualification restante](DOCS/RELEASE_1.0.0.md) · [Configuration CalDAV](DOCS/CALDAV.md). Google Calendar OAuth et son worker sont retirés ; les anciennes données sont conservées. Les guides 0.x ci-dessous sont historiques.
 
 ## Expérience 0.4 finalisée
 
@@ -18,11 +22,11 @@ Modules configurés en base, connexion personnelle DropIt, événements enrichis
 - Kyros SSO v4 : PAR/PKCE, validation JWT, sessions chiffrées, renouvellement automatique sérialisé.
 - Salons/catégories, chat SSE, édition/suppression, réponses, mentions, réactions, emojis personnalisés et pièces jointes.
 - Projets, boards, colonnes, cartes déplaçables, responsables, échéances, checklists, liens et commentaires.
-- Pages avec aperçu lecteur, blocs embarqués, fusion des éditions par bloc, historique et commentaires.
+- Espace personnel séparé des workspaces : activité, rappels, notes datées, amis/messages, lieux et favoris. Les Pages historiques restent en base et par API ; leur interface est retirée.
 - Bots/services, tokens hashés révocables, webhooks entrants et sortants signés avec file persistante.
 - Notifications, monitoring indépendant Argus/Argos, audit, administration et préférences.
 - Amis, invitations par lien, emojis Unicode, images/GIF, aide et tutoriels.
-- Avatars, trois thèmes, sons, groupes et modèles de tâches.
+- Avatars Kyros, dix palettes avec géométrie commune, thème de compte ou local, sons, groupes et modèles de tâches.
 - Jellyfin et demandes média désactivés et inaccessibles.
 
 ## Installation
@@ -79,10 +83,12 @@ Collaboration avancée, invitations/amis, aperçus et tutoriels : [notes de vers
 
 Refonte UX 0.4.9 : accueil, navigation par usage, commande rapide et parcours mobile. [Notes de version](DOCS/RELEASE_0.4.9.md). Qualification dédiée : `E2E_UX_ONLY=1 npm run test:e2e` (base PostgreSQL jetable `_e2e`).
 
-Version 0.5.0 : thèmes structurants, dates françaises, carte personnelle en recherche libre et messages entre amis, projets et calendrier remaniés, réglages guidés. [Notes de version](DOCS/RELEASE_0.5.0.md). Appliquer les migrations 007/008 avant démarrage. Qualification : `E2E_050_ONLY=1 npm run test:e2e` (base jetable `_e2e`, recherche et tuiles simulées).
+Version 0.5.0 : thèmes structurants, dates françaises, carte personnelle en recherche libre et messages entre amis, projets et calendrier remaniés, réglages guidés. [Notes de version](DOCS/RELEASE_0.5.0.md). Appliquer les migrations 007/008 avant démarrage. Qualification historique : `E2E_050_ONLY=1 npm run test:e2e` (base jetable `_e2e`, recherche et tuiles simulées).
 
 Version 0.6.0 : projets/Kanban/cartes/pages d’équipe remaniés, Markdown, menus contextuels, Gotify personnel, avatar Kyros et catégories repliables. [Notes 0.6](DOCS/RELEASE_0.6.0.md). Appliquer la migration 009 avant démarrage. Qualification ciblée : `npm run test:e2e:060` (base jetable `_e2e`, Kyros fixture, Gotify désactivé).
 
 La 0.7.0 ajoute notes datées/BrainDump, synchronisation Google Agenda dans les deux sens, CalDAV, thème de compte avec opt-out par appareil, Lagune et refonte amis/conversations. Migration **010** et configuration des fournisseurs : [guide 0.7.0](DOCS/RELEASE_0.7.0.md).
 
 La **0.7.1** configure BrainDump 2.1.0 comme une intégration, avec clé applicative et autorisation personnelle. Appliquer la migration 011 ; [guide et mise à jour BrainDump](DOCS/RELEASE_0.7.1.md). Parcours ciblé : `npm run test:e2e:braindump`.
+
+Le parcours E2E courant couvre la préversion 1.0. Les anciens alias `test:e2e:060`, `:070`, `:braindump` et `:experience` lancent désormais ce parcours complet ; ils ne sélectionnent plus une suite 0.x.

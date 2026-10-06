@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.0-beta.1 — 2026-10-06
+
+- Rail personnel/workspaces, navigation contextuelle et tiroirs mobiles ; retrait Pages de l’interface et du libellé En direct.
+- Activité, rappels et favoris personnels ; notifications et données historiques des espaces accessibles selon les droits.
+- Canaux : paramètres complets, permissions par rôle/utilisateur, slowmode atomique, fils configurables et non-lus précis ; profils, rôles, modération et panneau utile.
+- Menus contextuels centralisés sur les objets applicatifs ; clavier/mobile et menus natifs des éditeurs conservés.
+- Rail des serveurs : boutons « … » retirés ; menu au clic droit et au clavier conservé.
+- Messages privés et amis : listes compactes avec avatars fixes, recherche/filtres, discussion qui occupe le panneau et écriture visible sur mobile ; invitations accessibles via Ajouter un ami.
+- Paramètres de canal regroupés par usage, navigation dédiée, champs défilants et actions séparées ; accès privés dans la même fenêtre. Le suivi personnel conserve les options en cours de modification.
+- Fils actifs et épingles : aperçu lisible du message d’origine, mentions remplacées par les noms et compteur « 1 réponse » corrigé.
+- Webhooks TEXT/EMBED avec aperçu, test et historique ; HTTP/erreur/date des envois sortants.
+- CalDAV devient le parcours officiel ; code Google Calendar retiré, anciennes données conservées. CSS consolidé, dix palettes sur une géométrie commune, principales vues chargées à la demande.
+- Migrations 012–015 additives, migrations 001–011 immuables. Qualification locale : 76 tests, build et Chrome/Puppeteer ; clients réels et production encore à qualifier. [Guide](DOCS/RELEASE_1.0.0.md).
+
 ## 0.7.1 — BETA — 2026-10-05
 
 - BrainDump rejoint DropIt dans les intégrations configurables. URL, identifiant et clé chiffrée en base, test de capacités et consentement personnel pour les notes datées.

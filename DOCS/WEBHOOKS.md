@@ -1,5 +1,11 @@
 # Webhooks
 
+## Format 1.0
+
+Les webhooks entrants acceptent un message générique TEXT ou EMBED, sans dépendance au format Discord. Administration → Webhooks entrants fournit champs, aperçu validé, publication explicite d’un test et historique HTTP/date/erreur. Les payloads historiques et signatures restent compatibles. Pour les limites et endpoints : [API.md](API.md). Les médias passent par le proxy réseau contrôlé du canal et aucun HTML arbitraire n’est rendu.
+
+Les envois sortants persistent source, HTTP, date de tentative et envoi ; les désactivations sont revérifiées avant transport. Retry concerne les envois sortants, une réception entrante refusée n’est pas automatiquement republiée. Le bouton de test publie réellement un message dans le canal choisi ; l’aperçu n’émet rien.
+
 ## Entrants
 
 Créer dans Administration → Webhooks entrants, choisir un salon et éventuellement la création de tâches. Copier l’URL une seule fois. Payload natif :

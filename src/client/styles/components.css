@@ -1,3 +1,4 @@
+/* src/client/styles/components.css: consolidated from src/client/ux.css */
 /* src/client/ux.css — Liora 0.4.9, poste de travail */
 :root {
   --nav-active: color-mix(in srgb, var(--accent) 12%, var(--side));
@@ -32,9 +33,6 @@ small {
 }
 .shell {
   background: var(--bg);
-}
-.sidebar {
-  width: 232px;
 }
 .sidebar-brand {
   display: flex;
@@ -100,46 +98,6 @@ small {
   padding: 0 12px 12px;
   min-height: 0;
 }
-.nav-group {
-  margin-bottom: 22px;
-}
-.nav-group h2 {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 0;
-  padding: 0 12px;
-  margin: 0 0 7px;
-}
-.nav-group button {
-  display: flex;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
-  justify-content: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 12px;
-  margin: 2px 0;
-}
-.nav-group button:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-.nav-group button.active {
-  background: var(--nav-active);
-  color: var(--text);
-  font-weight: 650;
-}
-.nav-group button.active svg {
-  color: var(--accent);
-}
-.nav-group button > span:first-of-type {
-  flex: 1;
-  text-align: left;
-}
 .count {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
@@ -177,17 +135,9 @@ small {
 .profile-button small {
   font-size: 11px;
 }
-.topbar {
-  height: 58px;
-  padding: 0 32px;
-  background: var(--bg);
-}
 .breadcrumb {
   font-size: 12px;
   gap: 12px;
-}
-.topbar-right {
-  font-size: 12px;
 }
 .connection {
   font-size: 11px;
@@ -196,9 +146,6 @@ small {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.topbar-right .presence-indicator {
-  display: inline-flex;
 }
 .content:focus {
   outline: none;
@@ -238,13 +185,6 @@ small {
 }
 .content-chat > .empty {
   flex: 1;
-}
-.conversation-index {
-  width: 206px;
-  flex: 0 0 206px;
-  background: var(--side);
-  border-right: 1px solid var(--line);
-  padding: 20px 10px;
 }
 .conversation-index-heading {
   display: flex;
@@ -778,13 +718,6 @@ small {
   background: var(--nav-active);
   color: var(--text);
 }
-.document {
-  max-width: 960px;
-  padding: 36px 40px;
-}
-.document h1 {
-  font-size: 28px;
-}
 .document-blocks {
   max-width: 75ch;
 }
@@ -826,17 +759,7 @@ small {
 .login footer {
   font-size: 11px;
 }
-.mobile-dock {
-  display: none;
-}
 @media (min-width: 769px) and (max-width: 1250px) {
-  .sidebar {
-    width: 212px;
-  }
-  .conversation-index {
-    width: 186px;
-    flex-basis: 186px;
-  }
   .context-panel {
     display: none;
   }
@@ -861,24 +784,6 @@ small {
   .shell {
     padding-bottom: calc(64px + env(safe-area-inset-bottom));
   }
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: min(310px, calc(100vw - 40px));
-    height: 100dvh;
-    z-index: 40;
-    transform: translateX(-100%);
-    visibility: hidden;
-    transition:
-      transform 180ms ease-out,
-      visibility 180ms;
-  }
-  .sidebar.open {
-    transform: translateX(0);
-    visibility: visible;
-  }
   .sidebar-backdrop {
     z-index: 39;
   }
@@ -892,25 +797,9 @@ small {
   .navigation-search {
     margin-bottom: 14px;
   }
-  .nav-group {
-    margin-bottom: 18px;
-  }
-  .nav-group button {
-    font-size: 14px;
-    min-height: 44px;
-  }
   .sidebar-bottom {
     padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
-  .topbar {
-    height: 58px;
-    padding: 0 12px;
-  }
-  .topbar-right {
-    gap: 5px;
-  }
-  .topbar-right > .presence-indicator,
-  .topbar-right .divider,
   .connection {
     display: none;
   }
@@ -927,18 +816,6 @@ small {
     border: 0;
     padding: 8px;
     font-size: 12px;
-  }
-  .conversation-index {
-    position: fixed;
-    inset: 0 auto 0 0;
-    height: 100dvh;
-    width: min(310px, calc(100vw - 40px));
-    z-index: 45;
-    display: none;
-    padding: 24px 14px;
-  }
-  .conversation-index.open {
-    display: block;
   }
   .conversation-index-heading h2 {
     font-size: 18px;
@@ -1017,39 +894,6 @@ small {
   }
   .home-project-link {
     margin-top: 0;
-  }
-  .mobile-dock {
-    display: flex;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: calc(64px + env(safe-area-inset-bottom));
-    padding: 5px 8px calc(5px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--line);
-    background: var(--side);
-    z-index: 20;
-  }
-  .mobile-dock button {
-    position: relative;
-    flex: 1;
-    padding: 5px 0;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 10px;
-    font-weight: 500;
-    color: var(--muted);
-    background: transparent;
-    border: 0;
-    border-radius: 8px;
-    min-width: 0;
-  }
-  .mobile-dock button.active {
-    background: var(--nav-active);
-    color: var(--text);
-  }
-  .mobile-dock button.active svg {
-    color: var(--accent);
   }
   .dock-count {
     position: absolute;
@@ -1196,13 +1040,6 @@ small {
   .page-list > button {
     width: 100%;
     justify-content: flex-start;
-  }
-  .document {
-    width: 100%;
-    padding: 24px 20px;
-  }
-  .document h1 {
-    font-size: 25px;
   }
   .kanban-column {
     min-width: min(290px, calc(100vw - 56px));

@@ -1,4 +1,5 @@
 // src/client/Integrations.tsx
+import { EntityMenu } from "./ContextMenuProvider";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, collection } from "./api";
 import { Modal } from "./ui";
@@ -134,28 +135,46 @@ export function Integrations({
       </p>
       <div className="integration-list">
         {rows.map((i) => (
-          <button
+          <EntityMenu
             key={i.id}
-            aria-pressed={selected?.id === i.id}
-            onClick={() => {
-              setSelected(i);
-              setAdding(false);
-              setSecret(null);
-              setNotice("");
-            }}
+            label={`Intégration ${i.name}`}
+            actions={[
+              {
+                label: "Configurer",
+                run: () => {
+                  setSelected(i);
+                  setAdding(false);
+                  setSecret(null);
+                },
+              },
+              {
+                label: "Copier l’ID",
+                run: () => void navigator.clipboard.writeText(i.id).catch(fail),
+              },
+            ]}
           >
-            <strong>{i.name}</strong>
-            <span>
-              {i.provider} ·{" "}
-              {!i.enabled
-                ? "Désactivé"
-                : i.state === "connected"
-                  ? "Connexion vérifiée"
-                  : i.state === "error"
-                    ? "À vérifier"
-                    : "À configurer"}
-            </span>
-          </button>
+            <button
+              aria-pressed={selected?.id === i.id}
+              onClick={() => {
+                setSelected(i);
+                setAdding(false);
+                setSecret(null);
+                setNotice("");
+              }}
+            >
+              <strong>{i.name}</strong>
+              <span>
+                {i.provider} ·{" "}
+                {!i.enabled
+                  ? "Désactivé"
+                  : i.state === "connected"
+                    ? "Connexion vérifiée"
+                    : i.state === "error"
+                      ? "À vérifier"
+                      : "À configurer"}
+              </span>
+            </button>
+          </EntityMenu>
         ))}
         <button
           onClick={() => {

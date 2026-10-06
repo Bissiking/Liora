@@ -1,5 +1,7 @@
 # Liora 0.7.0 — notes, agendas et conversations
 
+> Guide historique 0.x. Pour la branche 1.0, Google OAuth/runtime est retiré et les accès CalDAV suivent [CALDAV.md](CALDAV.md). Les migrations déjà appliquées et les données historiques sont conservées.
+
 Administration → Intégrations affiche uniquement DropIt, dans les connecteurs existants comme dans le choix de fournisseur à la création. L’aide et les exemples de routage suivent ce périmètre. Les contrats API/webhook des autres modules restent disponibles pour les usages techniques existants ; aucune configuration enregistrée n’est supprimée.
 
 ## Notes datées et BrainDump

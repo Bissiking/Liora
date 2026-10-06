@@ -1,4 +1,5 @@
 // src/client/Notes.tsx
+import { EntityMenu } from "./ContextMenuProvider";
 import { useEffect, useState } from "react";
 import { Plus, RefreshCw, Pencil, Trash2, StickyNote } from "lucide-react";
 import { api } from "./api";
@@ -280,7 +281,35 @@ export function Notes() {
       ) : (
         <div className="dated-notes">
           {visible.map((n) => (
-            <article className="dated-note" key={n.id}>
+            <EntityMenu
+              className="dated-note"
+              key={n.id}
+              label={`Note ${n.title}`}
+              actions={[
+                {
+                  label: "Copier la note",
+                  run: () =>
+                    void navigator.clipboard
+                      .writeText(n.content)
+                      .catch((e) => setError(e.message)),
+                },
+                ...(n.source === "liora"
+                  ? [
+                      { label: "Modifier", run: () => edit(n) },
+                      {
+                        label: "Supprimer",
+                        danger: true,
+                        run: () => {
+                          if (confirm("Supprimer cette note ?"))
+                            void api(`/api/v1/notes/${n.id}`, "DELETE")
+                              .then(load)
+                              .catch((e) => setError(e.message));
+                        },
+                      },
+                    ]
+                  : []),
+              ]}
+            >
               <time dateTime={n.due_at}>
                 {new Date(n.due_at).toLocaleDateString("fr-FR", {
                   day: "numeric",
@@ -328,7 +357,7 @@ export function Notes() {
                   </button>
                 </div>
               )}
-            </article>
+            </EntityMenu>
           ))}
         </div>
       )}

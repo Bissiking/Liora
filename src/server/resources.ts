@@ -6,6 +6,7 @@ import { authorize } from "./auth.js";
 import { assert } from "./errors.js";
 import { audit, emit } from "./events.js";
 import type { Permission } from "../shared/permissions.js";
+import { channelPermissions } from "../shared/channel-permissions.js";
 import { channelAccess, granted, visibleChannel } from "./access.js";
 import { randomUUID } from "node:crypto";
 import { mergeBlocks, type Block } from "../shared/page-merge.js";
@@ -183,19 +184,32 @@ resourceRouter.all("/:resource{/:id}", async (req, res, next) => {
     id = req.params.id ? uuid.parse(req.params.id) : undefined;
   const method = req.method;
   if (!["GET", "POST", "PATCH", "DELETE"].includes(method)) return next();
-  await authorize(
-    req.actor,
-    workspace,
-    method === "GET"
-      ? config.read
-      : method === "POST"
-        ? config.create
-        : resource === "channels" && method === "DELETE"
-          ? "DELETE_CHANNEL"
-          : config.manage,
-  );
+  if (!(resource === "channels" && id && method !== "GET"))
+    await authorize(
+      req.actor,
+      workspace,
+      method === "GET"
+        ? ["channels", "categories"].includes(resource)
+          ? "VIEW_WORKSPACE"
+          : config.read
+        : method === "POST"
+          ? config.create
+          : resource === "channels" && method === "DELETE"
+            ? "DELETE_CHANNEL"
+            : config.manage,
+    );
   if (resource === "channels" && id) {
-    const ch = await channelAccess(req.actor, workspace, id);
+    const ch = await channelAccess(
+      req.actor,
+      workspace,
+      id,
+      undefined,
+      method === "GET"
+        ? "VIEW_CHANNEL"
+        : method === "DELETE"
+          ? "DELETE_CHANNEL"
+          : "MANAGE_CHANNEL",
+    );
     if (ch.is_dm && method !== "GET")
       assert(
         false,
@@ -212,14 +226,15 @@ resourceRouter.all("/:resource{/:id}", async (req, res, next) => {
     let rows;
     if (resource === "channels")
       rows = await query(
-        `SELECT c.* FROM channels c WHERE c.workspace_id=$1 AND ${visibleChannel()} AND ($4::uuid IS NULL OR c.id>$4) ${id ? "AND c.id=$6" : ""} ORDER BY c.id LIMIT $5`,
+        `SELECT c.*, ARRAY(SELECT k FROM unnest($7::text[]) k WHERE channel_permission(c.id,$2::uuid,$3::text[],k)) capabilities, (SELECT count(*)::int FROM messages m WHERE m.channel_id=c.id AND m.deleted_at IS NULL AND channel_permission(c.id,$2::uuid,$3::text[],'READ_MESSAGE') AND (m.created_at,m.id) > COALESCE((SELECT (r.through_at,r.through_id) FROM channel_read_states r WHERE r.channel_id=c.id AND r.user_id=$2::uuid),(SELECT (created_at,'00000000-0000-0000-0000-000000000000'::uuid) FROM channel_read_cutoff)) AND m.user_id IS DISTINCT FROM $2::uuid) unread_count, (SELECT count(*)::int FROM notifications n WHERE n.channel_id=c.id AND n.user_id=$2::uuid AND n.type='mention' AND n.state='unread' AND channel_permission(c.id,$2::uuid,$3::text[],'READ_MESSAGE')) mention_count FROM channels c WHERE c.workspace_id=$1 AND ${visibleChannel("c", "$2", "$3", false)} AND ($4::uuid IS NULL OR c.id>$4) AND ($6::uuid IS NULL OR c.id=$6) ORDER BY c.id LIMIT $5`,
         [
           workspace,
           req.actor.id,
           await granted(req.actor, workspace),
           after,
           limit + 1,
-          ...(id ? [id] : []),
+          id || null,
+          Object.keys(channelPermissions),
         ],
       );
     else

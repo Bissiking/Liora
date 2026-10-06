@@ -1,5 +1,11 @@
 # Architecture · Liora 0.3.0 BETA
 
+## Structure 1.0
+
+`AppShell` compose rail, sidebar personnelle/workspace et contenu ; `ChannelContextPanel` réutilise le même contenu en panneau et tiroir. `ContextMenuProvider` centralise les menus des objets. CSS : `styles/base.css`, `components.css`, `features.css`, `layout.css`, `social.css`, `channel-settings.css` et tokens/palettes/géométrie des thèmes. Les anciennes feuilles par release sont supprimées.
+
+`personal-activity.ts` expose l’activité/rappels/favoris/conversations au compte ; les files personnelles réutilisent les transports avec leurs propres FK. `channels.ts` configure les canaux ; `channel_permission` et les helpers d’accès calculent les capacités effectives, également pour les ressources liées. `webhook-message.ts` définit le format et la validation partagés par aperçu et ingestion. CalDAV conserve les contrats existants. Le runtime Google et l’interface Pages sont retirés ; leurs tables et les API Pages restent historiques.
+
 ## Composants
 
 - `src/client` : React, interface française, styles locaux, police Manrope embarquée, icônes Lucide.

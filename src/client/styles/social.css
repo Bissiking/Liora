@@ -1,0 +1,462 @@
+/* src/client/styles/social.css — personal conversations and friends. */
+.shell-body .social-page {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  padding: 24px 28px 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.social-page > .page-heading {
+  margin-bottom: 20px;
+  flex: 0 0 auto;
+}
+.social-page > .page-heading h1 {
+  font-size: 25px;
+}
+.social-page > .page-heading p {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.social-page > .page-heading > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.social-page .personal-message-layout,
+.social-page .friends-workspace {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 0;
+  height: auto;
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid var(--line);
+}
+.social-page .conversation-index,
+.social-page .friends-index {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--line);
+  padding: 18px 16px 16px 0;
+}
+.social-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.social-search input {
+  border: 0;
+  padding: 10px 0;
+  background: transparent;
+  min-width: 0;
+  width: 100%;
+}
+.social-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.social-search input:focus {
+  outline: none;
+}
+.social-page .segmented {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+}
+.social-page .segmented button {
+  flex: 1;
+  padding: 8px;
+  min-height: 36px;
+}
+.conversation-index-tools {
+  margin-bottom: 14px;
+}
+.social-page .conversation-entry {
+  display: block;
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+.social-page .conversation-entry.selected,
+.social-page .friends-index .friend-row.selected {
+  background: var(--selection);
+}
+.social-page .personal-message-row {
+  padding: 12px 10px;
+  gap: 12px;
+  border-radius: 10px;
+  width: 100%;
+  min-width: 0;
+}
+.social-page .personal-message-row:hover,
+.social-page .friend-row:hover {
+  background: var(--surface-2);
+}
+.social-page .personal-message-row .avatar,
+.social-page .friend-open .avatar {
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+.social-page .personal-message-row .conversation-row-copy {
+  flex: 1;
+  min-width: 0;
+}
+.social-page .personal-message-row strong {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.social-page .personal-message-row small {
+  font-size: 12px;
+  margin-top: 4px;
+}
+.social-page .personal-message-row .conversation-scope {
+  font-size: 11px;
+}
+.social-index-empty {
+  padding: 22px 10px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+.social-index-empty h2 {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.social-index-empty p {
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.social-page .conversation-pane,
+.social-page .friends-conversation {
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 0 0 24px;
+}
+.social-page .friend-conversation-empty {
+  width: 100%;
+  padding: 28px;
+  color: var(--muted);
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+.social-page .friend-conversation-empty h2 {
+  font-size: 22px;
+  color: var(--text);
+  margin: 4px 0 0;
+}
+.social-page .friend-conversation-empty p {
+  max-width: 42ch;
+  font-size: 14px;
+}
+.social-page .friend-conversation-empty button {
+  margin-top: 8px;
+}
+.social-page .friend-messenger {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-width: none;
+}
+.social-page .friend-messenger > header {
+  flex: 0 0 auto;
+  padding: 18px 0;
+  gap: 12px;
+}
+.social-page .conversation-back {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+}
+.social-page .conversation-identity {
+  min-width: 0;
+}
+.social-page .conversation-identity h2 {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.social-page .conversation-identity p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.social-page .friend-message-list {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  display: block;
+  padding: 12px 12px 20px 0;
+  scroll-behavior: auto;
+}
+.social-page .friend-message-group {
+  width: 100%;
+}
+.social-page .conversation-date {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 18px 0;
+  font-size: 11px;
+}
+.social-page .conversation-date::before,
+.social-page .conversation-date::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.social-page .friend-bubble {
+  width: fit-content;
+  max-width: min(78%, 65ch);
+  margin: 8px 0;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: var(--surface-2);
+}
+.social-page .friend-bubble.mine {
+  margin-left: auto;
+  background: var(--selection);
+}
+.social-page .friend-bubble .markdown p:last-child {
+  margin-bottom: 0;
+}
+.social-page .friend-bubble small {
+  font-size: 11px;
+  margin-top: 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.social-page .friend-messenger > form {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  margin: 0;
+}
+.social-page .friend-messenger textarea {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 12px 0;
+  background: transparent;
+  resize: none;
+  min-height: 68px;
+  max-height: 120px;
+}
+.social-page .friend-messenger textarea:focus {
+  outline: none;
+  box-shadow: none;
+}
+.social-page .friend-messenger > form:focus-within {
+  border-color: var(--accent);
+}
+.social-page .friend-send-row {
+  gap: 12px;
+  margin-top: 0;
+}
+.social-page .friend-send-row small {
+  font-size: 11px;
+  line-height: 1.5;
+}
+.social-page .friend-send-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.social-page .composer-preview {
+  max-height: 120px;
+  overflow: auto;
+}
+.social-page .friend-messenger .markdown-format {
+  max-height: 90px;
+  overflow: auto;
+}
+.social-page .friend-messenger > .error {
+  margin: 6px 0;
+  padding: 8px;
+  font-size: 12px;
+}
+.social-page .conversation-new {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 8px 0;
+}
+.social-page .friends-index .friends-section {
+  margin-bottom: 16px;
+}
+.social-page .friends-index .friend-row {
+  border: 0;
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+.social-page .friend-open {
+  padding: 12px 10px;
+  gap: 12px;
+  min-height: 76px;
+  border-radius: 10px;
+}
+.social-page .friend-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.social-page .friend-info strong {
+  font-size: 14px;
+}
+.social-page .friend-info small {
+  max-width: none;
+  font-size: 12px;
+  display: block;
+}
+.social-page .friend-info .friend-status {
+  font-size: 11px;
+}
+.social-page .friend-info .friend-status .presence-dot {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+}
+.social-page .friend-actions {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.social-page .friend-row:hover .friend-actions,
+.social-page .friend-row:focus-within .friend-actions {
+  opacity: 1;
+}
+.friend-invite-dialog > .friends-section-body,
+.friend-invite-dialog > .muted {
+  padding: 24px;
+}
+.friend-invite-dialog .invitation-card {
+  margin-top: 18px;
+}
+.friend-invite-dialog .invitation-card-link {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.friend-invite-dialog .invitation-card-link > div {
+  min-width: 0;
+}
+.friend-invite-dialog .invitation-card-link input {
+  min-width: 0;
+  width: 100%;
+}
+@media (max-width: 1100px) {
+  .social-page .personal-message-layout,
+  .social-page .friends-workspace {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+  .social-page .conversation-pane,
+  .social-page .friends-conversation {
+    padding-left: 18px;
+  }
+}
+@media (max-width: 760px) {
+  .shell-body .social-page {
+    padding: 18px 14px 14px;
+  }
+  .social-page > .page-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .social-page > .page-heading h1 {
+    font-size: 23px;
+  }
+  .social-page > .page-heading > button {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .social-page .personal-message-layout,
+  .social-page .friends-workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .social-page .conversation-index,
+  .social-page .friends-index {
+    flex: 1;
+    border: 0;
+    padding: 14px 0 0;
+    overflow: auto;
+  }
+  .social-page .conversation-pane,
+  .social-page .friends-conversation {
+    display: none;
+    padding: 0;
+    min-height: 0;
+  }
+  .social-page.has-conversation > .page-heading,
+  .social-page.has-conversation .conversation-index,
+  .social-page.has-conversation .friends-index {
+    display: none;
+  }
+  .social-page.has-conversation .conversation-pane,
+  .social-page.has-conversation .friends-conversation {
+    display: flex;
+    flex: 1;
+  }
+  .social-page.has-conversation .personal-message-layout,
+  .social-page.has-conversation .friends-workspace {
+    border: 0;
+  }
+  .social-page .friend-messenger > header {
+    padding: 0 0 14px;
+  }
+  .social-page .conversation-back {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .social-page .friend-message-list {
+    padding-right: 0;
+  }
+  .social-page .friend-bubble {
+    max-width: 92%;
+    padding: 10px 12px;
+  }
+  .social-page .friend-messenger > form {
+    padding: 8px 10px;
+  }
+  .social-page .friend-send-row {
+    justify-content: flex-end;
+  }
+  .social-page .friend-send-row small {
+    display: none;
+  }
+  .social-page .friend-send-row button,
+  .social-page .conversation-composer-modes button,
+  .social-page .segmented button {
+    min-height: 44px;
+  }
+  .social-page .friend-actions {
+    opacity: 1;
+  }
+  .social-page .friend-actions button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .social-page .friend-actions {
+    transition: none;
+  }
+}

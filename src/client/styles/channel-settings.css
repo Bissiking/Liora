@@ -1,0 +1,369 @@
+/* src/client/styles/channel-settings.css */
+.channel-settings {
+  width: min(880px, calc(100vw - 32px));
+  max-height: 90dvh;
+  overflow: hidden;
+  box-shadow: none;
+}
+.channel-settings > header {
+  position: static;
+  padding: 20px 24px;
+}
+.channel-settings-layout {
+  display: grid;
+  grid-template-columns: 185px minmax(0, 1fr);
+  height: min(660px, calc(90dvh - 78px));
+  min-height: 0;
+}
+.channel-settings-nav {
+  padding: 20px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-2);
+  overflow: auto;
+}
+.settings-channel-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 20px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.settings-channel-name strong {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.settings-channel-name svg {
+  flex-shrink: 0;
+}
+.channel-settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  padding: 12px 10px;
+  border-radius: 8px;
+  text-align: left;
+  background: transparent;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.channel-settings-nav button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.channel-settings-nav button[aria-current] {
+  background: var(--selection);
+  color: var(--text);
+  font-weight: 700;
+}
+.channel-settings-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 28px 0;
+}
+.settings-intro {
+  margin-bottom: 20px;
+  flex: 0 0 auto;
+}
+.settings-intro h3 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.settings-intro p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0;
+}
+.channel-settings .settings-form {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+.settings-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.channel-settings .settings-form-fields {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  gap: 20px;
+  padding: 0 4px 20px 0;
+}
+.channel-settings .settings-form-fields > fieldset {
+  flex-shrink: 0;
+}
+.settings-form legend {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 0 12px;
+}
+.settings-form label:not(.settings-toggle) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.settings-form input,
+.settings-form select {
+  min-height: 42px;
+  width: 100%;
+}
+.settings-form textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+}
+.settings-field-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.settings-help,
+.settings-form .muted {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0;
+}
+.channel-settings .settings-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 0;
+  border-block: 1px solid var(--line);
+  margin: 0;
+  font-size: 13px;
+}
+.channel-settings .settings-toggle input {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.settings-toggle span {
+  min-width: 0;
+}
+.settings-toggle strong {
+  display: block;
+  font-size: 13px;
+}
+.settings-toggle small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.channel-settings .settings-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  position: static;
+  flex: 0 0 auto;
+  background: var(--surface);
+  z-index: 1;
+  margin-top: 0;
+}
+.channel-settings .settings-form-actions button {
+  min-height: 42px;
+}
+.channel-settings .settings-form .permission-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.channel-settings .permission-row select {
+  flex: 0 0 125px;
+  width: 125px;
+}
+.settings-notice {
+  font-size: 13px;
+  color: var(--text);
+  background: var(--selection);
+  padding: 12px;
+  border-radius: 8px;
+  margin: 0 0 20px;
+}
+.settings-connections {
+  padding-bottom: 24px;
+  overflow: auto;
+}
+.settings-connections h4 {
+  font-size: 14px;
+  margin: 24px 0 10px;
+}
+.settings-connections p {
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.channel-context .context-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+}
+.channel-context .context-item strong {
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.channel-context .context-item small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+@media (max-width: 700px) {
+  .channel-settings {
+    width: calc(100vw - 20px);
+    max-height: 94dvh;
+  }
+  .channel-settings > header {
+    padding: 14px 16px;
+  }
+  .channel-settings > header h2 {
+    font-size: 17px;
+  }
+  .channel-settings > header button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .channel-settings-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: calc(94dvh - 74px);
+  }
+  .channel-settings-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .settings-channel-name {
+    width: 100%;
+    padding: 2px 6px 8px;
+  }
+  .channel-settings-nav button {
+    flex: 1 1 auto;
+    width: auto;
+    justify-content: center;
+    padding: 10px 8px;
+    min-height: 44px;
+    margin: 0;
+    font-size: 12px;
+    gap: 6px;
+  }
+  .channel-settings-nav button svg {
+    display: none;
+  }
+  .channel-settings-content {
+    padding: 20px 16px 0;
+  }
+  .settings-intro h3 {
+    font-size: 18px;
+  }
+  .settings-field-pair {
+    grid-template-columns: 1fr;
+  }
+  .settings-form input,
+  .settings-form select,
+  .channel-settings .settings-form-actions button {
+    min-height: 44px;
+  }
+  .channel-settings .settings-form .permission-row {
+    gap: 10px;
+  }
+  .channel-settings .permission-row select {
+    flex-basis: 112px;
+    width: 112px;
+  }
+}
+
+/* The standalone access dialog keeps natural document scrolling. */
+.channel-access-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.channel-settings .channel-access-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.channel-settings .channel-access-content > p {
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0 0 16px;
+}
+.channel-settings .channel-access-content .form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  padding: 0;
+}
+.channel-settings .channel-access-fields {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 4px 20px 0;
+}
+.channel-settings .channel-access-fields > * {
+  flex-shrink: 0;
+}
+.channel-settings .channel-access-content .check-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+}
+.channel-settings .channel-access-content input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+@media (max-width: 700px) {
+  .channel-settings .channel-access-content .check-line {
+    min-height: 44px;
+  }
+}

@@ -39,25 +39,25 @@ export const themes = [
   {
     id: "atelier",
     name: "Atelier",
-    description: "Papier ivoire, titres sérif et lignes éditoriales.",
+    description: "Papier ivoire et accents végétaux.",
     world: "éditorial",
   },
   {
     id: "orbit",
     name: "Orbital",
-    description: "Surfaces arrondies, espaces ouverts et accents cobalt.",
+    description: "Surfaces claires et accents cobalt.",
     world: "souple",
   },
   {
     id: "terminal",
     name: "Terminal",
-    description: "Typographie monospace, angles nets et grille précise.",
+    description: "Palette sombre et accents verts.",
     world: "technique",
   },
   {
     id: "lagoon",
     name: "Lagune",
-    description: "Teintes minérales claires, accents turquoise et rythme aéré.",
+    description: "Teintes minérales claires et accents turquoise.",
     world: "minéral",
   },
 ] as const;

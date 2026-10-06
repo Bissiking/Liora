@@ -80,8 +80,13 @@ collaborationRouter.delete("/groups/:id", async (req, res) => {
 });
 collaborationRouter.get("/channels/:id/groups", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
-  await authorize(req.actor, w, "MANAGE_CHANNEL");
-  const ch = await channelAccess(req.actor, w, z.uuid().parse(req.params.id));
+  const ch = await channelAccess(
+    req.actor,
+    w,
+    z.uuid().parse(req.params.id),
+    undefined,
+    "MANAGE_CHANNEL",
+  );
   assert(!ch.is_dm, 403, "DM_PROTECTED", "Conversation privée.");
   res.json({
     data: await query(
@@ -92,8 +97,13 @@ collaborationRouter.get("/channels/:id/groups", async (req, res) => {
 });
 collaborationRouter.put("/channels/:id/groups", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
-  await authorize(req.actor, w, "MANAGE_CHANNEL");
-  const ch = await channelAccess(req.actor, w, z.uuid().parse(req.params.id));
+  const ch = await channelAccess(
+    req.actor,
+    w,
+    z.uuid().parse(req.params.id),
+    undefined,
+    "MANAGE_CHANNEL",
+  );
   assert(!ch.is_dm, 403, "DM_PROTECTED", "Conversation privée.");
   const { group_ids } = z
     .object({ group_ids: z.array(z.uuid()).max(200) })

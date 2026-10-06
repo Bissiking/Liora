@@ -1,5 +1,6 @@
 // src/client/Admin.tsx
 import { HelpHint, adminHelp } from "./HelpHint";
+import { WebhookSettings } from "./WebhookSettings";
 import { VERSION } from "../shared/version";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -352,7 +353,9 @@ export function Admin({
         >
           {adminHelp[tab]?.text}
         </HelpHint>
-        {tab === "connectors" ? (
+        {tab === "webhooks" ? (
+          <WebhookSettings base={base} rows={rows} can={can} refresh={done} />
+        ) : tab === "connectors" ? (
           <Integrations base={base} fail={fail} />
         ) : tab === "groups" ? (
           <Groups base={base} fail={fail} />
@@ -637,7 +640,14 @@ export function Admin({
                 <div>
                   <strong>{d.state}</strong>
                   <p>
-                    {d.attempts} essai(s) · {d.last_error || "Aucune erreur"}
+                    {d.attempts} essai(s) ·{" "}
+                    {d.http_status ? `HTTP ${d.http_status} · ` : ""}
+                    {d.last_error || "Aucune erreur"}
+                    {d.sent_at
+                      ? ` · Envoyé le ${new Date(d.sent_at).toLocaleString("fr-FR")}`
+                      : d.last_attempt_at
+                        ? ` · Dernière tentative ${new Date(d.last_attempt_at).toLocaleString("fr-FR")}`
+                        : ""}
                   </p>
                 </div>
                 {d.state !== "sent" && (

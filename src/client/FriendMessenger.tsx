@@ -19,11 +19,13 @@ export function FriendMessenger({
   userId,
   close,
   onRead,
+  backLabel = "Retour à mes amis",
 }: {
   friend: Row;
   userId: string;
   close: () => void;
   onRead: () => void;
+  backLabel?: string;
 }) {
   const [messages, setMessages] = useState<Message[]>([]),
     [draft, setDraft] = useState(""),
@@ -122,11 +124,15 @@ export function FriendMessenger({
       aria-label={`Conversation avec ${friend.name}`}
     >
       <header>
-        <button aria-label="Retour à mes amis" onClick={close}>
+        <button
+          className="conversation-back icon-button"
+          aria-label={backLabel}
+          onClick={close}
+        >
           <ArrowLeft size={18} />
         </button>
         <Avatar name={friend.name} src={friend.avatar} />
-        <div>
+        <div className="conversation-identity">
           <h2>{friend.name}</h2>
           <p>
             {friend.status === "offline"
@@ -197,9 +203,9 @@ export function FriendMessenger({
                   <Markdown text={m.content} />
                   <small>
                     <time dateTime={m.created_at}>
-                      {new Date(m.created_at).toLocaleString("fr-FR", {
-                        dateStyle: "short",
-                        timeStyle: "short",
+                      {new Date(m.created_at).toLocaleTimeString("fr-FR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </time>
                     {m.sender_id === userId
@@ -211,7 +217,7 @@ export function FriendMessenger({
             ))}
           </>
         )}
-        <div ref={bottom} />
+        <div ref={bottom} className="conversation-bottom" />
       </div>
       {newMessages && (
         <button
@@ -279,7 +285,7 @@ export function FriendMessenger({
               e.currentTarget.form?.requestSubmit();
             }
           }}
-          placeholder="Écrivez à votre ami…"
+          placeholder={`Écrire à ${friend.name}…`}
           value={draft}
           maxLength={8000}
           onChange={(e) => setDraft(e.target.value)}

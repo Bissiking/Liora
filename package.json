@@ -1,6 +1,6 @@
 {
   "name": "liora",
-  "version": "0.7.1",
+  "version": "1.0.0-beta.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -22,10 +22,11 @@
     "db:migrate:prod": "node dist/tools/scripts/migrate.js",
     "db:seed:prod": "node dist/tools/scripts/seed.js",
     "push:keys": "tsx scripts/generate-vapid.ts",
-    "test:e2e:experience": "E2E_EXPERIENCE_ONLY=1 tsx scripts/e2e.ts",
-    "test:e2e:060": "E2E_060_ONLY=1 tsx scripts/e2e.ts",
-    "test:e2e:070": "E2E_070_ONLY=1 tsx scripts/e2e.ts",
-    "test:e2e:braindump": "E2E_BRAINDUMP_ONLY=1 tsx scripts/e2e.ts"
+    "test:e2e:experience": "npm run test:e2e",
+    "test:e2e:060": "npm run test:e2e",
+    "test:e2e:070": "npm run test:e2e",
+    "test:e2e:braindump": "npm run test:e2e",
+    "test:e2e:100": "tsx scripts/e2e.ts"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",

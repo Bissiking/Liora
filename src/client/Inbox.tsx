@@ -15,7 +15,7 @@ export function Inbox({
   notifications: Row[];
   refresh: () => void;
   fail: (e: unknown) => void;
-  openChannel: (id: string) => void;
+  openChannel: (id: string, workspace?: string) => void;
 }) {
   const [filter, setFilter] = useState("unread");
   const [busy, setBusy] = useState(false);
@@ -87,6 +87,7 @@ export function Inbox({
             <Bell size={20} />
             <div>
               <strong>{n.title}</strong>
+              {n.workspace_name && <small>{n.workspace_name}</small>}
               <p>{n.body}</p>
               <time dateTime={n.created_at}>
                 {new Date(n.created_at).toLocaleString("fr-FR")}
@@ -94,7 +95,7 @@ export function Inbox({
               {n.channel_id && (
                 <button
                   className="notification-open"
-                  onClick={() => openChannel(n.channel_id)}
+                  onClick={() => openChannel(n.channel_id, n.workspace_id)}
                 >
                   Ouvrir la conversation <ArrowRight size={16} />
                 </button>

@@ -36,37 +36,55 @@ import {
   X,
 } from "lucide-react";
 import "@fontsource-variable/manrope";
-import "./styles.css";
-import "./ux.css";
+import "./styles/base.css";
+import "./styles/components.css";
 import "./themes/index.css";
-import "./release-050.css";
-import "./release-060.css";
-import "./release-070.css";
+import "./styles/features.css";
+import "./styles/layout.css";
+import "./styles/social.css";
+import "./styles/channel-settings.css";
 import { deviceAppearance } from "./theme-preference";
 import { navigation, navigationVisible } from "./navigation";
-import { Home } from "./Home";
 import { QuickSwitch } from "./QuickSwitch";
 import { Inbox } from "./Inbox";
 import { api, ApiError, collection } from "./api";
 import type { Row, Result, User, Workspace } from "./types";
 import { Avatar, Empty, FormDialog, type Field } from "./ui";
 import { Chat } from "./Chat";
-import { Projects } from "./Projects";
-import { Pages } from "./Pages";
-import { Admin } from "./Admin";
-import { Preferences } from "./Preferences";
-import { WorkspaceMenu } from "./WorkspaceMenu";
+const Projects = lazy(() =>
+  import("./Projects").then((m) => ({ default: m.Projects })),
+);
+import { ChannelSettings } from "./ChannelSettings";
+import { ContextMenuProvider } from "./ContextMenuProvider";
+import { channelPermissions } from "../shared/channel-permissions";
+import { AppShell } from "./AppShell";
+import { PersonalMessages } from "./PersonalMessages";
+import { PersonalHome } from "./PersonalHome";
+import { personalViews } from "./navigation";
+const Admin = lazy(() => import("./Admin").then((m) => ({ default: m.Admin })));
+const Preferences = lazy(() =>
+  import("./Preferences").then((m) => ({ default: m.Preferences })),
+);
 import { RenderBoundary } from "./RenderBoundary";
-import { Monitoring } from "./Monitoring";
+const Monitoring = lazy(() =>
+  import("./Monitoring").then((m) => ({ default: m.Monitoring })),
+);
 import { SearchMessages } from "./Collaboration";
-import { Notes } from "./Notes";
+const Notes = lazy(() => import("./Notes").then((m) => ({ default: m.Notes })));
 import { Friends, Invitation } from "./Social";
-import { Help } from "./Help";
-import { Calendar } from "./Calendar";
-import { Reminders } from "./Reminders";
-import { Favorites } from "./Favorites";
-import { Groups } from "./Groups";
-import { Members } from "./Members";
+const Help = lazy(() => import("./Help").then((m) => ({ default: m.Help })));
+const Calendar = lazy(() =>
+  import("./Calendar").then((m) => ({ default: m.Calendar })),
+);
+const Reminders = lazy(() =>
+  import("./Reminders").then((m) => ({ default: m.Reminders })),
+);
+const Favorites = lazy(() =>
+  import("./Favorites").then((m) => ({ default: m.Favorites })),
+);
+const Members = lazy(() =>
+  import("./Members").then((m) => ({ default: m.Members })),
+);
 import { playSound } from "./sound";
 import { applyPwaUpdate } from "./pwa";
 const Places = lazy(() =>
@@ -111,6 +129,7 @@ function App() {
     window.addEventListener("hashchange", receive);
     return () => window.removeEventListener("hashchange", receive);
   }, []);
+  const [channelSettings, setChannelSettings] = useState<Row | null>(null);
   const [targetResource, setTargetResource] = useState<Row | null>(null);
   const [targetMessage, setTargetMessage] = useState("");
   const seenNotifications = useRef<Set<string> | null>(null);
@@ -124,9 +143,10 @@ function App() {
     [workspaceId, setWorkspaceId] = useState(""),
     [status, setStatus] = useState("loading"),
     [error, setError] = useState(""),
-    [view, setView] = useState(
-      () => sessionStorage.getItem("liora.view") || "home",
-    ),
+    [view, setView] = useState(() => {
+      const saved = sessionStorage.getItem("liora.view");
+      return saved === "pages" ? "home" : saved || "home";
+    }),
     [adminTab, setAdminTab] = useState(
       () => sessionStorage.getItem("liora.adminTab") || "overview",
     ),
@@ -218,16 +238,24 @@ function App() {
       setCollapsingNavigation(false);
     }
   };
-  const workspace = spaces.find((w) => w.id === workspaceId),
-    base = `/api/v1/workspaces/${workspaceId}`,
+  const activeWorkspace = spaces.find((w) => w.id === workspaceId);
+  const workspace: Workspace = activeWorkspace || {
+    id: "",
+    name: "",
+    description: "",
+    permissions: [],
+    role_name: "",
+    archived: false,
+  };
+  const base = `/api/v1/workspaces/${workspaceId}`,
     can = (p: string) => workspace?.permissions.includes(p) || false;
   useEffect(() => {
     const open = () => {
       const params = new URLSearchParams(location.hash.slice(1));
       const id = params.get("workspace");
       const destination = spaces.find((w) => w.id === id);
-      if (params.get("view") === "notifications" && destination) {
-        setWorkspaceId(id!);
+      if (params.get("view") === "notifications") {
+        if (destination) setWorkspaceId(id!);
         setView("notifications");
         history.replaceState(null, "", location.pathname);
       } else if (
@@ -253,11 +281,18 @@ function App() {
     window.addEventListener("hashchange", open);
     return () => window.removeEventListener("hashchange", open);
   }, [spaces]);
+  useEffect(() => {
+    if (workspaceId && !personalViews.has(view))
+      sessionStorage.setItem(`liora.workspace.${workspaceId}.view`, view);
+  }, [workspaceId, view]);
+  useEffect(() => {
+    if (!activeWorkspace && status === "ready" && !personalViews.has(view))
+      setView("home");
+  }, [activeWorkspace, status, view]);
   const refresh = () => setRevision((n) => n + 1);
   const fail = (e: unknown) =>
     setError(e instanceof Error ? e.message : "Connexion interrompue.");
   const loadMe = useCallback(async () => {
-    if (location.hash.startsWith("#google-calendar=")) setView("settings");
     try {
       const r = await api<{ data: User; workspaces: Workspace[] }>(
         "/api/v1/me",
@@ -282,8 +317,14 @@ function App() {
     void loadMe();
   }, [loadMe]);
   useEffect(() => {
-    if (channelId) sessionStorage.setItem("liora.channel", channelId);
-  }, [channelId]);
+    if (channelId && channels.some((c) => c.id === channelId)) {
+      sessionStorage.setItem("liora.channel", channelId);
+      sessionStorage.setItem(
+        `liora.workspace.${workspaceId}.channel`,
+        channelId,
+      );
+    }
+  }, [channelId, workspaceId, channels]);
   useEffect(() => {
     sessionStorage.setItem("liora.view", view);
   }, [view]);
@@ -343,9 +384,9 @@ function App() {
     if (!workspaceId) return;
     let cancelled = false;
     Promise.all([
-      can("VIEW_CHANNEL") ? collection(`${base}/channels`) : { data: [] },
-      can("VIEW_CHANNEL") ? collection(`${base}/categories`) : { data: [] },
-      api<Result>(`${base}/notifications`),
+      collection(`${base}/channels`),
+      collection(`${base}/categories`),
+      api<Result>("/api/v1/me/notifications"),
       api<Result>(`${base}/presence`),
     ])
       .then(([c, g, n, p]) => {
@@ -440,7 +481,7 @@ function App() {
         "4": "reminders",
         "5": "favorites",
         "6": "notifications",
-        "7": "pages",
+
         ",": "settings",
         "/": "help",
       };
@@ -449,7 +490,7 @@ function App() {
         mod &&
         route &&
         !(route === "projects" && !can("VIEW_PROJECT")) &&
-        !(route === "pages" && !can("VIEW_PAGES"))
+        !(route === "chat" && !workspaceId)
       ) {
         e.preventDefault();
         navigate(route);
@@ -487,6 +528,24 @@ function App() {
     window.addEventListener("hashchange", open);
     return () => window.removeEventListener("hashchange", open);
   }, []);
+  useEffect(() => {
+    if (!me) return;
+    let gone = false;
+    const load = () =>
+      void api<Result>("/api/v1/me/notifications")
+        .then((r) => {
+          if (!gone) setNotifications(r.data);
+        })
+        .catch(fail);
+    load();
+    const timer = setInterval(load, 30000);
+    window.addEventListener("focus", load);
+    return () => {
+      gone = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", load);
+    };
+  }, [me?.id, revision]);
   const navigate = (v: string) => {
     setTargetResource(null);
     setView(v);
@@ -502,11 +561,22 @@ function App() {
         document.getElementById("main")?.focus({ preventScroll: true });
     });
   };
-  const openChannel = (id: string) => {
+  const openChannel = (id: string, sourceWorkspace?: string) => {
+    if (sourceWorkspace) setWorkspaceId(sourceWorkspace);
     setChannelId(id);
     navigate("chat");
   };
+  useEffect(() => {
+    const open = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      openChannel(d.id, d.workspaceId);
+      refresh();
+    };
+    window.addEventListener("liora:open-channel", open);
+    return () => window.removeEventListener("liora:open-channel", open);
+  }, []);
   const openResource = (row: Row) => {
+    if (row.workspace_id) setWorkspaceId(row.workspace_id);
     if (row.target_type === "channel" || row.target_type === "message") {
       setChannelId(
         row.target_type === "channel" ? row.target_id : row.channel_id,
@@ -516,7 +586,6 @@ function App() {
     } else {
       const route = (
         {
-          page: "pages",
           project: "projects",
           task: "projects",
           event: "calendar",
@@ -653,538 +722,123 @@ function App() {
         }}
       />
     );
-  if (!workspace)
-    return (
-      <div className="personal-shell">
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        <nav aria-label="Mon espace personnel" className="personal-nav">
-          <button onClick={() => navigate("home")}>Bienvenue</button>
-          <button onClick={() => navigate("places")}>Mes lieux</button>
-          <button onClick={() => navigate("friends")}>Amis</button>
-          <button onClick={() => navigate("notes")}>Notes datées</button>
-          <button onClick={() => navigate("settings")}>Préférences</button>
-          <button onClick={() => navigate("help")}>Aide</button>
-        </nav>
-        {view === "places" ? (
-          <Suspense fallback={<p>Chargement de la carte…</p>}>
-            <Places />
-          </Suspense>
-        ) : view === "notes" ? (
-          <Notes />
-        ) : view === "friends" ? (
-          <Friends
-            userId={me!.id}
-            workspace=""
-            revision={revision}
-            fail={fail}
-          />
-        ) : view === "settings" ? (
-          <Preferences user={me!} base="" reload={loadMe} fail={fail} />
-        ) : view === "help" ? (
-          <Help />
-        ) : (
-          <div className="waiting">
-            <div className="waiting-header">
-              <img src="/brand/logo-dark.svg" alt="Liora" />
-              <h1>Bienvenue, {me?.name}.</h1>
-              <p>
-                Connectez-vous avec votre équipe. Créez un espace ou acceptez
-                une invitation pour commencer.
-              </p>
-            </div>
-
-            <div className="waiting-cards">
-              <section className="waiting-card">
-                <h2>Accepter une invitation</h2>
-                <p>
-                  Vous avez reçu un lien d'amis ? Collez-le ici pour accepter.
-                </p>
-                <div className="waiting-join">
-                  <input
-                    aria-label="Lien d'invitation"
-                    placeholder="Lien d'invitation"
-                    id="join-input"
-                  />
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      const input = document.getElementById(
-                        "join-input",
-                      ) as HTMLInputElement;
-                      const val = input?.value?.trim();
-                      if (!val) return;
-                      let token = val;
-                      if (val.includes("#invite=")) {
-                        token = val.split("#invite=")[1] || "";
-                      } else if (val.includes("/invite/")) {
-                        token = val.split("/invite/")[1] || "";
-                      }
-                      if (token) {
-                        location.hash = `invite=${token}`;
-                        location.reload();
-                      }
-                    }}
-                  >
-                    Accepter
-                  </button>
-                </div>
-              </section>
-
-              <section className="waiting-card">
-                <h2>Créer un espace</h2>
-                <p>
-                  Invitez vos amis et commencez à discuter dans votre propre
-                  espace.
-                </p>
-                <button
-                  onClick={() =>
-                    setForm({
-                      title: "Nouvel espace",
-                      fields: [{ key: "name", label: "Nom de l'espace" }],
-                      save: async (d) => {
-                        await api("/api/v1/workspaces", "POST", d);
-                        await loadMe();
-                      },
-                    })
-                  }
-                >
-                  Créer mon espace
-                </button>
-              </section>
-            </div>
-
-            <section className="waiting-account">
-              <h2>Votre identifiant</h2>
-              <p>
-                Partagez cet identifiant avec quelqu'un pour qu'il puisse vous
-                envoyer une demande d'amis.
-              </p>
-              <code className="waiting-kyros">{me?.kyros_user_id}</code>
-              <div className="waiting-actions">
-                <button onClick={() => void loadMe()}>Actualiser</button>
-                <button
-                  onClick={() =>
-                    void api("/auth/logout", "POST").then(() =>
-                      location.reload(),
-                    )
-                  }
-                >
-                  Se déconnecter
-                </button>
-              </div>
-            </section>
-
-            {form && (
-              <FormDialog
-                title={form.title}
-                fields={form.fields}
-                onSave={form.save}
-                onClose={() => setForm(null)}
-              />
-            )}
-          </div>
-        )}
-      </div>
-    );
-  const channel = channels.find(
-      (c) =>
-        c.id === channelId &&
-        (c.type !== "monitoring" || can("VIEW_MONITORING")),
-    ),
-    unread = notifications.filter((n) => n.state === "unread").length;
+  const channel = channels.find((c) => c.id === channelId);
   return (
-    <div className="shell">
-      <a href="#main" className="skip-link">
-        Aller au contenu
-      </a>
-      {mobile && (
-        <button
-          className="sidebar-backdrop"
-          aria-label="Fermer la navigation"
-          onClick={() => setMobile(false)}
-        />
+    <AppShell
+      user={me!}
+      workspaces={spaces}
+      workspace={activeWorkspace}
+      view={view}
+      channels={channels}
+      categories={categories}
+      channelId={channelId}
+      unread={notifications.filter((n) => n.state === "unread").length}
+      settings={setChannelSettings}
+      refresh={refresh}
+      fail={fail}
+      rename={(kind, row) =>
+        setForm({
+          title: `Renommer ${row.name}`,
+          fields: [{ key: "name", label: "Nom", value: row.name }],
+          save: async (d) => {
+            await api(`${base}/${kind}/${row.id}`, "PATCH", d);
+            refresh();
+          },
+        })
+      }
+      navigate={navigate}
+      can={can}
+      openChannel={openChannel}
+      collapsed={collapsedNavigation}
+      collapse={collapse}
+      openWorkspace={(id) => {
+        setWorkspaceId(id);
+        setChannelId(
+          sessionStorage.getItem(`liora.workspace.${id}.channel`) || "",
+        );
+        setView(sessionStorage.getItem(`liora.workspace.${id}.view`) || "chat");
+      }}
+      createChannel={createChannel}
+      createConversation={createConversation}
+      createWorkspace={() =>
+        setForm({
+          title: "Créer un espace",
+          fields: [
+            { key: "name", label: "Nom" },
+            { key: "description", label: "Description", required: false },
+          ],
+          save: async (d) => {
+            const r = await api<{ data: Workspace }>(
+              "/api/v1/workspaces",
+              "POST",
+              d,
+            );
+            await loadMe();
+            setWorkspaceId(r.data.id);
+            navigate("chat");
+          },
+        })
+      }
+      joinWorkspace={() =>
+        setForm({
+          title: "Rejoindre un espace",
+          fields: [{ key: "invite", label: "Lien ou code d’invitation" }],
+          save: async (d) => {
+            let value = d.invite.trim();
+            try {
+              value =
+                new URLSearchParams(new URL(value).hash.slice(1)).get(
+                  "invite",
+                ) || value;
+            } catch {}
+            sessionStorage.setItem("liora.invite", value);
+            setInvite(value);
+          },
+        })
+      }
+      search={() => setSearchMessages(true)}
+      quickSwitch={() => setQuickSwitch(true)}
+    >
+      {error && (
+        <div className="error shell-error" role="alert">
+          {error}
+          <button onClick={() => setError("")}>Fermer</button>
+        </div>
       )}
-      {searchMessages && (
+      {searchMessages && activeWorkspace && (
         <SearchMessages
           base={base}
           close={() => setSearchMessages(false)}
           open={(id, message) => {
+            openChannel(id);
             setTargetMessage(message);
-            setChannelId(id);
-            navigate("chat");
           }}
         />
       )}
-      <aside
-        ref={sidebarRef}
-        id="workspace-navigation"
-        className={`sidebar ${mobile ? "open" : ""}`}
-        aria-label="Navigation de l’espace"
+      <Suspense
+        fallback={
+          <p className="padded" role="status">
+            Chargement…
+          </p>
+        }
       >
-        <div className="sidebar-brand">
-          <button onClick={() => navigate("home")} aria-label="Accueil Liora">
-            <img src="/brand/icon.svg" alt="" />
-            <strong>Liora</strong>
-            <span>BETA</span>
-          </button>
-          <button
-            className="icon-button sidebar-close"
-            aria-label="Fermer le menu"
-            onClick={() => {
-              setMobile(false);
-              menuTrigger.current?.focus();
-            }}
-          >
-            <X size={20} />
-          </button>
-        </div>
-        <WorkspaceMenu
-          workspace={workspace}
-          spaces={spaces}
-          select={(id) => {
-            setWorkspaceId(id);
-            setChannelId("");
-            setView("home");
-            setMobile(false);
-          }}
-          create={() =>
-            setForm({
-              title: "Créer un espace",
-              fields: [{ key: "name", label: "Nom de l'espace" }],
-              save: async (d) => {
-                const r = await api<{ data: Workspace }>(
-                  "/api/v1/workspaces",
-                  "POST",
-                  d,
-                );
-                await loadMe();
-                setWorkspaceId(r.data.id);
-                setView("home");
-              },
-            })
-          }
-          admin={(tab) => {
-            setAdminTab(tab);
-            navigate("admin");
-          }}
-        />
-        <button
-          className="navigation-search"
-          onClick={() => setQuickSwitch(true)}
-        >
-          <Search size={17} />
-          <span>Aller à…</span>
-          <kbd>⌘ K</kbd>
-        </button>
-        <div className="navigation-scroll">
-          {["Mon espace", "Équipe", "Gestion", "Réglages"].map((group) => {
-            const items = navigation.filter(
-              (n) => n.group === group && navigationVisible(n, can),
-            );
-            return items.length ? (
-              <nav className="nav-group" key={group} aria-label={group}>
-                <h2>
-                  <button
-                    className="nav-collapse"
-                    aria-expanded={!collapsedNavigation.includes(group)}
-                    aria-controls={`nav-${group.replaceAll(" ", "-")}`}
-                    onClick={() => void collapse(group)}
-                  >
-                    <span>{group}</span>
-                    <ChevronDown size={14} />
-                  </button>
-                </h2>
-                <div
-                  id={`nav-${group.replaceAll(" ", "-")}`}
-                  hidden={collapsedNavigation.includes(group)}
-                >
-                  {items.map((n) => (
-                    <button
-                      key={n.id}
-                      aria-label={n.label}
-                      className={view === n.id ? "active" : ""}
-                      aria-current={view === n.id ? "page" : undefined}
-                      onClick={() => navigate(n.id)}
-                    >
-                      <n.icon size={18} />
-                      <span>{n.label}</span>
-                      {n.id === "notifications" && unread > 0 && (
-                        <span className="count">{unread}</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </nav>
-            ) : null;
-          })}
-        </div>
-        <div className="sidebar-bottom">
-          <div className="version-note">
-            <img src="/brand/icon.svg" alt="" />
-            <span>
-              Liora <small>{VERSION} · BETA</small>
-            </span>
-            <button
-              className="icon-button"
-              aria-label="À propos de Liora"
-              onClick={() => navigate("about")}
-            >
-              <ArrowUpRight size={16} />
-            </button>
-          </div>
-          <button
-            className="profile-button"
-            onClick={() => navigate("settings")}
-          >
-            <Avatar src={me!.avatar} name={me!.name} small />
-            <span>
-              <strong>{me!.name}</strong>
-              <small>{workspace.role_name}</small>
-            </span>
-            <Settings size={17} />
-          </button>
-        </div>
-      </aside>
-      <div className="workspace-main">
-        <header className="topbar">
-          <button
-            className="icon-button menu-toggle"
-            ref={menuTrigger}
-            aria-label="Ouvrir la navigation"
-            aria-expanded={mobile}
-            aria-controls="workspace-navigation"
-            onClick={() => setMobile(!mobile)}
-          >
-            <PanelLeft />
-          </button>
-          <div className="breadcrumb">
-            <span>{workspace.name}</span>
-            <span>/</span>
-            <strong>
-              {view === "chat"
-                ? channel?.name || "Conversations"
-                : (
-                    {
-                      home: "Accueil",
-                      notes: "Notes datées",
-                      friends: "Amis",
-                      help: "Aide et tutoriels",
-                      projects: "Projets",
-                      calendar: "Calendrier",
-                      reminders: "Rappels",
-                      favorites: "Favoris",
-                      pages: "Pages de l'équipe",
-                      monitoring: "Supervision",
-                      members: "Membres",
-                      notifications: "Boîte de réception",
-                      places: "Mes lieux",
-                      admin: "Administration",
-                      settings: "Préférences",
-                      about: "À propos",
-                    } as Record<string, string>
-                  )[view]}
-            </strong>
-          </div>
-          <div className="topbar-right">
-            {view === "chat" && (
-              <button
-                className="channel-picker"
-                onClick={() => setChannelsOpen(true)}
-                aria-expanded={channelsOpen}
-              >
-                <Hash size={17} /> Salons
-              </button>
-            )}
-            <button
-              className="icon-button topbar-search"
-              aria-label="Rechercher des messages"
-              onClick={() => setSearchMessages(true)}
-            >
-              <Search size={16} />
-            </button>
-            <span
-              className={`connection ${connection === "En direct" ? "online" : ""}`}
-            >
-              <i />
-              {connection}
-            </span>
-            <span className="divider" />
-            <span
-              className="presence-indicator"
-              title="Membres actifs dans l’espace"
-            >
-              <Users size={16} /> {presence.length} en ligne
-            </span>
-          </div>
-        </header>
-        {error && (
-          <div className="error-banner" role="alert">
-            {error}
-            <button onClick={() => setError("")}>Fermer</button>
-          </div>
-        )}
-        <main id="main" tabIndex={-1} className={`content content-${view}`}>
-          {view === "chat" && (
-            <>
-              {channelsOpen && (
-                <button
-                  className="channels-backdrop"
-                  aria-label="Fermer le panneau des salons"
-                  onClick={() => setChannelsOpen(false)}
-                />
-              )}
-              <aside
-                className={`channel-index conversation-index ${channelsOpen ? "open" : ""}`}
-                aria-label="Salons et conversations"
-              >
-                <header className="conversation-index-heading">
-                  <h2>Conversations</h2>
-                  <button
-                    className="icon-button conversation-close"
-                    aria-label="Fermer les salons"
-                    onClick={() => setChannelsOpen(false)}
-                  >
-                    <X size={20} />
-                  </button>
-                </header>
-                {can("SEND_MESSAGE") && (
-                  <button
-                    className="new-conversation"
-                    onClick={createConversation}
-                  >
-                    <Plus size={16} /> Conversation privée
-                  </button>
-                )}
-                <div className="channel-filter">
-                  <Search size={13} />
-                  <input
-                    id="channel-search"
-                    aria-label="Filtrer les salons"
-                    placeholder="Trouver un salon…"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
-                </div>
-                <div className="section-label">
-                  <span>Salons de l’espace</span>
-                  {can("CREATE_CHANNEL") && (
-                    <button
-                      className="icon-button"
-                      aria-label="Créer un salon"
-                      onClick={createChannel}
-                    >
-                      <Plus size={15} />
-                    </button>
-                  )}
-                </div>
-                {[...categories, { id: "", name: "SANS CATÉGORIE" } as Row].map(
-                  (cat) => {
-                    const items = channels.filter(
-                      (c) =>
-                        (c.type !== "monitoring" || can("VIEW_MONITORING")) &&
-                        !c.archived &&
-                        (c.category_id || "") === cat.id &&
-                        c.name.toLowerCase().includes(query.toLowerCase()),
-                    );
-                    return items.length ? (
-                      <section className="channel-group" key={cat.id}>
-                        <h3>
-                          <button
-                            className="nav-collapse"
-                            aria-expanded={
-                              !!query ||
-                              !collapsedNavigation.includes(
-                                `channel:${workspaceId}:${cat.id}`,
-                              )
-                            }
-                            aria-controls={`channels-${cat.id || "other"}`}
-                            onClick={() =>
-                              void collapse(`channel:${workspaceId}:${cat.id}`)
-                            }
-                          >
-                            <span>{cat.name}</span>
-                            <ChevronDown size={12} />
-                          </button>
-                        </h3>
-                        <div
-                          id={`channels-${cat.id || "other"}`}
-                          hidden={
-                            !query &&
-                            collapsedNavigation.includes(
-                              `channel:${workspaceId}:${cat.id}`,
-                            )
-                          }
-                        >
-                          {items.map((c) => (
-                            <button
-                              key={c.id}
-                              className={
-                                view === "chat" && channelId === c.id
-                                  ? "active"
-                                  : ""
-                              }
-                              onClick={() => {
-                                setChannelId(c.id);
-                                navigate("chat");
-                              }}
-                            >
-                              {c.is_private ? (
-                                <Lock size={16} />
-                              ) : c.type === "monitoring" ? (
-                                <Activity size={17} />
-                              ) : (
-                                <Hash size={17} />
-                              )}
-                              <span>{c.name}</span>
-                              {view === "chat" && channelId === c.id && (
-                                <span className="active-dot" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-                    ) : null;
-                  },
-                )}
-                {query &&
-                  !channels.some(
-                    (c) =>
-                      !c.archived &&
-                      (c.type !== "monitoring" || can("VIEW_MONITORING")) &&
-                      c.name.toLowerCase().includes(query.toLowerCase()),
-                  ) && (
-                    <p className="muted padded">
-                      Aucun salon ne correspond à « {query} ».
-                    </p>
-                  )}
-                {!channels.length && (
-                  <p className="muted padded">Créez votre premier salon.</p>
-                )}
-              </aside>
-            </>
+        <RenderBoundary key={`${workspaceId}/${view}`}>
+          {view === "home" && (
+            <PersonalHome
+              user={me!}
+              notifications={notifications}
+              navigate={navigate}
+            />
           )}
-
-          <RenderBoundary key={`${workspaceId}/${view}`}>
-            {view === "home" && (
-              <Home
-                base={base}
-                user={me!}
-                workspace={workspace}
-                channels={channels}
-                notifications={notifications}
-                revision={revision}
-                navigate={navigate}
-                openChannel={openChannel}
-                openResource={openResource}
-              />
-            )}
-
-            {view === "chat" &&
-              (channel ? (
+          {view === "chat" &&
+            (channel ? (
+              channel.capabilities &&
+              !channel.capabilities.includes("READ_MESSAGE") ? (
+                <Empty title="Lecture non autorisée">
+                  Vous pouvez voir ce canal, mais votre rôle ne permet pas d’en
+                  lire les messages.
+                </Empty>
+              ) : (
                 <Chat
                   key={`${base}/${channel.id}`}
                   base={base}
@@ -1192,204 +846,187 @@ function App() {
                   targetMessage={targetMessage}
                   clearTarget={() => setTargetMessage("")}
                   user={me!}
-                  can={can}
+                  can={(p) =>
+                    p in channelPermissions
+                      ? (channel.capabilities?.includes(p) ?? can(p))
+                      : can(p)
+                  }
                   revision={revision}
                   refresh={refresh}
                   fail={fail}
                   presence={presence}
                 />
-              ) : (
-                <Empty
-                  title="Un espace pour les conversations"
-                  action={
-                    can("CREATE_CHANNEL") ? (
-                      <button className="primary" onClick={createChannel}>
-                        Créer un salon
-                      </button>
-                    ) : undefined
-                  }
-                >
-                  Les salons de votre équipe apparaîtront ici.
-                </Empty>
-              ))}
-            {view === "projects" && (
-              <Projects
-                initialProject={
-                  targetResource?.target_type === "project"
-                    ? targetResource.target_id
-                    : ""
+              )
+            ) : (
+              <Empty
+                title="Un espace pour les conversations"
+                action={
+                  can("CREATE_CHANNEL") ? (
+                    <button className="primary" onClick={createChannel}>
+                      Créer un salon
+                    </button>
+                  ) : undefined
                 }
-                initialTask={
-                  targetResource?.target_type === "task"
-                    ? targetResource.target_id
-                    : ""
-                }
-                base={base}
-                can={can}
-                revision={revision}
-                refresh={refresh}
-                fail={fail}
-              />
-            )}
-            {view === "pages" && (
-              <Pages
-                initialPage={
-                  targetResource?.target_type === "page"
-                    ? targetResource.target_id
-                    : ""
-                }
-                base={base}
-                can={can}
-                revision={revision}
-                refresh={refresh}
-                fail={fail}
-              />
-            )}
-            {view === "calendar" && (
-              <Calendar
-                initialEvent={
-                  targetResource?.target_type === "event"
-                    ? targetResource.target_id
-                    : ""
-                }
-                userId={me!.id}
-                base={base}
-                can={can}
-                revision={revision}
-                refresh={refresh}
-                fail={fail}
-              />
-            )}
-            {view === "reminders" && (
-              <Reminders
-                base={base}
-                revision={revision}
-                refresh={refresh}
-                fail={fail}
-              />
-            )}
-            {view === "favorites" && (
-              <Favorites
-                base={base}
-                revision={revision}
-                onNavigate={openResource}
-                fail={fail}
-              />
-            )}
-            {view === "members" && can("MANAGE_MEMBERS") && (
-              <Members base={base} can={can} fail={fail} refresh={refresh} />
-            )}
-            {view === "notes" && <Notes />}
-            {view === "friends" && (
-              <Friends
-                userId={me!.id}
-                workspace={workspaceId}
-                revision={revision}
-                fail={fail}
-              />
-            )}
-            {view === "places" && (
-              <Suspense fallback={<p role="status">Chargement de la carte…</p>}>
-                <Places />
-              </Suspense>
-            )}
-            {view === "help" && <Help />}
-            {view === "monitoring" && can("VIEW_MONITORING") && (
-              <Monitoring
-                key={base}
-                base={base}
-                revision={revision}
-                fail={fail}
-              />
-            )}
-            {view === "admin" && (
-              <Admin
-                key={`${workspaceId}/${adminTab}`}
-                initialTab={adminTab}
-                base={base}
-                workspace={workspace}
-                can={can}
-                refresh={() => {
-                  refresh();
-                  void loadMe();
-                }}
-                fail={fail}
-              />
-            )}
-            {view === "settings" && (
-              <Preferences
-                base={base}
-                user={me!}
-                reload={async () => {
-                  await loadMe();
-                  refresh();
-                }}
-                fail={fail}
-              />
-            )}
-            {view === "notifications" && (
-              <Inbox
-                openChannel={openChannel}
-                base={base}
-                notifications={notifications}
-                refresh={refresh}
-                fail={fail}
-              />
-            )}
-            {view === "about" && (
-              <div className="page about">
-                <img src="/brand/logo-dark.svg" alt="Liora" />
-                <h1>
-                  Un point de rencontre.
-                  <br />
-                  De nouvelles possibilités.
-                </h1>
-                <p>
-                  Liora rassemble les conversations, les projets et les signaux
-                  de l’écosystème LUMA.
-                </p>
-                <dl>
-                  <dt>Version</dt>
-                  <dd>{VERSION} — BETA</dd>
-                  <dt>Authentification</dt>
-                  <dd>Kyros SSO v4 · renouvellement automatique</dd>
-                  <dt>Espace actuel</dt>
-                  <dd>{workspace.name}</dd>
-                </dl>
-                <p className="muted">
-                  Les fonctionnalités média sont différées. Les données du seed
-                  sont identifiées comme démonstration.
-                </p>
-              </div>
-            )}
-          </RenderBoundary>
-        </main>
-      </div>
-      <nav className="mobile-dock" aria-label="Navigation mobile">
-        {[
-          navigation[0],
-          ...(can("VIEW_CHANNEL") ? [navigation[4]] : []),
-          ...(can("VIEW_PROJECT") ? [navigation[5]] : []),
-          navigation[1],
-        ].map((n) => (
-          <button
-            key={n.id}
-            className={view === n.id ? "active" : ""}
-            aria-current={view === n.id ? "page" : undefined}
-            onClick={() => navigate(n.id)}
-          >
-            <n.icon size={20} />
-            <span>{n.id === "notifications" ? "Réception" : n.label}</span>
-            {n.id === "notifications" && unread > 0 && (
-              <span className="dock-count">{unread}</span>
-            )}
-          </button>
-        ))}
-        <button aria-expanded={mobile} onClick={() => setMobile((v) => !v)}>
-          <Menu size={20} />
-          <span>Menu</span>
-        </button>
-      </nav>
+              >
+                Les salons de votre équipe apparaîtront ici.
+              </Empty>
+            ))}
+          {view === "projects" && (
+            <Projects
+              initialProject={
+                targetResource?.target_type === "project"
+                  ? targetResource.target_id
+                  : ""
+              }
+              initialTask={
+                targetResource?.target_type === "task"
+                  ? targetResource.target_id
+                  : ""
+              }
+              base={base}
+              can={can}
+              revision={revision}
+              refresh={refresh}
+              fail={fail}
+            />
+          )}
+          {view === "calendar" && (
+            <Calendar
+              initialEvent={
+                targetResource?.target_type === "event"
+                  ? targetResource.target_id
+                  : ""
+              }
+              userId={me!.id}
+              base={base}
+              can={can}
+              revision={revision}
+              refresh={refresh}
+              fail={fail}
+            />
+          )}
+          {view === "reminders" && (
+            <Reminders
+              base="/api/v1/me"
+              revision={revision}
+              refresh={refresh}
+              fail={fail}
+            />
+          )}
+          {view === "favorites" && (
+            <Favorites
+              base="/api/v1/me"
+              revision={revision}
+              onNavigate={openResource}
+              fail={fail}
+            />
+          )}
+          {view === "members" && can("MANAGE_MEMBERS") && (
+            <Members base={base} can={can} fail={fail} refresh={refresh} />
+          )}
+          {view === "notes" && <Notes />}
+          {view === "messages" && (
+            <PersonalMessages
+              userId={me!.id}
+              revision={revision}
+              openChannel={openChannel}
+              openFriends={() => navigate("friends")}
+              fail={fail}
+            />
+          )}
+          {view === "friends" && (
+            <Friends
+              userId={me!.id}
+              workspace={workspaceId}
+              revision={revision}
+              fail={fail}
+            />
+          )}
+          {view === "places" && (
+            <Suspense fallback={<p role="status">Chargement de la carte…</p>}>
+              <Places />
+            </Suspense>
+          )}
+          {view === "help" && <Help />}
+          {view === "monitoring" && can("VIEW_MONITORING") && (
+            <Monitoring
+              key={base}
+              base="/api/v1/me"
+              revision={revision}
+              fail={fail}
+            />
+          )}
+          {view === "admin" && (
+            <Admin
+              key={`${workspaceId}/${adminTab}`}
+              initialTab={adminTab}
+              base={base}
+              workspace={workspace}
+              can={can}
+              refresh={() => {
+                refresh();
+                void loadMe();
+              }}
+              fail={fail}
+            />
+          )}
+          {view === "settings" && (
+            <Preferences
+              base={base}
+              user={me!}
+              reload={async () => {
+                await loadMe();
+                refresh();
+              }}
+              fail={fail}
+            />
+          )}
+          {view === "notifications" && (
+            <Inbox
+              openChannel={openChannel}
+              base="/api/v1/me"
+              notifications={notifications}
+              refresh={refresh}
+              fail={fail}
+            />
+          )}
+          {view === "about" && (
+            <div className="page about">
+              <img src="/brand/logo-dark.svg" alt="Liora" />
+              <h1>
+                Un point de rencontre.
+                <br />
+                De nouvelles possibilités.
+              </h1>
+              <p>
+                Liora rassemble les conversations, les projets et les signaux de
+                l’écosystème LUMA.
+              </p>
+              <dl>
+                <dt>Version</dt>
+                <dd>{VERSION} — BETA</dd>
+                <dt>Authentification</dt>
+                <dd>Kyros SSO v4 · renouvellement automatique</dd>
+                <dt>Espace actuel</dt>
+                <dd>Espace personnel</dd>
+              </dl>
+              <p className="muted">
+                Les fonctionnalités média sont différées. Les données du seed
+                sont identifiées comme démonstration.
+              </p>
+            </div>
+          )}
+        </RenderBoundary>
+      </Suspense>
+      {channelSettings && (
+        <ChannelSettings
+          base={base}
+          channel={channelSettings}
+          can={can}
+          close={() => setChannelSettings(null)}
+          refresh={refresh}
+        />
+      )}
       {quickSwitch && (
         <QuickSwitch
           channels={channels}
@@ -1423,11 +1060,13 @@ function App() {
           Vous êtes hors ligne. Certaines fonctionnalités peuvent être limitées.
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <ContextMenuProvider>
+      <App />
+    </ContextMenuProvider>
   </React.StrictMode>,
 );

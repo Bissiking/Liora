@@ -82,3 +82,7 @@ Google Cloud/Calendar API est un nouveau fournisseur externe : création du clie
 ## 0.7.1 — BrainDump 2.1.0 — 5 octobre 2026
 
 Le dépôt adjacent `BrainDump` est maintenant modifié : applications connectées, consentement de compte, API de capacités/notes datées, jetons rotatifs, révocation, migration SQLite additive 3, entrées de navigation et documentation versionnée. Package et lockfile passent à 2.1.0. Liora configure BrainDump en base et conserve DropIt ; les autres fournisseurs restent masqués dans les paramètres. Migration Liora 011. Tests sur SQLite en mémoire et bases PostgreSQL jetables, sans ouverture ni migration des bases personnelles, écriture sur fournisseurs réels, redémarrage de services ou déploiement. Aucun changement dans Kyros ou DropIt.
+
+## 1.0.0-beta.1 — 6 octobre 2026
+
+Aucun service, fournisseur, compte calendrier ni production modifié. Google Calendar OAuth/runtime est retiré localement, consentements distants non révoqués, tables historiques conservées. CalDAV devient le parcours officiel ; aucun client natif configuré. BrainDump/DropIt/Kyros gardent leurs contrats et configurateurs disponibles. Migrations 012–015 exécutées uniquement dans les bases de qualification `_test`/`_e2e` ; upgrade depuis 0.7.1 synthétique. Qualification native, sécurité/charge et bascule réelle demeurent nécessaires avant stable.

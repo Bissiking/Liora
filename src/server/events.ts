@@ -24,8 +24,8 @@ export async function emit(
       d.event_types.some((p: string) => matchesEvent(p, type))
     )
       await query(
-        "INSERT INTO webhook_deliveries(workspace_id,url,secret,payload) VALUES($1,$2,$3,$4)",
-        [workspace, d.url, d.secret, JSON.stringify(event)],
+        "INSERT INTO webhook_deliveries(workspace_id,url,secret,payload,outbound_id) VALUES($1,$2,$3,$4,$5)",
+        [workspace, d.url, d.secret, JSON.stringify(event), d.id],
         db,
       );
   return event;

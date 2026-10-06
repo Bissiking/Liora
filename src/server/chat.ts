@@ -1,11 +1,20 @@
 // src/server/chat.ts
+import {
+  webhookMessageSchema,
+  type WebhookMessage,
+} from "../shared/webhook-message.js";
 import { Router } from "express";
 import { z } from "zod";
 import { query, transaction, type DB } from "./db.js";
 import { authorize, type Actor } from "./auth.js";
 import { assert } from "./errors.js";
 import { emit, audit } from "./events.js";
-import { channelAccess, granted, visibleChannel } from "./access.js";
+import {
+  authorizeChannel,
+  channelAccess,
+  granted,
+  visibleChannel,
+} from "./access.js";
 import { validTimezone } from "../shared/schedule.js";
 import emojiData from "emojibase-data/fr/data.json" with { type: "json" };
 import {
@@ -36,6 +45,7 @@ export async function sendMessage(
   thread: string | null = null,
   attachments: string[] = [],
   timezone = "UTC",
+  rich: WebhookMessage | null = null,
 ): Promise<{ message: any; detectedDates: DetectedDateTime[] }> {
   const [ch] = await query(
     "SELECT * FROM channels WHERE id=$1 AND workspace_id=$2 AND NOT archived",
@@ -43,6 +53,42 @@ export async function sendMessage(
     db,
   );
   assert(ch, 404, "CHANNEL_NOT_FOUND", "Salon introuvable ou archivé.");
+  const scoped = await authorizeChannel(
+    actor,
+    workspace,
+    channel,
+    "SEND_MESSAGE",
+    db,
+  );
+  if (ch.type === "announcement")
+    await authorizeChannel(actor, workspace, channel, "MANAGE_CHANNEL", db);
+  if (attachments.length)
+    await authorizeChannel(actor, workspace, channel, "ATTACH_FILES", db);
+  if (/@\[[0-9a-f-]{36}\]/i.test(content))
+    await authorizeChannel(actor, workspace, channel, "MENTION_USERS", db);
+  if (
+    ch.slowmode_seconds &&
+    actor.kind === "human" &&
+    !scoped.capabilities.includes("MANAGE_CHANNEL")
+  ) {
+    await query(
+      "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+      [`${channel}:${actor.id}`],
+      db,
+    );
+    const [last] = await query(
+      "SELECT created_at FROM messages WHERE channel_id=$1 AND user_id=$2 ORDER BY created_at DESC LIMIT 1",
+      [channel, actor.id],
+      db,
+    );
+    assert(
+      !last ||
+        Date.now() - +new Date(last.created_at) >= ch.slowmode_seconds * 1000,
+      429,
+      "SLOWMODE",
+      "Patientez avant d’envoyer un nouveau message dans ce canal.",
+    );
+  }
   if (ch.is_dm) {
     const [recipient] = await query(
       "SELECT u.id,u.preferences FROM channel_access a JOIN users u ON u.id=a.user_id JOIN workspace_members wm ON wm.user_id=u.id AND wm.workspace_id=$2 AND wm.state='active' WHERE a.channel_id=$1 AND u.id<>$3 AND NOT u.disabled",
@@ -77,13 +123,27 @@ export async function sendMessage(
     assert(parent, 400, "INVALID_REPLY", "Message de réponse introuvable.");
   }
   if (thread) {
-    await authorize(actor, workspace, "CREATE_THREAD");
+    await authorizeChannel(actor, workspace, channel, "REPLY_THREAD", db);
+    assert(
+      ch.threads_enabled,
+      403,
+      "THREADS_DISABLED",
+      "Les fils sont désactivés dans ce canal.",
+    );
     const [root] = await query(
-      "SELECT id FROM messages WHERE id=$1 AND channel_id=$2 AND thread_id IS NULL AND deleted_at IS NULL",
+      "SELECT id,thread_opened_at FROM messages WHERE id=$1 AND channel_id=$2 AND thread_id IS NULL AND deleted_at IS NULL FOR UPDATE",
       [thread, channel],
       db,
     );
     assert(root, 400, "INVALID_THREAD", "Fil introuvable.");
+    if (!root.thread_opened_at) {
+      await authorizeChannel(actor, workspace, channel, "CREATE_THREAD", db);
+      await query(
+        "UPDATE messages SET thread_opened_at=now() WHERE id=$1",
+        [thread],
+        db,
+      );
+    }
   }
   if (attachments.length) {
     const files = await query(
@@ -98,8 +158,17 @@ export async function sendMessage(
       "Pièce jointe invalide pour ce salon.",
     );
   }
+  if (rich) {
+    assert(
+      actor.kind !== "human",
+      403,
+      "TECHNICAL_REQUIRED",
+      "Les embeds sont réservés aux webhooks.",
+    );
+    rich = webhookMessageSchema.parse(rich);
+  }
   const [message] = await query(
-    "INSERT INTO messages(workspace_id,channel_id,user_id,technical_id,content,reply_to,thread_id,attachment_ids,detection_timezone) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",
+    "INSERT INTO messages(workspace_id,channel_id,user_id,technical_id,content,reply_to,thread_id,attachment_ids,detection_timezone,rich_content) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
     [
       workspace,
       channel,
@@ -110,6 +179,7 @@ export async function sendMessage(
       thread,
       attachments,
       timezone,
+      rich ? JSON.stringify(rich) : null,
     ],
     db,
   );
@@ -125,12 +195,19 @@ export async function sendMessage(
   );
   if (mentions.length)
     await query(
-      `INSERT INTO notifications(workspace_id,user_id,type,title,body,channel_id) SELECT $1,m.user_id,'mention','Nouvelle mention',$3,$5 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=$1 AND m.user_id=ANY($2::uuid[]) AND m.state='active' AND m.user_id::text<>$4 AND COALESCE((u.preferences->>'mentions')::boolean,true)`,
-      [workspace, mentions, content.slice(0, 500), actor.id, channel],
+      `INSERT INTO notifications(workspace_id,user_id,type,title,body,channel_id,message_id) SELECT $1,m.user_id,'mention','Nouvelle mention',$3,$5,$6 FROM workspace_members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=$1 AND m.user_id=ANY($2::uuid[]) AND m.state='active' AND m.user_id::text<>$4 AND COALESCE((u.preferences->>'mentions')::boolean,true)`,
+      [
+        workspace,
+        mentions,
+        content.slice(0, 500),
+        actor.id,
+        channel,
+        message.id,
+      ],
       db,
     );
   await query(
-    `INSERT INTO notifications(workspace_id,user_id,type,title,body,channel_id) SELECT $1,c.user_id,'message',$3,$4,$2 FROM channel_members c JOIN workspace_members m ON m.user_id=c.user_id AND m.workspace_id=$1 WHERE c.channel_id=$2 AND c.following AND NOT c.muted AND m.state='active' AND c.user_id::text<>$5 AND NOT(c.user_id=ANY($6::uuid[]))`,
+    `INSERT INTO notifications(workspace_id,user_id,type,title,body,channel_id,message_id) SELECT $1,c.user_id,'message',$3,$4,$2,$7 FROM channel_members c JOIN workspace_members m ON m.user_id=c.user_id AND m.workspace_id=$1 WHERE c.channel_id=$2 AND c.following AND NOT c.muted AND m.state='active' AND c.user_id::text<>$5 AND NOT(c.user_id=ANY($6::uuid[]))`,
     [
       workspace,
       channel,
@@ -138,6 +215,7 @@ export async function sendMessage(
       content.slice(0, 500),
       actor.id,
       mentions,
+      message.id,
     ],
     db,
   );
@@ -157,12 +235,34 @@ chatRouter.use("/messages/:id", async (req, _res, next) => {
   );
   assert(m, 404, "NOT_FOUND", "Message introuvable.");
   await channelAccess(req.actor, w, m.channel_id);
+  const permission = req.path.endsWith("/reactions")
+    ? "ADD_REACTION"
+    : req.path.endsWith("/pin")
+      ? "MANAGE_MESSAGES"
+      : req.method === "PATCH"
+        ? "EDIT_OWN_MESSAGE"
+        : req.method === "DELETE"
+          ? null
+          : null;
+  if (permission)
+    await authorizeChannel(req.actor, w, m.channel_id, permission);
+  if (req.method === "DELETE") {
+    const [author] = await query(
+      "SELECT COALESCE(user_id,technical_id) actor FROM messages WHERE id=$1",
+      [req.params.id],
+    );
+    await authorizeChannel(
+      req.actor,
+      w,
+      m.channel_id,
+      author.actor === req.actor.id ? "DELETE_OWN_MESSAGE" : "MANAGE_MESSAGES",
+    );
+  }
   next();
 });
 chatRouter.get("/channels/:channel/messages", async (req, res) => {
   const workspace = z.uuid().parse(req.workspaceId),
     channel = z.uuid().parse(req.params.channel);
-  await authorize(req.actor, workspace, "VIEW_CHANNEL");
   await channelAccess(req.actor, workspace, channel);
   const thread = req.query.thread ? z.uuid().parse(req.query.thread) : null;
   const pinned = req.query.pinned === "true";
@@ -195,15 +295,14 @@ chatRouter.get("/channels/:channel/messages", async (req, res) => {
 chatRouter.post("/channels/:channel/messages", async (req, res) => {
   const workspace = z.uuid().parse(req.workspaceId),
     channel = z.uuid().parse(req.params.channel);
-  await authorize(req.actor, workspace, "SEND_MESSAGE");
-  await channelAccess(req.actor, workspace, channel);
+  await authorizeChannel(req.actor, workspace, channel, "SEND_MESSAGE");
   const input = body.parse(req.body);
   const [ch] = await query(
     "SELECT type FROM channels WHERE id=$1 AND workspace_id=$2",
     [channel, workspace],
   );
   if (ch?.type === "announcement")
-    await authorize(req.actor, workspace, "MANAGE_CHANNEL");
+    await authorizeChannel(req.actor, workspace, channel, "MANAGE_CHANNEL");
   const result = await transaction((db) =>
     sendMessage(
       workspace,
@@ -240,7 +339,7 @@ chatRouter.patch("/messages/:id", async (req, res) => {
   const workspace = z.uuid().parse(req.workspaceId),
     id = z.uuid().parse(req.params.id);
   const { content } = body.pick({ content: true }).parse(req.body);
-  await authorize(req.actor, workspace, "EDIT_OWN_MESSAGE");
+
   const [row] = await query(
     "UPDATE messages SET content=$3,edited_at=now() WHERE id=$1 AND workspace_id=$2 AND COALESCE(user_id,technical_id)=$4 AND deleted_at IS NULL RETURNING id",
     [id, workspace, content, req.actor.id],
@@ -257,11 +356,6 @@ chatRouter.delete("/messages/:id", async (req, res) => {
     [id, workspace],
   );
   assert(message, 404, "NOT_FOUND", "Message introuvable.");
-  await authorize(
-    req.actor,
-    workspace,
-    message.actor === req.actor.id ? "DELETE_OWN_MESSAGE" : "MANAGE_MESSAGES",
-  );
   await transaction(async (db) => {
     await query(
       "UPDATE messages SET deleted_at=now(),content='[Message supprimé]' WHERE id=$1",
@@ -276,7 +370,7 @@ chatRouter.delete("/messages/:id", async (req, res) => {
 chatRouter.post("/messages/:id/reactions", async (req, res) => {
   const workspace = z.uuid().parse(req.workspaceId),
     id = z.uuid().parse(req.params.id);
-  await authorize(req.actor, workspace, "ADD_REACTION");
+
   const { emoji } = z
     .object({ emoji: z.string().min(1).max(64) })
     .parse(req.body);
@@ -354,7 +448,7 @@ chatRouter.get("/channels/:channel/follow", async (req, res) => {
 
 chatRouter.put("/messages/:id/pin", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
-  await authorize(req.actor, w, "MANAGE_MESSAGES");
+
   const { pinned } = z.object({ pinned: z.boolean() }).parse(req.body);
   await query(
     "UPDATE messages SET pinned_at=CASE WHEN $3 THEN now() ELSE NULL END WHERE id=$1 AND workspace_id=$2",
@@ -365,7 +459,7 @@ chatRouter.put("/messages/:id/pin", async (req, res) => {
 });
 chatRouter.get("/search", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
-  await authorize(req.actor, w, "VIEW_CHANNEL");
+  await authorize(req.actor, w, "VIEW_WORKSPACE");
   const q = z.string().trim().min(2).max(200).parse(req.query.q);
   const before = req.query.before ? z.uuid().parse(req.query.before) : null;
   const channel = req.query.channel ? z.uuid().parse(req.query.channel) : null;
@@ -419,8 +513,15 @@ chatRouter.get("/channels/:channel/access", async (req, res) => {
     req.actor,
     w,
     z.uuid().parse(req.params.channel),
+    undefined,
+    "VIEW_CHANNEL",
   );
-  if (!ch.is_dm) await authorize(req.actor, w, "MANAGE_CHANNEL");
+  await authorizeChannel(
+    req.actor,
+    w,
+    ch.id,
+    ch.is_dm ? "READ_MESSAGE" : "MANAGE_CHANNEL",
+  );
   res.json({
     data: await query(
       "SELECT u.id,u.name FROM channel_access a JOIN users u ON u.id=a.user_id WHERE channel_id=$1",
@@ -430,11 +531,12 @@ chatRouter.get("/channels/:channel/access", async (req, res) => {
 });
 chatRouter.put("/channels/:channel/access", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
-  await authorize(req.actor, w, "MANAGE_CHANNEL");
   const ch = await channelAccess(
     req.actor,
     w,
     z.uuid().parse(req.params.channel),
+    undefined,
+    "MANAGE_CHANNEL",
   );
   assert(
     !ch.is_dm,

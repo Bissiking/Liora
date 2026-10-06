@@ -8,7 +8,12 @@ import { query } from "./db.js";
 import { authorize } from "./auth.js";
 import { assert } from "./errors.js";
 import { audit } from "./events.js";
-import { channelAccess, granted, visibleChannel } from "./access.js";
+import {
+  authorizeChannel,
+  channelAccess,
+  granted,
+  visibleChannel,
+} from "./access.js";
 import { fetchKyrosAvatar } from "./kyros-avatar.js";
 import { imageMime } from "./previews.js";
 export interface StorageProvider {
@@ -47,11 +52,12 @@ storageRouter.get("/attachments", async (req, res) => {
 });
 storageRouter.post("/attachments", async (req, res) => {
   const w = z.uuid().parse(req.workspaceId);
-  await authorize(
-    req.actor,
-    w,
-    req.body.task_id ? "MANAGE_TASK" : "SEND_MESSAGE",
-  );
+  if (!req.body.channel_id)
+    await authorize(
+      req.actor,
+      w,
+      req.body.task_id ? "MANAGE_TASK" : "SEND_MESSAGE",
+    );
   assert(
     req.actor.kind === "human",
     403,
@@ -79,7 +85,8 @@ storageRouter.post("/attachments", async (req, res) => {
     );
     assert(task, 404, "NOT_FOUND", "Tâche introuvable.");
   }
-  if (b.channel_id) await channelAccess(req.actor, w, b.channel_id);
+  if (b.channel_id)
+    await authorizeChannel(req.actor, w, b.channel_id, "ATTACH_FILES");
   const bytes = Buffer.from(b.data, "base64");
   assert(
     bytes.length > 0 && bytes.length <= 1000000,

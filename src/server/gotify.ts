@@ -24,7 +24,7 @@ gotifyRouter.get("/gotify", async (req, res) => {
     [req.actor.id],
   );
   const deliveries = await query(
-    "SELECT id,state,attempts,last_error,created_at FROM gotify_deliveries WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20",
+    "SELECT * FROM (SELECT id,state,attempts,last_error,created_at FROM gotify_deliveries WHERE user_id=$1 UNION ALL SELECT id,state,attempts,last_error,created_at FROM personal_gotify_deliveries WHERE user_id=$1) d ORDER BY created_at DESC LIMIT 20",
     [req.actor.id],
   );
   res.json({ connection: connection || null, deliveries });
@@ -75,11 +75,12 @@ gotifyRouter.put("/gotify", async (req, res) => {
     );
     // A change of destination/secret never reroutes notifications queued for the old destination.
     if (!body.enabled || body.token || old?.url !== url.href.replace(/\/$/, ""))
-      await query(
-        "UPDATE gotify_deliveries SET state='cancelled' WHERE user_id=$1 AND state IN ('pending','failed')",
-        [req.actor.id],
-        db,
-      );
+      for (const table of ["gotify_deliveries", "personal_gotify_deliveries"])
+        await query(
+          `UPDATE ${table} SET state='cancelled' WHERE user_id=$1 AND state IN ('pending','failed')`,
+          [req.actor.id],
+          db,
+        );
   });
   res.json({ ok: true });
 });
@@ -118,8 +119,13 @@ gotifyRouter.post("/gotify/test", async (req, res) => {
 gotifyRouter.post("/gotify/deliveries/:id/:action", async (req, res) => {
   const id = z.uuid().parse(req.params.id),
     action = z.enum(["retry", "cancel"]).parse(req.params.action);
+  const [delivery] = await query(
+    "SELECT id FROM personal_gotify_deliveries WHERE id=$1 AND user_id=$2",
+    [id, req.actor.id],
+  );
+  const table = delivery ? "personal_gotify_deliveries" : "gotify_deliveries";
   const rows = await query(
-    `UPDATE gotify_deliveries SET state=$3,attempts=CASE WHEN $3='pending' THEN 0 ELSE attempts END,next_attempt_at=now(),last_error=null WHERE id=$1 AND user_id=$2 AND state=ANY($4::text[]) AND ($3<>'pending' OR EXISTS(SELECT 1 FROM gotify_connections c WHERE c.user_id=$2 AND c.enabled)) RETURNING id`,
+    `UPDATE ${table} SET state=$3,attempts=CASE WHEN $3='pending' THEN 0 ELSE attempts END,next_attempt_at=now(),last_error=null WHERE id=$1 AND user_id=$2 AND state=ANY($4::text[]) AND ($3<>'pending' OR EXISTS(SELECT 1 FROM gotify_connections c WHERE c.user_id=$2 AND c.enabled)) RETURNING id`,
     [
       id,
       req.actor.id,
@@ -147,7 +153,9 @@ export function gotifyMessage(
     extras: {
       "client::notification": {
         click: {
-          url: `${process.env.APP_URL}/#workspace=${workspace}&view=notifications`,
+          url: workspace
+            ? `${process.env.APP_URL}/#workspace=${workspace}&view=notifications`
+            : `${process.env.APP_URL}/#view=notifications`,
         },
       },
     },
@@ -189,25 +197,36 @@ export async function processGotifyDeliveries(
   now = new Date(),
 ) {
   await transaction(async (db) => {
-    const deliveries = await query(
-      "SELECT d.*,c.url,c.token,c.enabled FROM gotify_deliveries d JOIN gotify_connections c ON c.user_id=d.user_id WHERE d.state='pending' AND d.next_attempt_at<=$1 ORDER BY d.created_at LIMIT 10 FOR UPDATE OF d,c SKIP LOCKED",
-      [now],
-      db,
-    );
-    for (const d of deliveries) {
-      // Enforce current rights and preferences immediately before delivery; no private content leaves Liora.
-      const [n] = await query(
-        `SELECT n.* FROM notifications n JOIN users u ON u.id=n.user_id JOIN workspace_members m ON m.workspace_id=n.workspace_id AND m.user_id=u.id JOIN roles r ON r.id=m.role_id WHERE n.id=$1 AND n.user_id=$2 AND n.state='unread' AND NOT u.disabled AND m.state='active' AND 'VIEW_WORKSPACE'=ANY(r.permissions) AND (n.type<>'argos' OR ('VIEW_MONITORING'=ANY(r.permissions) AND COALESCE((u.preferences->>'argos')::boolean,true))) AND (n.type<>'task' OR ('VIEW_BOARD'=ANY(r.permissions) AND COALESCE((u.preferences->>'tasks')::boolean,true))) AND (n.type<>'mention' OR COALESCE((u.preferences->>'mentions')::boolean,true)) AND (n.type<>'message' OR COALESCE((u.preferences->>CASE WHEN EXISTS(SELECT 1 FROM channels dm WHERE dm.id=n.channel_id AND dm.is_dm) THEN 'directMessages' ELSE 'messages' END)::boolean,true)) AND (n.channel_id IS NULL OR EXISTS(SELECT 1 FROM channels c WHERE c.id=n.channel_id AND c.workspace_id=n.workspace_id AND ${visibleChannel("c", "$2", "r.permissions")}))`,
-        [d.notification_id, d.user_id],
+    const deliveries: any[] = [];
+    for (const table of ["gotify_deliveries", "personal_gotify_deliveries"]) {
+      const batch = await query(
+        `SELECT d.*,c.url,c.token,c.enabled,'${table}' queue_table FROM ${table} d JOIN gotify_connections c ON c.user_id=d.user_id WHERE d.state='pending' AND d.next_attempt_at<=$1 ORDER BY d.created_at LIMIT 10 FOR UPDATE OF d,c SKIP LOCKED`,
+        [now],
         db,
       );
+      deliveries.push(...batch);
+    }
+    for (const d of deliveries) {
+      // Enforce current rights and preferences immediately before delivery; no private content leaves Liora.
+      const [n] =
+        d.queue_table === "personal_gotify_deliveries"
+          ? await query(
+              "SELECT n.* FROM personal_notifications n JOIN users u ON u.id=n.user_id WHERE n.id=$1 AND n.user_id=$2 AND n.state='unread' AND NOT u.disabled",
+              [d.notification_id, d.user_id],
+              db,
+            )
+          : await query(
+              `SELECT n.* FROM notifications n JOIN users u ON u.id=n.user_id JOIN workspace_members m ON m.workspace_id=n.workspace_id AND m.user_id=u.id JOIN roles r ON r.id=m.role_id WHERE n.id=$1 AND n.user_id=$2 AND n.state='unread' AND NOT u.disabled AND m.state='active' AND 'VIEW_WORKSPACE'=ANY(r.permissions) AND (n.type<>'argos' OR ('VIEW_MONITORING'=ANY(r.permissions) AND COALESCE((u.preferences->>'argos')::boolean,true))) AND (n.type<>'task' OR ('VIEW_BOARD'=ANY(r.permissions) AND COALESCE((u.preferences->>'tasks')::boolean,true))) AND (n.type<>'mention' OR COALESCE((u.preferences->>'mentions')::boolean,true)) AND (n.type<>'message' OR COALESCE((u.preferences->>CASE WHEN EXISTS(SELECT 1 FROM channels dm WHERE dm.id=n.channel_id AND dm.is_dm) THEN 'directMessages' ELSE 'messages' END)::boolean,true)) AND (n.channel_id IS NULL OR EXISTS(SELECT 1 FROM channels c WHERE c.id=n.channel_id AND c.workspace_id=n.workspace_id AND ${visibleChannel("c", "$2", "r.permissions")}))`,
+              [d.notification_id, d.user_id],
+              db,
+            );
       if (
         !n ||
         !d.enabled ||
         Date.parse(d.created_at) < now.getTime() - 86400000
       ) {
         await query(
-          "UPDATE gotify_deliveries SET state='cancelled' WHERE id=$1",
+          `UPDATE ${d.queue_table} SET state='cancelled' WHERE id=$1`,
           [d.id],
           db,
         );
@@ -229,7 +248,7 @@ export async function processGotifyDeliveries(
           (status === 0 || status === 429 || status >= 500) &&
           d.attempts < 4;
       await query(
-        "UPDATE gotify_deliveries SET state=$2,attempts=attempts+1,next_attempt_at=$3,last_error=$4 WHERE id=$1",
+        `UPDATE ${d.queue_table} SET state=$2,attempts=attempts+1,next_attempt_at=$3,last_error=$4 WHERE id=$1`,
         [
           d.id,
           ok ? "sent" : retry ? "pending" : "failed",
@@ -239,10 +258,11 @@ export async function processGotifyDeliveries(
         db,
       );
     }
-    await query(
-      "DELETE FROM gotify_deliveries WHERE state<>'pending' AND created_at<now()-interval '30 days'",
-      [],
-      db,
-    );
+    for (const table of ["gotify_deliveries", "personal_gotify_deliveries"])
+      await query(
+        `DELETE FROM ${table} WHERE state<>'pending' AND created_at<now()-interval '30 days'`,
+        [],
+        db,
+      );
   });
 }

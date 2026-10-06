@@ -3,21 +3,13 @@ import { useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { api } from "./api";
+import { displayMentions } from "../shared/message-preview";
+export { displayMentions } from "../shared/message-preview";
 import type { Row } from "./types";
 import {
   formatDateTimeForDisplay,
   formatDateOnlyForDisplay,
 } from "../shared/date-detection";
-export function displayMentions(
-  text: string,
-  members: Pick<Row, "id" | "name" | "kyros_user_id">[],
-) {
-  return text.replace(
-    /@\[([0-9a-f-]{36})\]/gi,
-    (_, id) =>
-      `@${members.find((m) => m.id === id || m.kyros_user_id === id)?.name || "membre"}`,
-  );
-}
 export function replyPreview(
   source: Pick<Row, "content" | "mentions"> | undefined,
   members: Pick<Row, "id" | "name" | "kyros_user_id">[],
@@ -42,7 +34,15 @@ export function encodeMentions(
   }
   return result;
 }
-function LinkPreview({ base, url }: { base: string; url: string }) {
+function LinkPreview({
+  base,
+  url,
+  channel,
+}: {
+  base: string;
+  url: string;
+  channel: string;
+}) {
   const [data, setData] = useState<{
     title: string;
     description: string;
@@ -51,7 +51,7 @@ function LinkPreview({ base, url }: { base: string; url: string }) {
   useEffect(() => {
     let cancelled = false;
     void api<{ data: typeof data }>(
-      `${base}/link-preview?url=${encodeURIComponent(url)}`,
+      `${base}/link-preview?url=${encodeURIComponent(url)}${base.includes("/workspaces/") ? `&channel_id=${channel}` : ""}`,
     )
       .then((r) => {
         if (!cancelled) setData(r.data);
@@ -60,7 +60,7 @@ function LinkPreview({ base, url }: { base: string; url: string }) {
     return () => {
       cancelled = true;
     };
-  }, [base, url]);
+  }, [base, url, channel]);
   return data ? (
     <a
       className="link-preview"
@@ -198,7 +198,7 @@ export function MessageContent({
             />
           );
         return previews && u.protocol === "https:" ? (
-          <LinkPreview key={url} base={base} url={url} />
+          <LinkPreview key={url} base={base} url={url} channel={channel} />
         ) : null;
       })}
     </>

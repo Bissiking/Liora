@@ -135,7 +135,7 @@ integrationRouter.post("/connectors", async (req, res) => {
     );
     if (b.provider !== "braindump") {
       const [t] = await query(
-        "INSERT INTO technical_accounts(workspace_id,name,kind) VALUES($1,$2,'service') RETURNING id",
+        "INSERT INTO technical_accounts(workspace_id,name,kind,permissions) VALUES($1,$2,'service',ARRAY['VIEW_CHANNEL','READ_MESSAGE','SEND_MESSAGE','MENTION_USERS']) RETURNING id",
         [w, b.name],
         db,
       );

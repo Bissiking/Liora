@@ -99,9 +99,6 @@ before(async () => {
   connections = await fixtureConnections(14318);
   process.env.BRAINDUMP_BASE_URL = "http://127.0.0.1:14318";
   process.env.BRAINDUMP_ALLOW_PRIVATE = "true";
-  process.env.GOOGLE_CALENDAR_TEST_ORIGIN = "http://127.0.0.1:14318";
-  process.env.GOOGLE_CALENDAR_CLIENT_ID = "fixture-client";
-  process.env.GOOGLE_CALENDAR_CLIENT_SECRET = "fixture-secret";
   const { createApp, errorHandler } = await import("../src/server/app.js");
   const app = createApp();
   app.use(
@@ -2905,154 +2902,6 @@ test("CalDAV discovery, conditional edits, privacy, device revocation and native
   assert.equal((await dav(home, "PROPFIND", "", { depth: "0" })).status, 401);
 });
 
-test("Google OAuth session binding, encrypted tokens, bidirectional edits, conflicts and deletion", async () => {
-  const me = (await call("/api/v1/me")).body.data;
-  const connect = (await call("/api/v1/google-calendar/connect", "POST")).body;
-  const authResponse = await fetch(connect.url, { redirect: "manual" });
-  const callback = authResponse.headers.get("location")!;
-  const wrong = await fetch(callback, {
-    headers: { cookie: memberCookie },
-    redirect: "manual",
-  });
-  assert.equal(wrong.status, 400);
-  const valid = await fetch(callback, {
-    headers: { cookie },
-    redirect: "manual",
-  });
-  assert.equal(valid.status, 302);
-  const replay = await fetch(callback, {
-    headers: { cookie },
-    redirect: "manual",
-  });
-  assert.equal(replay.status, 400);
-  const [stored] = await db.query(
-    "SELECT tokens FROM google_calendar_connections WHERE user_id=$1",
-    [me.id],
-  );
-  assert.ok(!stored.tokens.includes("fixture-refresh"));
-  assert.equal(
-    (await call("/api/v1/google-calendar/calendars")).body.data[0].id,
-    "primary-fixture",
-  );
-  assert.equal(
-    (
-      await call("/api/v1/google-calendar", "PUT", {
-        workspace_id: workspace,
-        calendar_id: "primary-fixture",
-        enabled: true,
-      })
-    ).status,
-    200,
-  );
-  const event = (
-    await call("/api/v1/workspaces/" + workspace + "/calendar", "POST", {
-      title: "Google aller retour",
-      start_at: "2026-10-08T10:00:00Z",
-      end_at: "2026-10-08T11:00:00Z",
-      timezone: "Europe/Paris",
-    })
-  ).body.data;
-  const privateChannel = (
-    await call("/api/v1/workspaces/" + workspace + "/channels", "POST", {
-      name: "google-prive",
-      type: "text",
-      is_private: true,
-    })
-  ).body.data;
-  await call("/api/v1/workspaces/" + workspace + "/calendar", "POST", {
-    title: "Secret Google interdit",
-    start_at: "2026-10-08T10:00:00Z",
-    channel_id: privateChannel.id,
-  });
-  const first = await call("/api/v1/google-calendar/sync", "POST");
-  assert.equal(first.body.ok, true);
-  assert.ok(
-    ![...connections.events.values()].some(
-      (e) => e.summary === "Secret Google interdit",
-    ),
-  );
-  const [{ google_id }] = await db.query(
-    "SELECT google_id FROM google_calendar_links WHERE event_id=$1",
-    [event.id],
-  );
-  connections.changeGoogle(google_id, { summary: "Changé sur Android" });
-  assert.equal(
-    (await call("/api/v1/google-calendar/sync", "POST")).body.ok,
-    true,
-  );
-  assert.equal(
-    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
-      .body.data.title,
-    "Changé sur Android",
-  );
-  await call(
-    "/api/v1/workspaces/" + workspace + "/calendar/" + event.id,
-    "PATCH",
-    { title: "Changé sur Liora" },
-  );
-  await call("/api/v1/google-calendar/sync", "POST");
-  assert.equal(connections.events.get(google_id)!.summary, "Changé sur Liora");
-  connections.changeGoogle(google_id, { summary: "Version Google" });
-  await call(
-    "/api/v1/workspaces/" + workspace + "/calendar/" + event.id,
-    "PATCH",
-    { title: "Version Liora" },
-  );
-  const conflict = await call("/api/v1/google-calendar/sync", "POST");
-  assert.ok(conflict.body.conflicts > 0);
-  assert.equal(connections.events.get(google_id)!.summary, "Version Google");
-  assert.equal(
-    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
-      .body.data.title,
-    "Version Liora",
-  );
-  assert.ok(
-    (await call("/api/v1/google-calendar")).body.issues.some(
-      (i: any) => i.google_id === google_id,
-    ),
-  );
-  await call("/api/v1/google-calendar/resolve", "POST", {
-    google_id,
-    version: "google",
-  });
-  assert.equal(
-    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
-      .body.data.title,
-    "Version Google",
-  );
-  connections.changeGoogle(google_id, { status: "cancelled" });
-  await call("/api/v1/google-calendar/sync", "POST");
-  assert.equal(
-    (await call("/api/v1/workspaces/" + workspace + "/calendar/" + event.id))
-      .status,
-    404,
-  );
-  const e2 = (
-    await call("/api/v1/workspaces/" + workspace + "/calendar", "POST", {
-      title: "Supprimer depuis Liora",
-      start_at: "2026-10-10T10:00:00Z",
-    })
-  ).body.data;
-  await call("/api/v1/google-calendar/sync", "POST");
-  const [link2] = await db.query(
-    "SELECT google_id FROM google_calendar_links WHERE event_id=$1",
-    [e2.id],
-  );
-  await call(
-    "/api/v1/workspaces/" + workspace + "/calendar/" + e2.id,
-    "DELETE",
-  );
-  await call("/api/v1/google-calendar/sync", "POST");
-  assert.equal(connections.events.get(link2.google_id)!.status, "cancelled");
-  assert.equal(
-    (await call("/api/v1/google-calendar", "GET", undefined, memberCookie)).body
-      .connected,
-    false,
-  );
-  await call("/api/v1/google-calendar", "DELETE");
-  assert.equal((await call("/api/v1/google-calendar")).body.connected, false);
-});
-
 test("BrainDump integration uses real module routes, private consent, refresh and revocation", async () => {
   provider.setSubject("test-owner");
   const remote = await fixtureBrainDump(
@@ -3272,6 +3121,437 @@ test("BrainDump integration uses real module routes, private consent, refresh an
   } finally {
     await remote.close();
   }
+});
+
+test("1.0 channel overrides, slowmode, unread state and member partial updates preserve isolation", async () => {
+  const base = `/api/v1/workspaces/${workspace}`;
+  provider.setSubject("v1-member");
+  const auth = await login();
+  provider.setSubject("test-owner");
+  const u = (await call("/api/v1/me", "GET", undefined, auth)).body.data;
+  const grants = [
+    "VIEW_WORKSPACE",
+    "VIEW_CHANNEL",
+    "READ_MESSAGE",
+    "SEND_MESSAGE",
+    "ATTACH_FILES",
+    "MENTION_USERS",
+    "ADD_REACTION",
+    "CREATE_THREAD",
+    "REPLY_THREAD",
+    "EDIT_OWN_MESSAGE",
+    "DELETE_OWN_MESSAGE",
+  ];
+  const role = (
+    await call(`${base}/roles`, "POST", {
+      name: "V1 member",
+      permissions: grants,
+    })
+  ).body.data;
+  assert.equal(
+    (
+      await call(`${base}/members`, "POST", {
+        kyros_user_id: "v1-member",
+        role_id: role.id,
+      })
+    ).status,
+    201,
+  );
+  assert.equal(
+    (await call(`${base}/members/${u.id}`, "PATCH", { role_id: role.id }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await call(`${base}/members`)).body.data.find((m: any) => m.id === u.id)
+      .state,
+    "active",
+  );
+  const ch = (await call(`${base}/channels`, "POST", { name: "v1-acl" })).body
+    .data;
+  const override = (permissions: Record<string, boolean>, user = false) =>
+    call(`${base}/channels/${ch.id}/permissions`, "PUT", {
+      role_id: user ? null : role.id,
+      user_id: user ? u.id : null,
+      permissions,
+    });
+  assert.equal((await override({ SEND_MESSAGE: false })).status, 200);
+  assert.equal(
+    (
+      await call(
+        `${base}/channels/${ch.id}/messages`,
+        "POST",
+        { content: "refused" },
+        auth,
+      )
+    ).status,
+    403,
+  );
+  assert.equal((await override({ SEND_MESSAGE: true }, true)).status, 200);
+  assert.equal(
+    (
+      await call(
+        `${base}/channels/${ch.id}/messages`,
+        "POST",
+        { content: "allowed" },
+        auth,
+      )
+    ).status,
+    201,
+  );
+  assert.equal(
+    (
+      await call(`${base}/channels/${ch.id}/options`, "PATCH", {
+        slowmode_seconds: 60,
+        threads_enabled: false,
+      })
+    ).status,
+    200,
+  );
+  const races = await Promise.all(
+    [1, 2].map((i) =>
+      call(
+        `${base}/channels/${ch.id}/messages`,
+        "POST",
+        { content: `slow ${i}` },
+        auth,
+      ),
+    ),
+  );
+  assert.ok(races.every((r) => r.status === 429));
+  const concurrent = (
+    await call(`${base}/channels`, "POST", { name: "slowmode-first-race" })
+  ).body.data;
+  await call(`${base}/channels/${concurrent.id}/options`, "PATCH", {
+    slowmode_seconds: 60,
+    threads_enabled: true,
+  });
+  const firstRaces = await Promise.all(
+    [1, 2].map((i) =>
+      call(
+        `${base}/channels/${concurrent.id}/messages`,
+        "POST",
+        { content: `First ${i}` },
+        auth,
+      ),
+    ),
+  );
+  assert.deepEqual(
+    firstRaces.map((r) => r.status).sort(),
+    [201, 429],
+    "Only one first concurrent message passes slowmode",
+  );
+  assert.equal(
+    (
+      await call(`${base}/channels/${ch.id}/messages`, "POST", {
+        content: "owner bypass",
+      })
+    ).status,
+    201,
+  );
+  const msg = (await call(`${base}/channels/${ch.id}/messages`)).body.data.at(
+    -1,
+  );
+  assert.equal(
+    (
+      await call(
+        `${base}/channels/${ch.id}/read`,
+        "POST",
+        { through: msg.id },
+        auth,
+      )
+    ).status,
+    200,
+  );
+  let visible = (
+    await call(`${base}/channels`, "GET", undefined, auth)
+  ).body.data.find((c: any) => c.id === ch.id);
+  assert.equal(visible.unread_count, 0);
+  assert.equal((await override({ READ_MESSAGE: false }, true)).status, 200);
+  assert.equal(
+    (await call(`${base}/channels/${ch.id}/messages`, "GET", undefined, auth))
+      .status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(`${base}/search?q=owner`, "GET", undefined, auth)
+    ).body.data.some((m: any) => m.channel_id === ch.id),
+    false,
+  );
+  assert.equal(
+    (await call(`${base}/channels/${ch.id}/context`, "GET", undefined, auth))
+      .status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(
+        `${base}/link-preview?channel_id=${ch.id}&url=https%3A%2F%2Fexample.com`,
+        "GET",
+        undefined,
+        auth,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await override({ READ_MESSAGE: false, MANAGE_CHANNEL: true }, true))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await call(`${base}/channels/${ch.id}/settings`, "GET", undefined, auth))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await call(`${base}/channels/${ch.id}/access`, "GET", undefined, auth))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await call(`${base}/channels/${ch.id}/groups`, "GET", undefined, auth))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await call(`${base}/channels/${ch.id}/follow`, "GET", undefined, auth))
+      .status,
+    403,
+  );
+  await override({ MANAGE_CHANNEL: false }, true);
+  assert.equal(
+    (
+      await call(
+        `${base}/channels/${ch.id}/access`,
+        "PUT",
+        { user_ids: [] },
+        auth,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(
+        `${base}/channels/${ch.id}/groups`,
+        "PUT",
+        { group_ids: [] },
+        auth,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await call(
+        `${base}/channels/${ch.id}/permissions`,
+        "PUT",
+        {
+          role_id: role.id,
+          user_id: null,
+          permissions: { MANAGE_CHANNEL: true },
+        },
+        auth,
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await call(`${base}/members/${u.id}`, "PATCH", { state: "disabled" }))
+      .status,
+    200,
+  );
+  assert.equal(
+    (await call(`${base}/channels`, "GET", undefined, auth)).status,
+    403,
+  );
+  assert.equal(
+    (await call(`${base}/members/${u.id}`, "PATCH", { state: "active" }))
+      .status,
+    200,
+  );
+});
+test("1.0 personal reminders work without a workspace and create durable personal deliveries", async () => {
+  provider.setSubject("v1-personal");
+  const auth = await login();
+  provider.setSubject("test-owner");
+  const me = (await call("/api/v1/me", "GET", undefined, auth)).body;
+  assert.equal(me.workspaces.length, 0);
+  const created = await call(
+    "/api/v1/me/reminders",
+    "POST",
+    {
+      title: "Personal due",
+      remind_at: new Date(Date.now() - 1000).toISOString(),
+      timezone: "Europe/Paris",
+    },
+    auth,
+  );
+  assert.equal(created.status, 201);
+  const { seal } = await import("../src/server/crypto.js");
+  await db.query(
+    "INSERT INTO gotify_connections(user_id,url,token,enabled) VALUES($1,'https://gotify.example.test',$2,true)",
+    [me.data.id, await seal("personal-fixture-token")],
+  );
+  assert.equal(
+    (
+      await call(`/api/v1/me/reminders/${created.body.data.id}`, "PATCH", {
+        title: "Private",
+      })
+    ).status,
+    404,
+  );
+  const { processReminders } =
+    await import("../src/server/experience-worker.js");
+  await Promise.all([processReminders(), processReminders()]);
+  const inbox = (await call("/api/v1/me/notifications", "GET", undefined, auth))
+    .body.data;
+  assert.equal(inbox.length, 1);
+  assert.equal(inbox[0].title, "Personal due");
+  assert.equal(inbox[0].workspace_id, undefined);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int count FROM personal_gotify_deliveries WHERE user_id=$1",
+        [me.data.id],
+      )
+    )[0].count,
+    1,
+  );
+  const { processGotifyDeliveries } = await import("../src/server/gotify.js");
+  let sent = 0;
+  await processGotifyDeliveries(async (_url, token, payload) => {
+    sent++;
+    assert.equal(token, "personal-fixture-token");
+    assert.equal(JSON.stringify(payload).includes("Personal due"), false);
+    return 200;
+  });
+  assert.equal(sent, 1);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT state FROM personal_gotify_deliveries WHERE user_id=$1",
+        [me.data.id],
+      )
+    )[0].state,
+    "sent",
+  );
+  assert.equal(
+    (
+      await call(
+        `/api/v1/me/notifications/${inbox[0].id}`,
+        "PATCH",
+        { state: "read" },
+        auth,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await call("/api/v1/me/favorites", "GET", undefined, auth)).body.data
+      .length,
+    0,
+  );
+  assert.equal(
+    (await call("/api/v1/me/conversations", "GET", undefined, auth)).status,
+    200,
+  );
+  assert.equal(
+    (
+      await call(
+        `/api/v1/me/reminders/${created.body.data.id}`,
+        "PATCH",
+        {
+          state: "snoozed",
+          remind_at: new Date(Date.now() + 60000).toISOString(),
+        },
+        auth,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await call(
+        `/api/v1/me/reminders/${created.body.data.id}`,
+        "DELETE",
+        undefined,
+        auth,
+      )
+    ).status,
+    200,
+  );
+});
+test("1.0 generic webhook embeds persist safely, record receptions, and retain text compatibility", async () => {
+  const base = `/api/v1/workspaces/${workspace}`,
+    ch = (await call(`${base}/channels`, "POST", { name: "v1-webhook" })).body
+      .data;
+  const hook = await call(`${base}/webhooks`, "POST", {
+    name: "V1 embed",
+    channel_id: ch.id,
+  });
+  assert.equal(hook.status, 201);
+  const payload = {
+    mode: "EMBED",
+    embed: {
+      title: "Deploy",
+      description: "**Complete**",
+      color: "#b8dfb4",
+      url: "https://example.com/deploy",
+      author: { name: "Runner" },
+      footer: { text: "LUMA" },
+      timestamp: new Date().toISOString(),
+      fields: [{ name: "Version", value: "1.0", inline: true }],
+    },
+    metadata: { build: 42 },
+  };
+  const publicUrl = new URL(hook.body.url);
+  let sent = await call(publicUrl.pathname, "POST", payload);
+  assert.equal(sent.status, 202);
+  const messages = (await call(`${base}/channels/${ch.id}/messages`)).body.data;
+  assert.equal(messages.at(-1).rich_content.embed.title, "Deploy");
+  assert.match(messages.at(-1).content, /Deploy/);
+  assert.equal(
+    (await call(`${base}/webhooks/${hook.body.data.id}/test`, "POST", payload))
+      .status,
+    202,
+  );
+  const history = (await call(`${base}/webhooks/${hook.body.data.id}/history`))
+    .body.data;
+  assert.equal(history.length, 2);
+  assert.equal(history[0].http_status, 202);
+  assert.equal(history[0].is_test, true);
+  assert.equal(
+    (
+      await call(publicUrl.pathname, "POST", {
+        mode: "EMBED",
+        embed: { title: "bad", image: "javascript:alert(1)" },
+      })
+    ).status,
+    400,
+  );
+  const failures = (await call(`${base}/webhooks/${hook.body.data.id}/history`))
+    .body.data;
+  assert.equal(failures[0].http_status, 400);
+  assert.equal(
+    (await call(publicUrl.pathname, "POST", { content: "Still text" })).status,
+    202,
+  );
+  assert.equal(
+    (await call(`${base}/webhooks/${hook.body.data.id}`, "DELETE")).status,
+    200,
+  );
+  assert.equal(
+    (await call(`${base}/webhooks/${hook.body.data.id}/test`, "POST", payload))
+      .status,
+    404,
+  );
+  assert.equal(
+    (await call("/api/v1/google-calendar/connect", "POST")).status,
+    404,
+  );
 });
 
 test("SSE delivers durable invalidations and session revocation closes access", async () => {

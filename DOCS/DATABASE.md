@@ -1,5 +1,9 @@
 # PostgreSQL
 
+## Migrations 012–015 — 1.0.0-beta.1
+
+012 ajoute les rappels, notifications et files push/Gotify personnels sans déplacer les données workspace historiques. 013 ajoute username, options des canaux, overrides et la fonction `channel_permission`, et dérive les nouvelles capacités des droits antérieurs. 014 ajoute marqueurs de lecture, point de bascule et liaison notification/message. 015 ajoute rich_content, historique de réception et source/statut/date des envois webhook. Les migrations 001–011 ne changent pas ; Pages et tables Google sont conservées. Le test E2E courant met à niveau un schéma 0.7.1 rempli et vérifie la conservation d’une Page et connexion Google, puis l’idempotence. Aucune base principale migrée.
+
 Migrations : `npm run db:migrate`. Le runner prend un verrou global, exécute les nouvelles migrations dans une transaction et enregistre leur SHA-256. Ne jamais modifier une migration déjà déployée : ajouter un fichier numéroté.
 
 `001_initial.sql` crée les utilisateurs, sessions, tentatives PAR, workspaces, membres, rôles (permissions atomiques en tableau), catégories, salons, projets, messages/réactions, identités techniques, boards/colonnes/cartes/commentaires, pages/blocs JSONB, notifications, webhooks entrants/sortants et livraisons, intégrations, audit, feature flags, pièces jointes, emojis, monitoring et idempotence.

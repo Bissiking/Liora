@@ -20,7 +20,12 @@ import { api, collection } from "./api";
 import type { Row, Result } from "./types";
 import { Empty, FormDialog, Modal, type Field } from "./ui";
 import { Markdown, MarkdownEditor } from "./Markdown";
-import { ContextMenu, type MenuState } from "./ContextMenu";
+import {
+  useContextMenu,
+  EntityMenu,
+  nativeTarget,
+} from "./ContextMenuProvider";
+import { type MenuState } from "./ContextMenu";
 import { useCallback } from "react";
 import { TaskExtras } from "./TaskExtras";
 export function Projects({
@@ -40,6 +45,7 @@ export function Projects({
   refresh: () => void;
   fail: (e: unknown) => void;
 }) {
+  const showMenu = useContextMenu();
   const [menu, setMenu] = useState<MenuState | null>(null),
     [projectQuery, setProjectQuery] = useState(""),
     [dragColumn, setDragColumn] = useState("");
@@ -257,7 +263,7 @@ export function Projects({
               .catch(fail);
         },
       });
-    setMenu({ x, y, trigger, actions, label: `Actions de ${task.title}` });
+    showMenu({ x, y, trigger, actions, label: `Actions de ${task.title}` });
   }
   function columnMenu(column: Row, trigger: HTMLElement, x: number, y: number) {
     const ordered = columns
@@ -313,7 +319,7 @@ export function Projects({
         });
     }
     if (actions.length)
-      setMenu({ x, y, trigger, actions, label: `Actions de ${column.name}` });
+      showMenu({ x, y, trigger, actions, label: `Actions de ${column.name}` });
   }
   async function move(task: Row, column: string) {
     try {
@@ -475,26 +481,77 @@ export function Projects({
                   .includes(projectQuery.toLocaleLowerCase("fr")),
               )
               .map((p) => (
-                <button
+                <EntityMenu
                   key={p.id}
-                  className={projectId === p.id ? "active" : ""}
-                  aria-label={p.name}
-                  aria-pressed={projectId === p.id}
-                  onClick={() => {
-                    setProject(p.id);
-                    setBoard("");
-                  }}
+                  label={`Projet ${p.name}`}
+                  actions={[
+                    {
+                      label: "Ouvrir",
+                      run: () => {
+                        setProject(p.id);
+                        setBoard("");
+                      },
+                    },
+                    {
+                      label: "Copier l’ID",
+                      run: () =>
+                        void navigator.clipboard.writeText(p.id).catch(fail),
+                    },
+                    ...(can("MANAGE_PROJECT")
+                      ? [
+                          {
+                            label: "Renommer",
+                            run: () =>
+                              setForm({
+                                title: "Renommer le projet",
+                                fields: [
+                                  { key: "name", label: "Nom", value: p.name },
+                                ],
+                                save: async (d) => {
+                                  await api(
+                                    `${base}/projects/${p.id}`,
+                                    "PATCH",
+                                    d,
+                                  );
+                                  refresh();
+                                },
+                              }),
+                          },
+                          {
+                            label: p.archived ? "Restaurer" : "Archiver",
+                            run: () =>
+                              void api(`${base}/projects/${p.id}`, "PATCH", {
+                                archived: !p.archived,
+                              })
+                                .then(refresh)
+                                .catch(fail),
+                          },
+                        ]
+                      : []),
+                  ]}
                 >
-                  <span className="project-monogram">{p.name.slice(0, 1)}</span>
-                  <span>
-                    <strong>{p.name}</strong>
-                    <small>
-                      {p.archived
-                        ? "Archivé"
-                        : `${boards.filter((b) => b.project_id === p.id && !b.archived).length} tableaux`}
-                    </small>
-                  </span>
-                </button>
+                  <button
+                    className={projectId === p.id ? "active" : ""}
+                    aria-label={p.name}
+                    aria-pressed={projectId === p.id}
+                    onClick={() => {
+                      setProject(p.id);
+                      setBoard("");
+                    }}
+                  >
+                    <span className="project-monogram">
+                      {p.name.slice(0, 1)}
+                    </span>
+                    <span>
+                      <strong>{p.name}</strong>
+                      <small>
+                        {p.archived
+                          ? "Archivé"
+                          : `${boards.filter((b) => b.project_id === p.id && !b.archived).length} tableaux`}
+                      </small>
+                    </span>
+                  </button>
+                </EntityMenu>
               ))}
           </div>
           {projectQuery &&
@@ -507,7 +564,7 @@ export function Projects({
         <div className="project-stage">
           {!activeProjects.length && !boards.some((b) => !b.project_id) ? (
             <Empty title="Votre première idée mérite un projet">
-              Créez un projet pour réunir vos tableaux et vos pages.
+              Créez un projet pour réunir vos tableaux et vos cartes.
             </Empty>
           ) : (
             <>
@@ -761,8 +818,20 @@ export function Projects({
                       <section
                         key={c.id}
                         className={`kanban-column ${dragColumn === c.id ? "drop-target" : ""}`}
-                        tabIndex={-1}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (
+                            e.shiftKey &&
+                            e.key === "F10" &&
+                            !nativeTarget(e.target)
+                          ) {
+                            e.preventDefault();
+                            const r = e.currentTarget.getBoundingClientRect();
+                            columnMenu(c, e.currentTarget, r.left, r.top);
+                          }
+                        }}
                         onContextMenu={(e) => {
+                          if (nativeTarget(e.target)) return;
                           if (
                             can("MANAGE_BOARD") &&
                             !archived &&
@@ -867,6 +936,7 @@ export function Projects({
                               tabIndex={0}
                               aria-label={`Carte : ${t.title}`}
                               onContextMenu={(e) => {
+                                if (nativeTarget(e.target)) return;
                                 e.preventDefault();
                                 cardMenu(
                                   t,
@@ -1023,7 +1093,6 @@ export function Projects({
           )}
         </div>
       </div>
-      {menu && <ContextMenu menu={menu} close={closeMenu} />}
       {form && (
         <FormDialog
           title={form.title}

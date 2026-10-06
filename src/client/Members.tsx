@@ -1,9 +1,10 @@
 // src/client/Members.tsx
+import { Groups } from "./Groups";
 import { useEffect, useState } from "react";
 import { UserPlus, ChevronDown, Shield, Trash2 } from "lucide-react";
 import { api, collection } from "./api";
 import type { Row, Result } from "./types";
-import { Avatar } from "./ui";
+import { Avatar, Modal } from "./ui";
 
 export function Members({
   base,
@@ -50,6 +51,7 @@ export function Members({
     setEditGroups(m.group_ids || []);
   };
 
+  const [groupsOpen, setGroupsOpen] = useState(false);
   const saveEdit = (id: string) =>
     void api(`${base}/members/${id}`, "PATCH", {
       role_id: editRole,
@@ -86,9 +88,16 @@ export function Members({
 
   return (
     <div className="page members-page">
+      {groupsOpen && (
+        <Modal title="Groupes" onClose={() => setGroupsOpen(false)}>
+          <Groups base={base} fail={fail} />
+        </Modal>
+      )}
       <header className="page-heading">
         <div>
-          <h1>Membres · {members.filter((m) => m.state === "active").length}</h1>
+          <h1>
+            Membres · {members.filter((m) => m.state === "active").length}
+          </h1>
           <p>Gérez les membres et leurs rôles.</p>
         </div>
         {can("MANAGE_MEMBERS") && (
@@ -142,6 +151,7 @@ export function Members({
               {editing === m.id ? (
                 <div className="member-edit">
                   <select
+                    aria-label="Rôle du membre"
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value)}
                   >
@@ -164,13 +174,17 @@ export function Members({
               ) : (
                 <div className="member-actions">
                   {can("MANAGE_MEMBERS") && !m.is_owner && (
-                    <button onClick={() => startEdit(m)}>
+                    <button
+                      aria-label={`Gérer le rôle de ${m.name}`}
+                      onClick={() => startEdit(m)}
+                    >
                       <Shield size={14} />
                     </button>
                   )}
                   {can("MANAGE_MEMBERS") && !m.is_owner && (
                     <button
                       className="icon-button danger"
+                      aria-label={`Retirer ${m.name}`}
                       onClick={() => removeMember(m.id, m.name)}
                     >
                       <Trash2 size={14} />
@@ -185,9 +199,7 @@ export function Members({
       {can("MANAGE_MEMBERS") && groups.length > 0 && (
         <section className="members-groups">
           <h2>Groupes</h2>
-          <p className="muted">
-            Les groupes donnent accès aux salons privés.
-          </p>
+          <p className="muted">Les groupes donnent accès aux salons privés.</p>
           <div className="members-groups-list">
             {groups.map((g) => (
               <div key={g.id} className="group-chip">
@@ -196,9 +208,7 @@ export function Members({
               </div>
             ))}
           </div>
-          <button onClick={() => can("MANAGE_MEMBERS") && load()}>
-            Gérer les groupes
-          </button>
+          <button onClick={() => setGroupsOpen(true)}>Gérer les groupes</button>
         </section>
       )}
     </div>

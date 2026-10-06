@@ -15,7 +15,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { api } from "./api";
 import type { Row, Result } from "./types";
 import { FriendMessenger } from "./FriendMessenger";
-import { Avatar } from "./ui";
+import { Avatar, Modal } from "./ui";
+import { messageExcerpt } from "../shared/message-preview";
 export function Invitation({
   token,
   done,
@@ -90,19 +91,11 @@ export function Friends({
   revision: number;
   fail: (e: unknown) => void;
 }) {
-  const preview = (text: string) =>
-    text
-      .replace(/(^|\n)\s{0,3}#{1,6}\s+/g, "$1")
-      .replace(/(\*\*|~~|\+\+|__|`)/g, "")
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-      .replace(/\s+/g, " ")
-      .trim();
   const [conversation, setConversation] = useState<Row | null>(null);
   const [friends, setFriends] = useState<Row[]>([]),
     [invites, setInvites] = useState<
       (Row & { accepted_by?: string; expires_at: string })[]
     >([]),
-    [online, setOnline] = useState(false),
     [filter, setFilter] = useState("all"),
     [search, setSearch] = useState(""),
     [loading, setLoading] = useState(true),
@@ -138,18 +131,19 @@ export function Friends({
   const pending = invites.filter(
     (i) => !i.revoked && !i.accepted_by && new Date(i.expires_at) > new Date(),
   );
-  const sent = invites.filter(
-    (i) => i.accepted_by || i.revoked || new Date(i.expires_at) <= new Date(),
-  );
   return (
     <div
-      className={`page friends-page ${conversation ? "has-conversation" : ""}`}
+      className={`page friends-page social-page ${conversation ? "has-conversation" : ""}`}
     >
       <header className="page-heading">
         <div>
           <h1>Amis</h1>
-          <p>Retrouvez vos échanges, même sans espace commun.</p>
+          <p>Vos proches, à un message de distance.</p>
         </div>
+        <button className="primary" onClick={() => setOpenInvite(true)}>
+          <UserPlus size={17} />
+          Ajouter un ami
+        </button>
       </header>
 
       <div className="friends-workspace">
@@ -160,7 +154,7 @@ export function Friends({
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nom ou conversation…"
+              placeholder="Nom ou conversation"
             />
           </label>
           <div className="friend-filters segmented">
@@ -241,7 +235,7 @@ export function Friends({
                           </strong>
                           {f.last_message && (
                             <small>
-                              {preview(f.last_message).slice(0, 90)}
+                              {messageExcerpt(f.last_message).slice(0, 90)}
                             </small>
                           )}
                           <span className="friend-status">
@@ -297,95 +291,6 @@ export function Friends({
                 </p>
               )}
             </div>
-          </section>
-
-          <section className="friends-section">
-            <button
-              className="friends-section-header"
-              disabled={!workspace}
-              onClick={() => setOpenInvite(!openInvite)}
-            >
-              <UserPlus size={18} />
-              <span>Créer une invitation</span>
-              <ChevronDown
-                size={16}
-                className={`chevron ${openInvite ? "open" : ""}`}
-              />
-            </button>
-            {!workspace && (
-              <p className="muted">
-                Pour inviter un nouvel ami, créez ou rejoignez un espace. Vos
-                conversations existantes restent accessibles ici.
-              </p>
-            )}
-            {openInvite && workspace && (
-              <div className="friends-section-body">
-                <label className="check-line">
-                  <input
-                    type="checkbox"
-                    checked={allowJoin}
-                    onChange={(e) => setAllowJoin(e.target.checked)}
-                  />
-                  Autoriser aussi l'accès à mon espace
-                </label>
-                <button
-                  className="primary"
-                  onClick={() =>
-                    void api<{ url: string }>("/api/v1/invitations", "POST", {
-                      workspace_id: workspace,
-                      allow_join: allowJoin,
-                    })
-                      .then((r) => {
-                        setLink(r.url);
-                        load();
-                      })
-                      .catch(fail)
-                  }
-                >
-                  <UserPlus size={16} />
-                  Générer un lien
-                </button>
-                {link && (
-                  <div className="invitation-card">
-                    <div className="invitation-card-link">
-                      <Link size={16} />
-                      <div>
-                        <strong>Lien à usage unique</strong>
-                        <p>Valable 7 jours</p>
-                        <input
-                          aria-label="Lien d'invitation"
-                          value={link}
-                          readOnly
-                          onFocus={(e) => e.target.select()}
-                        />
-                      </div>
-                      <button
-                        onClick={() =>
-                          void navigator.clipboard
-                            .writeText(link)
-                            .then(() => setCopied(true))
-                            .catch(fail)
-                        }
-                      >
-                        <Copy size={14} />
-                        {copied ? "Copié" : "Copier"}
-                      </button>
-                    </div>
-                    <div className="invitation-card-qr">
-                      <QRCodeSVG
-                        value={link}
-                        size={100}
-                        bgColor="var(--surface)"
-                        fgColor="var(--text)"
-                      />
-                      <span>
-                        <QrCode size={11} /> Scanner
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </section>
 
           <section className="friends-section">
@@ -451,15 +356,98 @@ export function Friends({
           ) : (
             <div className="friend-conversation-empty">
               <MessageSquare size={32} />
-              <h2>Une conversation, un lien</h2>
+              <h2>Prenez des nouvelles</h2>
               <p>
-                Choisissez un ami pour retrouver vos échanges ou lui écrire. Les
-                messages restent disponibles à son retour.
+                Choisissez un ami pour lui écrire, ou partagez une invitation
+                pour retrouver vos proches.
               </p>
             </div>
           )}
         </div>
       </div>
+      {openInvite && (
+        <Modal
+          title="Ajouter un ami"
+          className="friend-invite-dialog"
+          onClose={() => setOpenInvite(false)}
+        >
+          {" "}
+          {!workspace && (
+            <p className="muted">
+              Pour inviter un nouvel ami, créez ou rejoignez un espace. Vos
+              conversations existantes restent accessibles ici.
+            </p>
+          )}
+          {workspace && (
+            <div className="friends-section-body">
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={allowJoin}
+                  onChange={(e) => setAllowJoin(e.target.checked)}
+                />
+                Autoriser aussi l'accès à mon espace
+              </label>
+              <button
+                className="primary"
+                onClick={() =>
+                  void api<{ url: string }>("/api/v1/invitations", "POST", {
+                    workspace_id: workspace,
+                    allow_join: allowJoin,
+                  })
+                    .then((r) => {
+                      setLink(r.url);
+                      load();
+                    })
+                    .catch(fail)
+                }
+              >
+                <UserPlus size={16} />
+                Générer un lien
+              </button>
+              {link && (
+                <div className="invitation-card">
+                  <div className="invitation-card-link">
+                    <Link size={16} />
+                    <div>
+                      <strong>Lien à usage unique</strong>
+                      <p>Valable 7 jours</p>
+                      <input
+                        aria-label="Lien d'invitation"
+                        value={link}
+                        readOnly
+                        onFocus={(e) => e.target.select()}
+                      />
+                    </div>
+                    <button
+                      onClick={() =>
+                        void navigator.clipboard
+                          .writeText(link)
+                          .then(() => setCopied(true))
+                          .catch(fail)
+                      }
+                    >
+                      <Copy size={14} />
+                      {copied ? "Copié" : "Copier"}
+                    </button>
+                  </div>
+                  <div className="invitation-card-qr">
+                    <QRCodeSVG
+                      value={link}
+                      size={100}
+                      bgColor="var(--surface)"
+                      fgColor="var(--text)"
+                    />
+                    <span>
+                      <QrCode size={11} /> Scanner
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

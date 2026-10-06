@@ -20,6 +20,8 @@ import { storageRouter } from "./storage.js";
 import { granted, visibleChannel } from "./access.js";
 import { KyrosTokenError } from "./kyros.js";
 import { HttpError, assert } from "./errors.js";
+import { channelsRouter } from "./channels.js";
+import { personalActivityRouter } from "./personal-activity.js";
 import { VERSION } from "../shared/version.js";
 import { socialRouter } from "./social.js";
 import { collaborationRouter } from "./collaboration.js";
@@ -34,7 +36,6 @@ import { gotifyRouter } from "./gotify.js";
 import { pushRouter } from "./push.js";
 import { themeIds } from "../shared/themes.js";
 import { notesRouter } from "./notes.js";
-import { googleCalendarRouter } from "./google-calendar.js";
 import { caldavRouter, calendarCredentialsRouter } from "./caldav.js";
 import { personalRouter } from "./personal.js";
 export { VERSION };
@@ -171,11 +172,11 @@ export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
   app.use("/auth", authRouter);
   app.use("/api/webhooks", webhookRouter);
   app.use("/api/v1", authenticate);
+  app.use("/api/v1/me", personalActivityRouter);
   app.use(
     "/api/v1",
     gotifyRouter,
     notesRouter,
-    googleCalendarRouter,
     calendarCredentialsRouter,
     socialRouter,
     personalRouter,
@@ -433,6 +434,7 @@ export function createApp({ scriptHashes = [] }: AppSecurityOptions = {}) {
     pushRouter,
     previewRouter,
     collaborationRouter,
+    channelsRouter,
     chatRouter,
     adminRouter,
     storageRouter,

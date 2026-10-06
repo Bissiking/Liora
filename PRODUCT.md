@@ -20,7 +20,7 @@ Relier conversation, tâches et événements de l'écosystème dans des workspac
 
 ## Capabilities and Constraints
 
-Kyros SSO v4 authentifie uniquement. Autorisations locales, PostgreSQL obligatoire, bots et services distincts des humains, modules Jellyfin/demandes de médias désactivés. Les images et GIF partagés dans le chat disposent d’aperçus. Modules administrés en base, DropIt personnel, événements et règles filtrées. Calendrier récurrent, rappels effectifs, favoris, recherche filtrée et Web Push sur consentement complètent le lot expérience. Version courante 0.7.1 BETA ; historique dans CHANGELOG.md.
+Kyros SSO v4 authentifie uniquement. Autorisations locales, PostgreSQL obligatoire, bots et services distincts des humains, modules Jellyfin/demandes de médias désactivés. Les images et GIF partagés dans le chat disposent d’aperçus. Modules administrés en base, DropIt personnel, événements et règles filtrées. Calendrier récurrent, rappels effectifs, favoris, recherche filtrée et Web Push sur consentement complètent le lot expérience. Version courante 1.0.0-beta.1 ; historique dans CHANGELOG.md.
 
 ## Evidence on Hand
 
@@ -54,3 +54,7 @@ Notes datées personnelles reliées à BrainDump, Google Agenda dans les deux se
 ## Intégration BrainDump — 0.7.1 du 5 octobre 2026
 
 BrainDump 2.1.0 rejoint DropIt dans les paramètres : configuration en base, consentement personnel et PKCE, même sujet/émetteur Kyros, lecture seule des notes datées, refresh rotatif, révocation et retrait des copies. Aucune publication des notes privées dans un salon. Migration Liora 011 et SQLite BrainDump additive 3. Configuration et limites : DOCS/RELEASE_0.7.1.md. Fournisseurs réels et déploiement restent à qualifier.
+
+## Direction 1.0 — 6 octobre 2026
+
+Rail personnel/workspaces, navigation propre à chaque contexte et panneau utile pour les canaux. Rappels et activité personnels disponibles sans workspace ; favoris historiques agrégés selon les droits. Profils et menus centralisés sur les objets applicatifs. Canaux : droits par rôle/utilisateur, slowmode, fils et non-lus. Webhooks génériques TEXT/EMBED avec aperçu, test et historique. CalDAV devient le parcours officiel ; Google OAuth/runtime et interface Pages retirés, données historiques et API Pages conservées. Une géométrie commune aux dix palettes, synchronisation du thème inchangée. Version de développement 1.0.0-beta.1 ; qualification externe de stabilité encore ouverte.

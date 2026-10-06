@@ -1,13 +1,10 @@
 // scripts/e2e.ts
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdir, appendFile, writeFile, readFile } from "node:fs/promises";
-import { randomBytes } from "node:crypto";
+import { mkdir, appendFile, readdir, readFile } from "node:fs/promises";
+import { randomBytes, createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import pg from "pg";
 import puppeteer from "puppeteer";
-import { fixtureConnections } from "../tests/fixtures/connections.js";
-import { fixtureDropIt } from "../tests/fixtures/dropit.js";
-import { fixtureBrainDump } from "../tests/fixtures/braindump.js";
 import { fakeKyros } from "../tests/fixtures/kyros.js";
 import { fixturePlaces } from "../tests/fixtures/places.js";
 const origin = "http://localhost:14320";
@@ -17,7 +14,7 @@ process.env.DATABASE_URL =
 assert.match(
   new URL(process.env.DATABASE_URL).pathname,
   /_e2e$/,
-  "E2E requires a database ending in _e2e",
+  "E2E requires an isolated _e2e database",
 );
 Object.assign(process.env, {
   NODE_ENV: "production",
@@ -30,7 +27,6 @@ Object.assign(process.env, {
   KYROS_CLIENT_SECRET: "",
   KYROS_SCOPES: "profile email offline_access",
   KYROS_ISSUER: "",
-  KYROS_AUDIENCE: "kyros-modules",
   KYROS_RESOURCE_AUDIENCE: "kyros:liora",
   BOOTSTRAP_OWNER_KYROS_ID: "test-owner",
   ARGOS_BASE_URL: "",
@@ -40,2685 +36,839 @@ Object.assign(process.env, {
   VAPID_SUBJECT: "",
   PLACES_GEOCODER_URL: "http://127.0.0.1:14326/photon",
 });
-if (process.env.E2E_070_ONLY === "1")
-  Object.assign(process.env, {
-    NODE_ENV: "test",
-    BRAINDUMP_BASE_URL: "http://127.0.0.1:14328",
-    BRAINDUMP_ALLOW_PRIVATE: "true",
-    GOOGLE_CALENDAR_TEST_ORIGIN: "http://127.0.0.1:14328",
-    GOOGLE_CALENDAR_CLIENT_ID: "fixture-client",
-    GOOGLE_CALENDAR_CLIENT_SECRET: "fixture-secret",
-  });
 const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
 await db.query("DROP SCHEMA public CASCADE");
 await db.query("CREATE SCHEMA public");
-const { migrate } = await import("./migrate.js");
-const { seed } = await import("./seed.js");
-const { pool } = await import("../src/server/db.js");
-await migrate();
-await seed();
-const provider = await fakeKyros(14322, origin);
-const placesProvider = await fixturePlaces(14326);
-const connections070 =
-  process.env.E2E_070_ONLY === "1" ? await fixtureConnections(14328) : null;
-const dropit = await fixtureDropIt(
-  14324,
-  origin + "/api/v1/integration-callback",
+const { migrate } = await import("./migrate.js"),
+  { seed } = await import("./seed.js"),
+  { pool } = await import("../src/server/db.js");
+// Upgrade a populated 0.7.1 database, including retired features, without changing their data.
+await db.query(
+  "CREATE TABLE schema_migrations(name text PRIMARY KEY,checksum text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())",
 );
-const brainModule =
-  process.env.E2E_BRAINDUMP_ONLY === "1"
-    ? await fixtureBrainDump(14329, origin + "/api/v1/integration-callback")
-    : null;
+for (const name of (await readdir("migrations"))
+  .filter((n) => n.endsWith(".sql") && n < "012")
+  .sort()) {
+  const sql = await readFile(`migrations/${name}`, "utf8");
+  await db.query(sql);
+  await db.query("INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)", [
+    name,
+    createHash("sha256").update(sql).digest("hex"),
+  ]);
+}
+const workspace = await seed();
+const historicUser = (
+  await db.query(
+    "INSERT INTO users(kyros_user_id,name) VALUES('historic-account','Compte historique') RETURNING id",
+  )
+).rows[0].id;
+const historicPage = (
+  await db.query(
+    'INSERT INTO pages(workspace_id,title,blocks) VALUES($1,\'Document historique\',\'[{"type":"text","content":"Conserver"}]\') RETURNING *',
+    [workspace],
+  )
+).rows[0];
+await db.query(
+  "INSERT INTO google_calendar_connections(user_id,tokens,enabled,calendar_id) VALUES($1,'fixture-encrypted-token',true,'historic-calendar')",
+  [historicUser],
+);
+await db.query(
+  "UPDATE roles SET permissions=array_remove(array_remove(array_remove(array_remove(permissions,'READ_MESSAGE'),'ATTACH_FILES'),'MENTION_USERS'),'REPLY_THREAD')",
+);
+await migrate();
+assert.deepEqual(
+  (await db.query("SELECT * FROM pages WHERE id=$1", [historicPage.id]))
+    .rows[0],
+  historicPage,
+);
+assert.equal(
+  (
+    await db.query(
+      "SELECT tokens FROM google_calendar_connections WHERE user_id=$1",
+      [historicUser],
+    )
+  ).rows[0].tokens,
+  "fixture-encrypted-token",
+);
+assert.equal(
+  (await db.query("SELECT count(*)::int count FROM schema_migrations")).rows[0]
+    .count,
+  15,
+);
+await migrate(); // Existing checksums and new migrations are idempotent.
+const provider = await fakeKyros(14322, origin),
+  places = await fixturePlaces(14326);
+let server: ChildProcess | undefined,
+  browser: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;
 await mkdir(".impeccable/review", { recursive: true });
-let server: ChildProcess;
-function start() {
-  server = spawn(
-    process.execPath,
-    [process.env.E2E_SERVER_ENTRY || "dist/server/server/index.js"],
-    {
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+try {
+  server = spawn(process.execPath, ["dist/server/server/index.js"], {
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   server.stdout?.on(
     "data",
-    (chunk) => void appendFile("/tmp/liora-e2e-server.log", chunk),
+    (c) => void appendFile("/tmp/liora-100-e2e-server.log", c),
   );
   server.stderr?.on(
     "data",
-    (chunk) => void appendFile("/tmp/liora-e2e-server.log", chunk),
+    (c) => void appendFile("/tmp/liora-100-e2e-server.log", c),
   );
-}
-async function ready() {
+  let ready = false;
   for (let i = 0; i < 100; i++) {
     try {
-      if ((await fetch(`${origin}/health/ready`)).ok) return;
+      if ((await fetch(`${origin}/health/ready`)).ok) {
+        ready = true;
+        break;
+      }
     } catch {}
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw Error("Server not ready");
-}
-async function stop() {
-  server.kill("SIGTERM");
-  await new Promise<void>((resolve) => server.once("exit", () => resolve()));
-}
-start();
-await ready();
-const browser = await puppeteer.launch({
-  headless: true,
-  protocolTimeout: 30000,
-  executablePath:
-    process.env.CHROME_PATH ||
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  args: ["--no-sandbox"],
-});
-const page = await browser.newPage();
-const failures: string[] = [];
-const expectedOfflineResponses = new Set<string>();
-const expectedPlaceSearchResponses = new Set<string>();
-const expectedRevokedBrainDumpResponses = new Set<string>();
-page.on("response", async (response) => {
-  if (
-    process.env.E2E_BRAINDUMP_ONLY === "1" &&
-    response.status() === 409 &&
-    new URL(response.url()).pathname === "/api/v1/braindump/sync"
-  ) {
-    try {
-      if ((await response.json()).error?.code === "CONNECT_REQUIRED")
-        expectedRevokedBrainDumpResponses.add(response.url());
-    } catch {}
-  }
-  if (
-    response.status() === 503 &&
-    new URL(response.url()).pathname === "/api/v1/places/search" &&
-    new URL(response.url()).searchParams.get("q") === "Panne050"
-  ) {
-    try {
-      if ((await response.json()).error?.code === "PLACE_SEARCH_UNAVAILABLE")
-        expectedPlaceSearchResponses.add(response.url());
-    } catch {}
-  }
-  if (response.status() !== 503 || !response.fromServiceWorker()) return;
-  try {
-    if ((await response.json()).error?.code === "OFFLINE")
-      expectedOfflineResponses.add(response.url());
-  } catch {
-    /* A response discarded by navigation is not classified as expected. */
-  }
-});
-function assertNoBrowserErrors() {
-  assert.deepEqual(
-    failures.filter(
-      (message) =>
-        ![...expectedOfflineResponses, ...expectedPlaceSearchResponses].some(
-          (url) => message.includes("503") && message.endsWith(url),
-        ) &&
-        ![...expectedRevokedBrainDumpResponses].some(
-          (url) => message.includes("409") && message.endsWith(url),
-        ),
-    ),
-    [],
-  );
-}
-
-let plannedRestart = false;
-let plannedOffline = false;
-page.on("pageerror", (e) =>
-  failures.push(e instanceof Error ? e.stack || String(e) : String(e)),
-);
-page.on("console", (m) => {
-  if (
-    !(
-      plannedRestart &&
-      /ERR_INCOMPLETE_CHUNKED_ENCODING|ERR_CONNECTION_REFUSED/.test(m.text())
-    ) &&
-    !plannedOffline &&
-    m.type() === "error" &&
-    !m.text().includes("401") &&
-    !m.text().includes("net::ERR_ABORTED")
-  )
-    failures.push(m.text() + " " + (m.location().url || ""));
-});
-async function click(text: string) {
-  if (text === "Administration") {
-    if (!(await page.$("#workspace-choices")))
-      await page.click(".workspace-title");
-    await click("Paramètres de l’espace");
-    await page.waitForSelector(".admin-layout");
-    return;
-  }
-  if (text === "Aide et tutoriels") text = "Aide";
-  await page.waitForFunction(
-    (t) => {
-      return [...document.querySelectorAll("button")].some((b) =>
-        [b.textContent, b.getAttribute("aria-label"), b.title].some(
-          (label) =>
-            (label || "").trim().replaceAll("’", "'") ===
-            (t || "").trim().replaceAll("’", "'"),
-        ),
-      );
-    },
-    {},
-    text,
-  );
-  await page.evaluate((t) => {
-    const buttons = [
-      ...document.querySelectorAll<HTMLButtonElement>(
-        ".admin-layout nav button",
-      ),
-      ...document.querySelectorAll<HTMLButtonElement>("button"),
-    ];
-    buttons
-      .find((b) =>
-        [b.textContent, b.getAttribute("aria-label"), b.title].some(
-          (label) =>
-            (label || "").trim().replaceAll("’", "'") ===
-            (t || "").trim().replaceAll("’", "'"),
-        ),
-      )
-      ?.click();
-  }, text);
-}
-async function waitText(text: string) {
-  await page.waitForFunction(
-    (t) => document.body.innerText.includes(t),
-    {},
-    text,
-  );
-}
-async function verifyBrainDump() {
-  const remote = brainModule!;
-  const ownNote = remote.note("test-owner", {
-    title: "Préparer la rencontre · démonstration",
-    content:
-      "## Une idée pour lundi\n\nUne **note personnelle** à retrouver dans Liora.",
+  assert.ok(ready, "Server ready");
+  browser = await puppeteer.launch({
+    headless: true,
+    executablePath:
+      process.env.CHROME_PATH ||
+      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    args: ["--no-sandbox"],
+    protocolTimeout: 30000,
   });
-  remote.note("test-owner", {
-    title: "Note sans date · démonstration",
-    dueAt: null,
-  });
-  remote.note("someone-else", { title: "Secret d’un autre compte" });
-  remote.note("test-owner", {
-    title: "Tâche à garder dans BrainDump",
-    type: "task",
-  });
-  const capture = async (name: string, fullPage = true) => {
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-        ),
-    );
-    await page.screenshot({
-      path: ".impeccable/review/brain-" + name + ".png",
-      fullPage,
-    });
-  };
-  await page.goto(remote.origin + "/integrations", {
-    waitUntil: "networkidle0",
-  });
-  await page.type(
-    '#client-form input[name="redirect_uri"]',
-    origin + "/api/v1/integration-callback",
-  );
-  await page.click("#client-form button");
-  await page.waitForSelector("#credentials:not([hidden])");
-  const credentials = await page.evaluate(() => ({
-    id: (document.querySelector("#client-id") as HTMLInputElement).value,
-    key: (document.querySelector("#api-key") as HTMLInputElement).value,
-  }));
-  await capture("applications-desktop");
-  await page.setViewport({ width: 390, height: 844 });
-  await capture("applications-mobile");
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  await page.setViewport({ width: 1440, height: 1000 });
-  await page.goto(origin, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".home-page");
-  await click("Administration");
-  await click("Intégrations");
-  await click("Ajouter un module");
-  await page.select('.connector-form select[name="provider"]', "braindump");
-  assert.equal(await page.$('.connector-form select[name="channel_id"]'), null);
-  await page.type(
-    '.connector-form input[name="name"]',
-    "BrainDump · démonstration",
-  );
-  await page.type('.connector-form input[name="base_url"]', remote.origin);
-  await page.type('.connector-form input[name="client_id"]', credentials.id);
-  await page.type('.connector-form input[name="api_key"]', credentials.key);
-  await page.click('.connector-form input[name="allow_private"]');
-  await click("Enregistrer le module");
-  await page.waitForFunction(
-    () =>
-      document.querySelector(".connector-form h2")?.textContent ===
-      "Configuration du module",
-  );
-  assert.equal(await page.$("dialog[open]"), null);
-  await click("Tester la connexion");
-  await waitText("Connexion vérifiée.");
-  assert.ok(
-    !(await page.evaluate(() =>
-      document
-        .querySelector(".integrations-panel")
-        ?.textContent?.includes("Routage et automatisations"),
-    )),
-  );
-  await capture("configuration-desktop");
-  await page.evaluate(() =>
-    [...document.querySelectorAll("button")]
-      .find((b) => b.textContent?.trim() === "Tester la connexion")
-      ?.scrollIntoView({ block: "end" }),
-  );
-  await capture("configuration-desktop-actions", false);
-  await page.evaluate(() => {
-    document.querySelectorAll("*").forEach((element) => {
-      if (element.scrollTop) element.scrollTop = 0;
-    });
-    window.scrollTo(0, 0);
-  });
-  await page.setViewport({ width: 390, height: 844 });
-  await capture("configuration-mobile");
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll("button")].find((b) =>
-      b.textContent?.includes("Tester la connexion"),
-    );
-    button?.scrollIntoView({ block: "end" });
-  });
-  await capture("configuration-mobile-actions", false);
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  await page.setViewport({ width: 1440, height: 1000 });
-  await click("Notes datées");
-  await page.waitForSelector(".notes-connection-actions select");
-  await click("Connecter mon compte BrainDump");
-  await page.waitForSelector('form[action="/integrations/authorize"]');
-  await capture("consent-desktop");
-  await page.setViewport({ width: 390, height: 844 });
-  await capture("consent-mobile");
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  await page.setViewport({ width: 1440, height: 1000 });
-  await click("Autoriser la lecture des notes datées");
-  await page.waitForSelector(".notes-page");
-  await page.waitForSelector(
-    '.notes-connection input[type="checkbox"]:not(:disabled)',
-  );
-  await page.click('.notes-connection input[type="checkbox"]');
-  await waitText("Préparer la rencontre · démonstration");
-  assert.ok(
-    !(await page.evaluate(() =>
-      document
-        .querySelector(".notes-page")
-        ?.textContent?.includes("Secret d’un autre compte"),
-    )),
-  );
-  assert.ok(
-    !(await page.evaluate(() =>
-      document
-        .querySelector(".notes-page")
-        ?.textContent?.includes("Note sans date · démonstration"),
-    )),
-  );
-  await capture("notes-desktop");
-  await page.setViewport({ width: 390, height: 844 });
-  await capture("notes-mobile");
-  await page.evaluate(() =>
-    document.querySelector(".dated-note")?.scrollIntoView({ block: "start" }),
-  );
-  await capture("notes-mobile-content", false);
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  await page.setViewport({ width: 1440, height: 1000 });
-  remote.database
-    .prepare("UPDATE dumps SET title=? WHERE id=?")
-    .run("Rencontre mise à jour · démonstration", ownNote);
-  await click("Actualiser");
-  await waitText("Rencontre mise à jour · démonstration");
-  await page.goto(remote.origin + "/integrations", {
-    waitUntil: "networkidle0",
-  });
-  page.once("dialog", (dialog) => void dialog.accept());
-  await click("Retirer l’accès à mes notes");
-  await waitText("Accès retiré.");
-  await page.goto(origin + "/#connected=braindump", {
-    waitUntil: "domcontentloaded",
-  });
-  await page.waitForSelector(".notes-page");
-  await click("Actualiser");
-  await waitText("Autorisation BrainDump retirée ou clé refusée");
-  assert.equal(await page.$(".dated-note"), null);
-  console.log(
-    "BRAINDUMP PASS: actual application/consent/token/notes/revoke routes and SQLite fixture, application creation, configuration/test, private dated note sync/update, remote revocation and responsive UI. Kyros identities and data are synthetic.",
-  );
-}
-async function verify070() {
-  const me = await page.evaluate(async () => {
-    const r = await fetch("/api/v1/me");
-    return r.json();
-  });
-  const user = me.data,
-    w = me.workspaces[0];
-  const request = async (path: string, method = "GET", body?: unknown) =>
-    page.evaluate(
-      async (p, m, b) => {
-        const r = await fetch(p, {
-          method: m,
-          headers: { "content-type": "application/json" },
-          body: b ? JSON.stringify(b) : undefined,
-        });
-        return { status: r.status, body: await r.json() };
-      },
-      path,
-      method,
-      body,
-    );
-  const capture = async (name: string) => {
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({
-      path: ".impeccable/review/070-" + name + ".png",
-      fullPage: true,
-    });
-  };
-  connections070!.notes.push({
-    id: 1,
-    userId: user.kyros_user_id,
-    title: "Préparer la prochaine rencontre",
-    content:
-      "## Les idées à garder\n\n> Une conversation commence par une idée.\n\n++Les notes restent personnelles++.\n\n- Présenter la 0.7\n- Reprendre les retours",
-    type: "note",
-    dueAt: new Date(Date.now() + 86400000).toISOString(),
-    updatedAt: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-    archivedAt: null,
-  });
-  const friend = (
-    await db.query(
-      "INSERT INTO users(kyros_user_id,name,status) VALUES('friend-070','Camille · démonstration','invisible') RETURNING id",
-    )
-  ).rows[0];
-  await db.query("INSERT INTO friendships(user_a,user_b) VALUES($1,$2)", [
-    ...[user.id, friend.id].sort(),
-  ]);
-  await db.query(
-    "INSERT INTO friend_messages(sender_id,recipient_id,content,client_id) VALUES($1,$2,$3,$4)",
-    [
-      friend.id,
-      user.id,
-      "## Une idée pour lundi\n\n> On garde les échanges au même endroit.\n\n++À préparer ensemble++ et **à notre rythme**.",
-      crypto.randomUUID(),
-    ],
-  );
-  await click("Amis");
-  await page.waitForSelector(".friend-open");
-  await capture("friends-desktop");
-  await page.click(".friend-open");
-  await page.waitForSelector("#friend-draft");
-  await page.type("#friend-draft", "Le lien tient dans une note.");
-  await page.click(
-    ".friend-messenger .conversation-composer-modes button:first-child",
-  );
-  await page.focus("#friend-draft");
-  await page.keyboard.down("Control");
-  await page.keyboard.press("a");
-  await page.keyboard.up("Control");
-  await page.evaluate(() => {
-    const t = document.querySelector("#friend-draft") as HTMLTextAreaElement;
-    t.setSelectionRange(0, t.value.length);
-  });
-  await page.click('.friend-messenger [aria-label="Souligner"]');
-  await page.click(
-    ".friend-messenger .conversation-composer-modes button:last-child",
-  );
-  await page.waitForSelector(".friend-messenger .composer-preview u");
-  await capture("conversation-desktop");
-  await page.click(".friend-messenger .primary");
-  await page.waitForSelector(".friend-bubble.mine u");
-  assert.equal(
-    await page.$eval("#friend-draft", (e) => (e as HTMLTextAreaElement).value),
-    "",
-  );
-  await click("Notes datées");
-  await page.waitForSelector(".notes-connection input");
-  await page.waitForFunction(
-    () =>
-      !(document.querySelector(".notes-connection input") as HTMLInputElement)
-        .disabled,
-  );
-  await page.click(".notes-connection input");
-  await page.waitForSelector(".dated-note");
-  await capture("notes-desktop");
-  await page.click(".notes-page .page-heading .primary");
-  await page.waitForSelector("#field-title");
-  await page.type("#field-title", "Le point de vendredi");
-  await page.type("dialog textarea", "++Texte local++");
-  await page.click("dialog footer .primary");
-  await page.waitForFunction(
-    () => document.querySelectorAll(".dated-note").length === 2,
-  );
-  await click("Préférences");
-  await click("Apparence");
-  await page.click('input[value="lagoon"]');
-  await page.click(".settings-panel .settings-save button");
-  await page.waitForFunction(
-    () => document.documentElement.dataset.theme === "lagoon",
-  );
-  await capture("lagoon-gallery-desktop");
-  await click("Notes datées");
-  await page.waitForSelector(".dated-note");
-  await capture("lagoon-desktop");
-  await click("Préférences");
-  await click("Apparence");
-  const second = await page.browserContext().newPage();
-  await second.goto(origin);
-  await second.waitForFunction(
-    () => document.documentElement.dataset.theme === "lagoon",
-  );
-  await second.close();
-  await page.click('input[value="terminal"]');
-  await page.click('.settings-panel input[type="checkbox"]');
-  await page.click(".settings-panel .settings-save button");
-  await page.waitForFunction(
-    () => document.documentElement.dataset.theme === "terminal",
-  );
-  assert.equal(
-    (await request("/api/v1/me")).body.data.preferences.theme,
-    "lagoon",
-  );
-  await page.reload();
-  await page.waitForFunction(
-    () => document.documentElement.dataset.theme === "terminal",
-  );
-  await click("Préférences");
-  await click("Apparence");
-  await page.click('.settings-panel input[type="checkbox"]');
-  await page.click('input[value="dark"]');
-  await page.click(".settings-panel .settings-save button");
-  await page.waitForFunction(
-    () => document.documentElement.dataset.theme === "dark",
-  );
-  await click("Synchronisation Agenda");
-  await page.waitForSelector(".calendar-sync .primary");
-  await click("Connecter Google Agenda");
-  await page.waitForFunction(
-    () => location.hash === "#google-calendar=connected",
-  );
-  await page.waitForSelector(".calendar-sync select");
-  await page.waitForFunction(
-    () => document.querySelectorAll(".calendar-sync select option").length >= 4,
-  );
-  await page.click('.calendar-sync form input[type="checkbox"]');
-  await click("Enregistrer le lien Google");
-  await page.waitForFunction(
-    () =>
-      !(
-        Array.from(document.querySelectorAll(".calendar-sync button")).find(
-          (b) => b.textContent?.includes("Synchroniser maintenant"),
-        ) as HTMLButtonElement
-      )?.disabled,
-  );
-  const event = (
-    await request("/api/v1/workspaces/" + w.id + "/calendar", "POST", {
-      title: "Préparer Liora 0.7 · démonstration",
-      description: "Les notes et les conversations se rejoignent.",
-      start_at: new Date(Date.now() + 3600000).toISOString(),
-      end_at: new Date(Date.now() + 7200000).toISOString(),
-      timezone: "Europe/Paris",
-    })
-  ).body.data;
-  await click("Synchroniser maintenant");
-  await page.waitForFunction(() =>
-    document
-      .querySelector('.calendar-sync [role="status"]')
-      ?.textContent?.includes("terminée"),
-  );
-  const googleId = [...connections070!.events.values()].find(
-    (e) => e.extendedProperties?.private?.liora_event_id === event.id,
-  )!.id;
-  connections070!.changeGoogle(googleId, {
-    summary: "Modifié depuis Android · démonstration",
-  });
-  await click("Synchroniser maintenant");
-  await page.waitForFunction(() =>
-    document
-      .querySelector('.calendar-sync [role="status"]')
-      ?.textContent?.includes("terminée"),
-  );
-  assert.equal(
-    (await request("/api/v1/workspaces/" + w.id + "/calendar/" + event.id)).body
-      .data.title,
-    "Modifié depuis Android · démonstration",
-  );
-  connections070!.changeGoogle(googleId, {
-    summary: "Version Google · démonstration",
-    description: "Rencontre prolongée depuis Google · démonstration",
-    end: {
-      dateTime: new Date(Date.now() + 10800000).toISOString(),
-      timeZone: "Europe/Paris",
-    },
-  });
-  await request(
-    "/api/v1/workspaces/" + w.id + "/calendar/" + event.id,
-    "PATCH",
-    {
-      title: "Version Liora · démonstration",
-      description: "Rencontre d’une heure depuis Liora · démonstration",
-    },
-  );
-  await click("Synchroniser maintenant");
-  await page.waitForSelector(".sync-conflicts article");
-  await waitText("Rencontre prolongée depuis Google · démonstration");
-  await waitText("Rencontre d’une heure depuis Liora · démonstration");
-  assert.equal(
-    await page.$$eval(".sync-event-summary", (items) =>
-      items.every((item) => item.textContent?.includes("Fin :")),
-    ),
-    true,
-  );
-  await page.$eval(".sync-conflicts", (element) =>
-    element.scrollIntoView({ block: "center", behavior: "instant" }),
-  );
-  await capture("google-conflict-desktop");
-  await click("Conserver Google");
-  await page.waitForFunction(() => !document.querySelector(".sync-conflicts"));
-  assert.equal(
-    (await request("/api/v1/workspaces/" + w.id + "/calendar/" + event.id)).body
-      .data.title,
-    "Version Google · démonstration",
-  );
-  await page.click(".caldav-settings summary");
-  await page.type(".caldav-settings form input", "Mac · démonstration");
-  await click("Créer un accès CalDAV");
-  await page.waitForSelector(".one-time-password");
-  await capture("calendar-sync-desktop");
-  await click("Masquer");
-  await click("Conversations");
-  await page.waitForSelector(".composer textarea");
-  await page.type(".composer textarea", "## Un sujet à partager");
-  await page.keyboard.down("Shift");
-  await page.keyboard.press("Enter");
-  await page.keyboard.press("Enter");
-  await page.keyboard.up("Shift");
-  await page.type(".composer textarea", "> La note prend forme.");
-  await page.keyboard.down("Shift");
-  await page.keyboard.press("Enter");
-  await page.keyboard.press("Enter");
-  await page.keyboard.up("Shift");
-  await page.type(".composer textarea", "++Un détail utile++");
-  await page.click(".composer .conversation-composer-modes button:last-child");
-  await page.waitForSelector(".composer-preview h2");
-  await capture("chat-preview-desktop");
-  await page.click(".send-button");
-  await page.waitForSelector(".message-scroll .markdown u");
-  await page.setViewport({ width: 390, height: 844 });
-  for (const [label, selector, name] of [
-    ["Amis", ".friends-page", "friends-mobile"],
-    ["Notes datées", ".notes-page", "notes-mobile"],
-    ["Préférences", ".settings-layout", "appearance-mobile"],
-  ] as const) {
-    await click(label);
-    await page.waitForSelector(selector);
-    if (label === "Préférences") {
-      await click("Apparence");
-    }
-    if (label === "Notes datées") await page.waitForSelector(".dated-note");
-    if (label === "Amis") await page.waitForSelector(".friend-open");
-    await capture(name);
-    assert.equal(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth + 1,
-      ),
-      true,
-      name + " overflows",
-    );
-  }
-  await click("Amis");
-  await page.waitForSelector(".friend-open");
-  await page.click(".friend-open");
-  await page.waitForSelector(".friend-bubble");
-  await capture("conversation-mobile");
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth + 1,
-    ),
-    true,
-  );
-  await click("Préférences");
-  await click("Synchronisation Agenda");
-  await page.waitForSelector(".calendar-sync select");
-  await capture("calendar-sync-mobile");
-  await page.click(".caldav-settings summary");
-  await page.waitForSelector(".caldav-devices article");
-  // Dialogs are confirmations of explicit test actions.
-  console.log(
-    "0.7 PASS: BrainDump notes, personal note CRUD, Markdown and underline preview/send, account/device theme isolation and second-tab recovery, Google OAuth/edit/conflict, CalDAV device creation, friend desktop/mobile without overflow. All providers are local fixtures.",
-  );
-}
-
-async function verify060() {
-  const workspace = (
-    await db.query("SELECT id FROM workspaces WHERE name='LUMA'")
-  ).rows[0].id;
-  const base = `/api/v1/workspaces/${workspace}`;
-  async function screen(name: string) {
-    await page.evaluate(() => document.fonts.ready);
-    assert.equal(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-      true,
-      `overflow on ${name}`,
-    );
-    await page.screenshot({
-      path: `.impeccable/review/060-${name}.png`,
-      fullPage: false,
-    });
-  }
-  await page.waitForFunction(
-    () =>
-      !!document.querySelector<HTMLImageElement>(".profile-button img")
-        ?.naturalWidth,
-  );
-  assert.equal(await page.$(".topbar-right .avatar"), null);
-  await page.click('.nav-group[aria-label="Équipe"] .nav-collapse');
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector('.nav-group[aria-label="Équipe"] .nav-collapse')
-        ?.getAttribute("aria-expanded") === "false",
-  );
-  await page.waitForFunction(async () =>
-    (
-      await fetch("/api/v1/me").then((r) => r.json())
-    ).data.preferences.collapsedNavigation?.includes("Équipe"),
-  );
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".home-page");
-  assert.equal(
-    await page.$eval('.nav-group[aria-label="Équipe"] .nav-collapse', (e) =>
-      e.getAttribute("aria-expanded"),
-    ),
-    "false",
-  );
-  await page.click('.nav-group[aria-label="Équipe"] .nav-collapse');
-  const taskId = (
-    await db.query(
-      "SELECT t.id FROM tasks t JOIN board_columns c ON c.id=t.column_id ORDER BY c.position,t.position,t.id LIMIT 1",
-    )
-  ).rows[0].id;
-  await db.query("UPDATE tasks SET description=$2,checklist=$3 WHERE id=$1", [
-    taskId,
-    "## Objectif\n\n**Une carte lisible** avec du contexte.\n\n- Préparer la version\n- Vérifier le parcours\n\n```ts\nconst version = '0.6.0';\n```",
-    JSON.stringify([
-      { text: "Vérifier le rendu desktop", done: true },
-      { text: "Valider le mobile", done: false },
-    ]),
-  ]);
-  await click("Projets");
-  await page.waitForSelector(".task-card");
-  await screen("projects-desktop");
-  await page.click(".task-filter-panel > summary");
-  await page.select('[aria-label="Filtrer par priorité"]', "urgent");
-  await waitText("Aucune carte ne correspond aux filtres.");
-  await page.select('[aria-label="Filtrer par priorité"]', "");
-  await page.click(".task-filter-panel > summary");
-  await page.click(".task-card", { button: "right" });
-  await page.waitForSelector('[role="menu"]');
-  await screen("menu-desktop");
-  await page.keyboard.press("Escape");
-  assert.equal(await page.$('[role="menu"]'), null);
-  await page.focus(".task-card");
-  await page.keyboard.down("Shift");
-  await page.keyboard.press("F10");
-  await page.keyboard.up("Shift");
-  await page.waitForSelector('[role="menu"]');
-  await page.keyboard.press("Enter");
-  await page.waitForSelector(".task-dialog");
-  await page.waitForSelector(".task-dialog .markdown strong");
-  await screen("card-desktop");
-  await click("Modifier");
-  await page.waitForSelector(".task-dialog .markdown-editor textarea");
-  await page.focus(".task-dialog .markdown-editor textarea");
-  await page.keyboard.press("End");
-  await page.keyboard.type("\n\n**Ajout enregistré en Markdown**");
-  await page.click(".task-dialog .markdown-editor button:nth-child(2)");
-  await page.waitForSelector(".markdown-editor .markdown");
-  await page.click(".task-dialog button.primary");
-  await page.waitForSelector(".task-dialog .markdown-editor", { hidden: true });
-  assert.match(
-    (await db.query("SELECT description FROM tasks WHERE id=$1", [taskId]))
-      .rows[0].description,
-    /Ajout enregistré/,
-  );
-  await page.click(".detail-tabs button:nth-child(2)");
-  await page.type(
-    ".task-dialog .markdown-editor textarea",
-    "**Décision** : publier après validation.",
-  );
-  await page.click(".task-dialog button.primary");
-  await page.waitForSelector(".task-comment strong");
-  await page.click(".detail-tabs button:nth-child(1)");
-  await page.click('dialog [aria-label="Fermer"]');
-  await page.click(".task-card .card-actions");
-  await click("Dupliquer la carte");
-  await waitText("(copie)");
-  assert.equal(
-    (
-      await db.query(
-        "SELECT count(*) n FROM tasks WHERE title LIKE '%(copie)' AND workspace_id=$1",
-        [workspace],
-      )
-    ).rows[0].n,
-    "1",
-  );
-  await page.click(".task-card .card-actions");
-  const targetColumn = (
-    await page.$$eval('[role="menuitem"]', (els) =>
-      els.map((e) => e.textContent || ""),
-    )
-  ).find((t) => t.startsWith("Déplacer vers"))!;
-  await click(targetColumn);
-  await page.waitForFunction(
-    (name) =>
-      [...document.querySelectorAll(".kanban-column")].some(
-        (c) =>
-          c.querySelector("h2")?.textContent === name &&
-          c.querySelector(".task-title"),
-      ),
-    {},
-    targetColumn.replace("Déplacer vers ", ""),
-  );
-  await click("Pages de l'équipe");
-  await page.waitForSelector(".document-block .markdown");
-  assert.equal(await page.$(".document-block textarea"), null);
-  await screen("pages-desktop");
-  await click("Modifier");
-  await page.waitForSelector(".document-block textarea");
-  await page.focus(".block-text textarea");
-  await page.$eval(".block-text textarea", (element) => {
-    const field = element as HTMLTextAreaElement;
-    field.setSelectionRange(field.value.length, field.value.length);
-  });
-  await page.keyboard.type("\n\n**La mémoire de l’équipe.**");
-  await click("Enregistrer");
-  await page.waitForFunction(
-    () => !document.body.innerText.includes("Modifications non enregistrées"),
-  );
-  await click("Aperçu");
-  await page.waitForSelector(".document-block .markdown strong");
-  await click("Supervision");
-  await page.waitForSelector(".monitor-target");
-  await screen("servers-desktop");
-  await click("Préférences");
-  await click("Notifications");
-  await page.waitForSelector(".gotify-fields");
-  await page.type('.gotify-fields input[type="url"]', "https://93.184.216.34");
-  await page.type(
-    '.gotify-fields input[type="password"]',
-    "synthetic-gotify-token",
-  );
-  await page.click('.gotify-settings input[type="checkbox"]'); // Saved disabled: no real network delivery in browser QA.
-  await click("Enregistrer Gotify");
-  await waitText("Configuration Gotify enregistrée.");
-  await screen("gotify-desktop");
-  for (const [route, selector, name] of [
-    ["Projets", ".task-card", "projects-mobile"],
-    ["Pages de l'équipe", ".document", "pages-mobile"],
-    ["Supervision", ".monitor-target", "servers-mobile"],
-    ["Préférences", ".settings-layout", "personal-mobile"],
-  ]) {
-    await page.setViewport({ width: 390, height: 844 });
-    // Navigation helper activates the same router; the drawer itself is checked separately below.
-    await click(route);
-    await page.waitForSelector(selector);
-    if (route === "Préférences") {
-      await click("Notifications");
-      await page.waitForSelector(".gotify-fields");
-    }
-    await screen(name);
-    if (route === "Préférences") {
-      await page.$eval(".gotify-settings", (e) =>
-        e.scrollIntoView({ block: "start" }),
-      );
-      await screen("gotify-mobile");
-    }
-    if (route === "Projets") {
-      await page.click(".task-card .card-actions");
-      await page.waitForSelector('[role="menu"]');
-      await screen("menu-mobile");
-      await page.keyboard.press("Escape");
-      await page.click(`[data-task-id="${taskId}"] .task-title`);
-      await page.waitForSelector(".task-dialog");
-      await screen("card-mobile");
-      await page.click('dialog [aria-label="Fermer"]');
-    }
-  }
-  await page.setViewport({ width: 1440, height: 1000 });
-  await page.evaluate(async () => {
-    await fetch("/api/v1/integrations", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: "Dépôt de démonstration",
-        url: "https://github.com/example/demo",
-      }),
-    });
-  });
-  await click("Raccourcis personnels");
-  await page.waitForSelector(".integration-link");
-  await screen("services-desktop");
-  await page.setViewport({ width: 390, height: 844 });
-  await screen("services-mobile");
-  await page.setViewport({ width: 1440, height: 1000 });
-  await page.goto(
-    `${origin}/#workspace=${workspace}&view=projects&task=${taskId}`,
-    { waitUntil: "domcontentloaded" },
-  );
-  await page.waitForSelector(".task-dialog");
-  await page.click('dialog [aria-label="Fermer"]');
-  await click("Conversations");
-  await page.waitForSelector(".channel-group .nav-collapse");
-  await page.click(".channel-group .nav-collapse");
-  await page.waitForFunction(
-    () =>
-      document
-        .querySelector(".channel-group .nav-collapse")
-        ?.getAttribute("aria-expanded") === "false",
-  );
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".channel-group .nav-collapse");
-  assert.equal(
-    await page.$eval(".channel-group .nav-collapse", (e) =>
-      e.getAttribute("aria-expanded"),
-    ),
-    "false",
-  );
-  await page.setViewport({ width: 390, height: 844 });
-  await page.click('[aria-label="Ouvrir la navigation"]');
-  await page.waitForSelector(".sidebar.open");
-  await screen("sidebar-mobile");
-  await page.click('[aria-label="Fermer la navigation"]');
-  console.log(
-    "0.6 PASS: persisted navigation, Kyros avatar proxy, Markdown edition/comments, card context menus keyboard/mobile, duplication/move, page reader/editor, supervision, Gotify disabled configuration, desktop/mobile without overflow. Providers are fixtures; no real Gotify message sent.",
-  );
-}
-
-async function verifyExperience() {
-  await page.setViewport({ width: 1440, height: 1000 });
-  await page.click(".topbar");
-  await page.keyboard.down("Control");
-  await page.keyboard.down("Shift");
-  await page.keyboard.press("KeyF");
-  await page.keyboard.up("Shift");
-  await page.keyboard.up("Control");
-  await page.waitForSelector(".search-filters");
-  await page.type(
-    'dialog input[placeholder="Un sujet, une décision…"]',
-    "Bienvenue",
-  );
-  const generalId = (
-    await db.query("SELECT id FROM channels WHERE name='general' LIMIT 1")
-  ).rows[0].id;
-  await page.select(".search-filters select", generalId);
-  await page.type('dialog input[placeholder="Nom affiché"]', "Argos");
-  await click("Rechercher");
-  await page.waitForSelector(".search-results button");
-  await page.click('dialog [aria-label="Fermer"]');
-  await click("Calendrier");
-  await page.waitForSelector(".calendar-grid");
-  await click("Nouvel événement");
-  await page.type('dialog input[name="title"]', "Rendez-vous récurrent 0.4");
-  await page.select('dialog select[name="recurrence"]', "daily");
-  await page.click("dialog button.primary");
-  await page.waitForSelector(".calendar-agenda-row");
-  assert.ok(
-    await page.$$eval(".calendar-agenda-row", (rows) => rows.length >= 1),
-  );
-  await page.click(".calendar-agenda-row");
-  await click("Modifier");
-  await page.$eval('dialog:last-of-type input[name="title"]', (el) => {
-    (el as HTMLInputElement).value = "";
-  });
-  await page.type(
-    'dialog:last-of-type input[name="title"]',
-    "Rendez-vous modifié",
-  );
-  await page.click("dialog:last-of-type button.primary");
-  await waitText("Rendez-vous modifié");
-  await page.click(".calendar-agenda-row");
-  await click("Ajouter aux favoris");
-  await page.waitForSelector(".calendar-grid");
-  await page.waitForSelector(".calendar-agenda-row");
-  await page.screenshot({
-    path: ".impeccable/review/experience-calendar-desktop.png",
-    fullPage: false,
-  });
-  await click("Favoris");
-  await waitText("Rendez-vous modifié");
-  await click("Ouvrir");
-  await page.waitForSelector("dialog[open]");
-  await page.click('dialog [aria-label="Fermer"]');
-  await click("Rappels");
-  await click("Nouveau rappel");
-  await page.type('dialog input[name="title"]', "Rappel réel 0.4");
-  await page.select('dialog select[name="recurring_interval"]', "monthly");
-  await page.click("dialog button.primary");
-  await waitText("Rappel réel 0.4");
-  await click("Reporter d’une heure");
-  await waitText("Reporté");
-  await click("Modifier");
-  await page.click("dialog button.primary");
-  await waitText("À venir");
-  const [r] = (
-    await db.query("SELECT * FROM reminders WHERE title='Rappel réel 0.4'")
-  ).rows;
-  await db.query(
-    "UPDATE reminders SET remind_at=now()-interval '1 minute' WHERE id=$1",
-    [r.id],
-  );
-  const { processReminders } =
-    await import("../src/server/experience-worker.js");
-  await processReminders();
-  await page.waitForFunction(() =>
-    document.body.innerText.includes("Rappel réel 0.4"),
-  );
-  assert.equal(
-    (
-      await db.query(
-        "SELECT count(*) n FROM notifications WHERE title='Rappel réel 0.4'",
-      )
-    ).rows[0].n,
-    "1",
-  );
-  await page.screenshot({
-    path: ".impeccable/review/experience-reminders-desktop.png",
-    fullPage: false,
-  });
-  await click("Terminer");
-  await click("Terminés");
-  await waitText("Rappel réel 0.4");
-  await page.click(".profile-button");
-  await click("Apparence");
-  for (const theme of ["midnight", "forest", "ember"]) {
-    await page.click(`input[name="theme"][value="${theme}"]`);
-    await click("Enregistrer");
-    await page.waitForFunction(
-      (t) => document.documentElement.dataset.theme === t,
-      {},
-      theme,
-    );
-  }
-  await click("Notifications");
-  await page.waitForSelector(".push-settings");
-  assert.equal(
-    await page.$eval(
-      ".push-settings button",
-      (el) => (el as HTMLButtonElement).disabled,
-    ),
-    true,
-  );
-  await page.screenshot({
-    path: ".impeccable/review/experience-push-desktop.png",
-    fullPage: false,
-  });
-  await page.select('select[name="soundVolume"]', "low");
-  await page.keyboard.press("Tab");
-  await page.click(".topbar");
-  await page.keyboard.down("Control");
-  await page.keyboard.press("Digit3");
-  await page.keyboard.up("Control");
-  await page.waitForSelector(".calendar-grid");
-  await page.setViewport({ width: 390, height: 844 });
-  await page.screenshot({
-    path: ".impeccable/review/experience-calendar-mobile.png",
-    fullPage: false,
-  });
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  await page.click('[aria-label="Ouvrir la navigation"]');
-  await click("Rappels");
-  await page.waitForSelector(".reminder-row");
-  await page.screenshot({
-    path: ".impeccable/review/experience-reminders-mobile.png",
-    fullPage: false,
-  });
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    true,
-  );
-  await page.setViewport({ width: 1440, height: 1000 });
-  await page.waitForFunction(() => !!navigator.serviceWorker.controller);
-  const cached = await page.evaluate(async () => {
-    const keys = await caches.keys();
-    const rows = await Promise.all(
-      keys.map(async (key) =>
-        (await (await caches.open(key)).keys()).map(
-          (r) => new URL(r.url).pathname,
-        ),
-      ),
-    );
-    return rows.flat();
-  });
-  assert.ok(cached.includes("/"));
-  assert.equal(
-    cached.some(
-      (path) => path.startsWith("/api/") || path.startsWith("/auth/"),
-    ),
-    false,
-  );
-  const workerTarget = browser
-    .targets()
-    .find(
-      (t) => t.type() === "service_worker" && t.url() === `${origin}/sw.js`,
-    );
-  assert.ok(workerTarget);
-  const workerNetwork = await workerTarget.createCDPSession();
-  await workerNetwork.send("Network.enable");
-  plannedOffline = true;
-  try {
-    await workerNetwork.send("Network.emulateNetworkConditions", {
-      offline: true,
-      latency: 0,
-      downloadThroughput: -1,
-      uploadThroughput: -1,
-    });
-    await page.setOfflineMode(true);
-    const response = await page.evaluate(async () => {
-      const r = await fetch("/api/v1/me");
-      return { status: r.status, body: await r.json() };
-    });
-    assert.equal(response.status, 503);
-    assert.equal(response.body.error.code, "OFFLINE");
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await waitText("hors ligne");
-    await page.screenshot({
-      path: ".impeccable/review/experience-offline.png",
-      fullPage: false,
-    });
-  } finally {
-    await workerNetwork.send("Network.emulateNetworkConditions", {
-      offline: false,
-      latency: 0,
-      downloadThroughput: -1,
-      uploadThroughput: -1,
-    });
-    await workerNetwork.detach();
-    await page.setOfflineMode(false);
-    await page.reload({ waitUntil: "domcontentloaded" });
-    plannedOffline = false;
-  }
-  await page.waitForSelector(".sidebar");
-  // Exercise an actual worker update and cache turnover without changing source files.
-  const workerFile = "dist/client/sw.js";
-  const originalWorker = await readFile(workerFile, "utf8");
-  const replacement = originalWorker.replace(
-    /const CACHE_NAME = "([^"]+)"/,
-    'const CACHE_NAME = "$1-e2e"',
-  );
-  assert.notEqual(replacement, originalWorker);
-  try {
-    await writeFile(workerFile, replacement);
-    await page.evaluate(async () => {
-      await (await navigator.serviceWorker.getRegistration())!.update();
-    });
-    await page.waitForSelector(".pwa-update");
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: "domcontentloaded" }),
-      click("Mettre à jour Liora"),
-    ]);
-    await page.waitForSelector(".sidebar");
-    await page.waitForFunction(async () => {
-      const keys = (await caches.keys()).filter((k) => k.startsWith("liora-"));
-      return keys.length === 1 && keys[0].endsWith("-e2e");
-    });
-    assert.equal(
-      (await page.evaluate(() => caches.keys())).filter((k) =>
-        k.startsWith("liora-"),
-      ).length,
-      1,
-    );
-  } finally {
-    await writeFile(workerFile, originalWorker);
-  }
-  console.log(
-    "EXPERIENCE PASS: calendar create/edit/recurrence, favorites opening, reminders/snooze/delivery, themes, keyboard, responsive UI, offline shell and service-worker update.",
-  );
-}
-async function verifyUx() {
-  await page.waitForFunction(() => !document.querySelector(".home-skeleton"));
-  const workspaceId = (
-    await db.query("SELECT id FROM workspaces WHERE name='LUMA'")
-  ).rows[0].id;
-  const currentUser = await page.evaluate(
-    async () => (await (await fetch("/api/v1/me")).json()).data,
-  );
-  await page.evaluate(async (w) => {
-    await fetch(`/api/v1/workspaces/${w}/reminders`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "Préparer le point d’équipe",
-        remind_at: new Date(Date.now() + 3600000).toISOString(),
-        timezone: "Europe/Paris",
-        recurring: false,
-        recurring_interval: null,
-      }),
-    });
-  }, workspaceId);
-  await page.evaluate(async (w) => {
-    await fetch(`/api/v1/workspaces/${w}/calendar`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: "Point d’équipe LUMA",
-        start_at: new Date(Date.now() + 7200000).toISOString(),
-        end_at: new Date(Date.now() + 10800000).toISOString(),
-        timezone: "Europe/Paris",
-        all_day: false,
-        recurrence: "none",
-        reminder_minutes: null,
-      }),
-    });
-  }, workspaceId);
-  await db.query(
-    "INSERT INTO notifications(workspace_id,user_id,type,title,body,channel_id) VALUES($1,$2,'mention','Une conversation vous attend','Revue du parcours de collaboration — données de test',(SELECT id FROM channels WHERE workspace_id=$1 AND name='general' LIMIT 1))",
-    [workspaceId, currentUser.id],
-  );
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".home-page");
-  await waitText("Préparer le point d’équipe");
-  await waitText("Point d’équipe LUMA");
-  await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({
-    path: ".impeccable/review/ux-home-desktop.png",
-    fullPage: true,
-  });
-  await page.keyboard.down("Control");
-  await page.keyboard.press("KeyK");
-  await page.keyboard.up("Control");
-  await page.waitForSelector(".quick-switch input");
-  await page.type(".quick-switch input", "general");
-  await page.keyboard.press("Enter");
-  await page.waitForSelector(".composer textarea");
-  assert.equal(await page.$(".quick-switch"), null);
-  await click("Boîte de réception");
-  await page.waitForSelector(".notification.unread");
-  await click("Tout marquer comme lu");
-  await page.waitForFunction(
-    () => !document.querySelector(".notification.unread"),
-  );
-  assert.equal(
-    (
-      await db.query(
-        "SELECT count(*) n FROM notifications WHERE workspace_id=$1 AND user_id=$2 AND state='unread'",
-        [workspaceId, currentUser.id],
-      )
-    ).rows[0].n,
-    "0",
-  );
-  await click("Lues");
-  await page.waitForSelector(".notification.read");
-  await page.screenshot({
-    path: ".impeccable/review/ux-inbox-desktop.png",
-    fullPage: true,
-  });
-  await click("Ouvrir la conversation");
-  await page.waitForSelector(".composer textarea");
-  assert.equal(
-    await page.$eval(".channel-heading h1", (el) => el.textContent),
-    "general",
-  );
-  for (const [label, width, height] of [
-    ["desktop", 1440, 1000],
-    ["mobile", 390, 844],
-  ] as const) {
-    await page.setViewport({ width, height });
-    for (const [route, selector] of [
-      ["Accueil", ".home-page"],
-      ["Conversations", ".composer textarea"],
-      ["Projets", ".project-page"],
-      ["Calendrier", ".calendar-page"],
-      ["Pages de l'équipe", ".document"],
-      ["Préférences", ".settings-panel"],
-      ["Administration", ".admin-panel"],
-      ["Supervision", ".monitoring-page"],
-      ["Amis", ".friends-page"],
-      ["Aide", ".help-article"],
-      ["Boîte de réception", ".inbox-page"],
-      ["Rappels", ".reminders-page"],
-      ["Favoris", ".favorites-page"],
-    ]) {
-      if (label === "mobile") {
-        await page.click('[aria-label="Ouvrir la navigation"]');
-        await page.waitForFunction(
-          () =>
-            document.querySelector(".sidebar.open")?.getBoundingClientRect()
-              .x === 0,
-        );
-      }
-      await page.click(
-        `.nav-group button[aria-label=${JSON.stringify(route)}]`,
-      );
-      await page.waitForSelector(selector);
-      assert.equal(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-        true,
-        `${route} overflows at ${width}`,
-      );
-      // Wait for data/fonts before capturing the entire visible application viewport.
-      await page.evaluate(() => document.fonts.ready);
-      await page.screenshot({
-        path: `.impeccable/review/ux-${route.replaceAll(" ", "-").replaceAll("'", "")}-${label}.png`,
-        fullPage: true,
-      });
-    }
-    await click("Boîte de réception");
-    await click("Lues");
-    await page.screenshot({
-      path: `.impeccable/review/ux-inbox-${label}.png`,
-      fullPage: true,
-    });
-    await click("Accueil");
-    if (label === "mobile") {
-      await page.click(".mobile-dock button:last-child");
-      await page.waitForSelector(".sidebar.open");
-      await page.keyboard.press("Escape");
-      await page.waitForFunction(
-        () => !document.querySelector(".sidebar.open"),
-      );
-      await page.click('.mobile-dock [aria-current="page"]');
-      await click("Conversations");
-      await page.click(".channel-picker");
-      await page.waitForSelector(".conversation-index.open");
-      await page.click(".conversation-index .channel-group button");
-      await page.waitForFunction(
-        () => !document.querySelector(".conversation-index.open"),
-      );
-    }
-  }
-  await page.setViewport({ width: 1440, height: 1000 });
-  await click("Accueil");
-  console.log(
-    "UX PASS: persisted home/calendar/reminder data, command palette keyboard navigation, notification batch update, all main surfaces at 1440 and 390, mobile menu and channel picker.",
-  );
-}
-async function verify050() {
-  const observedSearchQueries: string[] = [];
-  // This suite exercises HTTP search/error fixtures. PWA handling is qualified by verifyExperience.
-  await page.setBypassServiceWorker(true);
-  // Avoid automated tile traffic against the public OSM service. These tiles are synthetic QA fixtures.
-  await page.setRequestInterception(true);
-  page.on("request", (req) => {
-    if (new URL(req.url()).pathname === "/api/v1/places/search")
-      observedSearchQueries.push(
-        new URL(req.url()).searchParams.get("q") || "",
-      );
-    if (
-      new URL(req.url()).pathname === "/api/v1/places/search" &&
-      new URL(req.url()).searchParams.get("q") === "Panne050"
-    )
-      void req.respond({
-        status: 503,
-        contentType: "application/json",
-        body: JSON.stringify({
-          error: {
-            code: "PLACE_SEARCH_UNAVAILABLE",
-            message:
-              "La recherche de lieux est momentanément indisponible. Réessayez ou placez le lieu sur la carte.",
-          },
-        }),
-      });
-    else if (req.url().startsWith("https://tile.openstreetmap.org/"))
-      void req.respond({
-        status: 200,
-        contentType: "image/svg+xml",
-        body: Buffer.from(
-          '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#dde4df"/><path d="M0 64H256M0 128H256M0 192H256M64 0V256M128 0V256M192 0V256" stroke="#c7d1cb"/><text x="18" y="30" fill="#52645a" font-family="sans-serif" font-size="12">Fond simulé — test local</text></svg>',
-        ),
-      });
-    else void req.continue();
-  });
-  const user = await page.evaluate(async () => {
-    const r = await fetch("/api/v1/me");
-    return (await r.json()).data;
-  });
-  const workspaceId = (
-    await db.query("SELECT id FROM workspaces WHERE name='LUMA'")
-  ).rows[0].id;
-  async function request(path: string, method = "GET", body?: unknown) {
-    return page.evaluate(
-      async (p, m, b) => {
-        const r = await fetch(p, {
-          method: m,
-          headers: b ? { "Content-Type": "application/json" } : {},
-          body: b ? JSON.stringify(b) : undefined,
-        });
-        const data = await r.json();
-        if (!r.ok) throw Error(JSON.stringify(data));
-        return data;
-      },
-      path,
-      method,
-      body,
-    );
-  }
-  const b = `/api/v1/workspaces/${workspaceId}`;
-  const project = (await request(`${b}/projects`)).data[0],
-    board = (await request(`${b}/boards`)).data[0];
-  const column = (await request(`${b}/columns`)).data.find(
-    (c: { board_id: string }) => c.board_id === board.id,
-  );
-  await request(`${b}/tasks`, "POST", {
-    title: "Préparer la sortie Burger King",
-    description: "Une tâche synthétique pour vérifier les filtres",
-    column_id: column.id,
-    priority: "urgent",
-    due_at: new Date(Date.now() + 3600000).toISOString(),
-  });
-  await request(`${b}/calendar`, "POST", {
-    title: "Déjeuner Burger King",
-    start_at: new Date().toISOString(),
-    timezone: "Europe/Paris",
-    all_day: false,
-    recurrence: "none",
-  });
-  await click("Conversations");
-  await click("general");
-  await page.waitForSelector(".composer textarea");
-  await page.type(".composer textarea", "demain à 14h pendant 2 heures");
-  await page.waitForSelector(".date-pill");
-  await page.click(".date-pill");
-  await page.waitForSelector('dialog input[name="start_at"]');
-  assert.ok(
-    (
-      await page.$eval(
-        'dialog input[name="start_at"]',
-        (el) => (el as HTMLInputElement).value,
-      )
-    ).endsWith("T14:00"),
-  );
-  assert.ok(
-    (
-      await page.$eval(
-        'dialog input[name="end_at"]',
-        (el) => (el as HTMLInputElement).value,
-      )
-    ).endsWith("T16:00"),
-  );
-  await page.click('dialog [aria-label="Fermer"]');
-  await page.waitForFunction(() => !document.querySelector("dialog[open]"));
-  await page.click('[aria-label="Envoyer le message"]');
-  await page.waitForSelector(".message-date-badge");
-  await page.click(".message-date-badge");
-  await page.waitForSelector('dialog input[name="start_at"]');
-  assert.ok(
-    (
-      await page.$eval(
-        'dialog input[name="start_at"]',
-        (el) => (el as HTMLInputElement).value,
-      )
-    ).endsWith("T14:00"),
-  );
-  await page.screenshot({
-    path: ".impeccable/review/050-dates-desktop.png",
-    fullPage: true,
-  });
-  await page.click('dialog [aria-label="Fermer"]');
-  await page.waitForFunction(() => !document.querySelector("dialog[open]"));
-  await click("Mes lieux");
-  await page.waitForSelector(".places-map");
-  await page.waitForSelector(".leaflet-control-attribution");
-  assert.equal(placesProvider.calls.length, 0);
-  await page.type("#place-discovery-query", "Burger King Rennes");
-  await new Promise((r) => setTimeout(r, 250));
-  assert.equal(
-    placesProvider.calls.length,
-    0,
-    "Typing alone must not call the provider",
-  );
-  await page.keyboard.press("Enter");
-  await page.waitForSelector(".place-list-row");
-  assert.equal(await page.$$eval(".place-list-row", (rows) => rows.length), 3);
-  await page.screenshot({
-    path: ".impeccable/review/050-search-desktop.png",
-    fullPage: false,
-  });
-  await page.click(".place-list-row");
-  assert.equal(await page.$("dialog[open]"), null);
-  assert.equal(await page.$('input[name="latitude"]'), null);
-  await page.click(".place-quick-actions button:first-child");
-  await page.waitForSelector(
-    '.place-quick-actions button:first-child[aria-pressed="true"]',
-  );
-  await page.click(".place-quick-actions button:last-child");
-  await page.waitForSelector(
-    '.place-quick-actions button:last-child[aria-pressed="true"]',
-  );
-  await click("Notes, date et partage");
-  await page.click(".place-editor .place-extra summary");
-  await page.select('select[name="visibility"]', "friends");
-  await page.type('textarea[name="notes"]', "Notes privées de test");
-  await page.click(".place-editor button.primary");
-  await page.waitForFunction(() => !document.querySelector(".place-editor"));
-  assert.equal((await request("/api/v1/places/mine")).data[0].state, "visited");
-  await page.$eval(".content", (el) => {
-    el.scrollTop = 0;
-  });
-  await page.screenshot({
-    path: ".impeccable/review/050-map-desktop.png",
-    fullPage: true,
-  });
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".place-list-row");
-  await page.click(".place-list-row");
-  await waitText("Notes privées de test");
-  await page.click(".places-page .help-hint summary");
-  await page.screenshot({
-    path: ".impeccable/review/050-map-help-desktop.png",
-    fullPage: true,
-  });
-  await page.click(".places-page .help-hint summary");
-  // Manual addition keeps the map visible. No coordinate is typed and no modal opens.
-  await click("Ajouter manuellement");
-  assert.equal(await page.$("dialog[open]"), null);
-  assert.equal(
-    await page.$eval(
-      'input[name="latitude"]',
-      (el) => !!el.closest("details[open]"),
-    ),
-    false,
-  );
-  assert.equal(await page.$('input[name="visited_on"]'), null);
-  await page.type('input[name="name"]', "Burger King · lieu manuel de test");
-  await page.type('input[name="address"]', "Lieu synthétique — Rennes");
-  const mapBox = await (await page.$(".places-map"))!.boundingBox();
-  await page.mouse.click(
-    mapBox!.x + mapBox!.width * 0.55,
-    mapBox!.y + mapBox!.height * 0.5,
-  );
-  await page.waitForSelector(".place-position.ready");
-  await page.$eval(".content", (el) => {
-    el.scrollTop = 0;
-  });
-  await page.screenshot({
-    path: ".impeccable/review/050-add-desktop.png",
-    fullPage: false,
-  });
-  await page.click(".place-editor button.primary");
-  await page.waitForFunction(() => !document.querySelector(".place-editor"));
-  assert.equal((await request("/api/v1/places/mine")).data.length, 2);
-  // An unknown city and an explicitly simulated service outage have recovery actions.
-  async function searchText(q: string) {
-    if (await page.$('[aria-label="Effacer la recherche de lieux"]'))
-      await page.click('[aria-label="Effacer la recherche de lieux"]');
-    await page.type("#place-discovery-query", q);
-    const response = page.waitForResponse(
-      (r) =>
-        new URL(r.url()).pathname === "/api/v1/places/search" &&
-        new URL(r.url()).searchParams.get("q") === q,
-    );
-    await page.keyboard.press("Enter");
-    try {
-      await response;
-    } catch (e) {
-      throw Error(
-        `Search ${q} received queries ${JSON.stringify(observedSearchQueries)}: ${e}`,
-      );
-    }
-  }
-  await searchText("MacDo Rennes");
-  await waitText("McDonald's Rennes · test");
-  await page.screenshot({
-    path: ".impeccable/review/050-free-search-desktop.png",
-    fullPage: false,
-  });
-  await page.click(".place-list-row");
-  await page.click(".place-quick-actions button:first-child");
-  await page.waitForSelector(
-    '.place-quick-actions button:first-child[aria-pressed="true"]',
-  );
-  assert.ok(
-    (await request("/api/v1/places/mine")).data.some(
-      (p: any) => p.category === "place" && p.name.includes("McDonald's"),
-    ),
-  );
-  await searchText("Camping Rennes");
-  await waitText("Camping des étoiles · test");
-  await page.click(".place-list-row");
-  await page.click(".place-quick-actions button:last-child");
-  await page.waitForSelector(
-    '.place-quick-actions button:last-child[aria-pressed="true"]',
-  );
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".place-list-row");
-  assert.ok(
-    (await request("/api/v1/places/mine")).data.some(
-      (p: any) =>
-        p.category === "place" &&
-        p.name.includes("Camping") &&
-        p.state === "visited",
-    ),
-  );
-  await searchText("Introuvable050");
-  await waitText("Aucun lieu trouvé");
-  await page.screenshot({
-    path: ".impeccable/review/050-search-empty-desktop.png",
-    fullPage: false,
-  });
-  await searchText("Panne050");
-  await page.waitForSelector(".place-search-error");
-  await page.screenshot({
-    path: ".impeccable/review/050-search-error-desktop.png",
-    fullPage: false,
-  });
-  assert.ok(await page.$(".place-search-error button"));
-  await page.setViewport({ width: 390, height: 844 });
-  await searchText("Musée Rennes");
-  await waitText("Musée de test");
-  await page.waitForSelector(".place-list-row");
-  await page.$eval(".places-page", (el) =>
-    el.scrollIntoView({ block: "start" }),
-  );
-  await page.screenshot({
-    path: ".impeccable/review/050-search-mobile.png",
-    fullPage: false,
-  });
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    ),
-    false,
-  );
-  await page.click(".place-list-row");
-  await page.screenshot({
-    path: ".impeccable/review/050-place-mobile.png",
-    fullPage: false,
-  });
-  await browser
-    .defaultBrowserContext()
-    .overridePermissions(origin, ["geolocation"]);
-  await page.setGeolocation({ latitude: 48.1173, longitude: -1.6778 });
-  await click("autour de moi");
-  await page.waitForSelector(".place-list-row");
-  await click("Ajouter manuellement");
-  await page.type('input[name="name"]', "Lieu libre · ajout mobile de test");
-  assert.equal(await page.$('select[name="category"]'), null);
-  await page.screenshot({
-    path: ".impeccable/review/050-add-mobile.png",
-    fullPage: false,
-  });
-  await click("Placer au centre de la carte");
-  await page.waitForSelector(".place-position.ready");
-  assert.equal(
-    await page.$eval(
-      'input[name="latitude"]',
-      (el) => !!el.closest("details[open]"),
-    ),
-    false,
-  );
-  await page.click(".place-editor button.primary");
-  await page.waitForFunction(() => !document.querySelector(".place-editor"));
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    ),
-    false,
-  );
-  await page.setViewport({ width: 1440, height: 1000 });
-  // A friend with no membership and no active session can receive durable messages.
-  const friend = (
-    await db.query(
-      "INSERT INTO users(kyros_user_id,name,status) VALUES('test-friend-050','Ami hors ligne','invisible') RETURNING id",
-    )
-  ).rows[0];
-  await db.query("INSERT INTO friendships(user_a,user_b) VALUES($1,$2)", [
-    ...[user.id, friend.id].sort(),
-  ]);
-  await click("Amis");
-  await page.waitForSelector(`[aria-label="Écrire à Ami hors ligne"]`);
-  await page.click('[aria-label="Écrire à Ami hors ligne"]');
-  await page.waitForSelector("#friend-draft");
-  await page.type("#friend-draft", "Ce message t’attend à ton retour.");
-  await page.click(".friend-messenger form button.primary");
-  await page.waitForSelector(".friend-bubble.mine");
-  assert.equal(
-    (
-      await db.query(
-        "SELECT count(*) n FROM friend_messages WHERE recipient_id=$1",
-        [friend.id],
-      )
-    ).rows[0].n,
-    "1",
-  );
-  await page.screenshot({
-    path: ".impeccable/review/050-friend-desktop.png",
-    fullPage: true,
-  });
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector('[aria-label="Écrire à Ami hors ligne"]');
-  await page.click('[aria-label="Écrire à Ami hors ligne"]');
-  await waitText("Ce message t’attend à ton retour.");
-  await click("Projets");
-  await page.waitForSelector(".task-filters");
-  await click("Liste");
-  await page.select('[aria-label="Filtrer par priorité"]', "urgent");
-  await waitText("Préparer la sortie Burger King");
-  assert.ok(await page.$(".task-list-view"));
-  await page.screenshot({
-    path: ".impeccable/review/050-project-desktop.png",
-    fullPage: true,
-  });
-  await click("Nouveau projet");
-  await page.waitForSelector('dialog input[name="name"]');
-  await page.type('dialog input[name="name"]', "Projet de sortie");
-  await page.click("dialog button.primary");
-  await page.waitForFunction(
-    () =>
-      document.querySelector(".project-context h2")?.textContent ===
-      "Projet de sortie",
-  );
-  await page.click(".board-toolbar button");
-  await page.waitForSelector('dialog input[name="name"]');
-  await page.type('dialog input[name="name"]', "Repérage des lieux");
-  await page.click("dialog button.primary");
-  await page.waitForFunction(
-    () =>
-      document.querySelector<HTMLSelectElement>('[aria-label="Board"]')
-        ?.selectedOptions[0]?.textContent === "Repérage des lieux",
-  );
-  await page.click('.project-tabs button[aria-label="Liora"]');
-  await page.waitForFunction(
-    () =>
-      document.querySelector(".project-context h2")?.textContent === "Liora",
-  );
-  await click("Calendrier");
-  await page.waitForSelector(".calendar-page");
-  await click("Agenda");
-  await waitText("Déjeuner Burger King");
-  assert.equal(await page.$(".calendar-grid"), null);
-  await page.screenshot({
-    path: ".impeccable/review/050-calendar-desktop.png",
-    fullPage: true,
-  });
-  await click("Préférences");
-  await click("Apparence");
-  await page.waitForSelector(".theme-gallery");
-  for (const theme of ["atelier", "orbit", "terminal", "dark"]) {
-    await page.click(`input[name="theme"][value="${theme}"]`);
-    await click("Enregistrer");
-    await page.waitForFunction(
-      (t) => document.documentElement.dataset.theme === t,
-      {},
-      theme,
-    );
-    assert.ok(
-      (
-        await page.$eval(
-          '.theme-preview[data-theme="dark"] strong',
-          (el) => getComputedStyle(el).fontFamily,
-        )
-      ).includes("Manrope"),
-    );
-    await page.screenshot({
-      path: `.impeccable/review/050-theme-${theme}-desktop.png`,
-      fullPage: true,
-    });
-    await click("Projets");
-    await page.waitForSelector(".task-filters");
-    await page.screenshot({
-      path: `.impeccable/review/050-project-${theme}-desktop.png`,
-      fullPage: true,
-    });
-    await click("Préférences");
-    await click("Apparence");
-  }
-  for (const theme of ["atelier", "orbit", "terminal", "dark"]) {
-    await page.click(`input[name="theme"][value="${theme}"]`);
-    await click("Enregistrer");
-    await page.waitForFunction(
-      (t) => document.documentElement.dataset.theme === t,
-      {},
-      theme,
-    );
-    await page.setViewport({ width: 390, height: 844 });
-    assert.equal(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-      true,
-    );
-    await page.screenshot({
-      path: `.impeccable/review/050-theme-${theme}-mobile.png`,
-      fullPage: true,
-    });
-    await page.setViewport({ width: 1440, height: 1000 });
-  }
-  await page.click(".settings-panel .help-hint summary");
-  await page.screenshot({
-    path: ".impeccable/review/050-preferences-desktop.png",
-    fullPage: true,
-  });
-  await click("Administration");
-  await page.waitForSelector(".admin-panel .help-hint");
-  await click("Rôles et permissions");
-  await page.click(".admin-panel .help-hint summary");
-  await page.screenshot({
-    path: ".impeccable/review/050-admin-desktop.png",
-    fullPage: true,
-  });
-  await click("Aide");
-  await page.type('[aria-label="Rechercher dans l’aide"]', "dates détectées");
-  await waitText("Les expressions relatives restent attachées");
-  await page.screenshot({
-    path: ".impeccable/review/050-help-desktop.png",
-    fullPage: true,
-  });
-  await page.setViewport({ width: 390, height: 844 });
-  for (const [route, selector] of [
-    ["Mes lieux", ".places-map"],
-    ["Amis", ".friends-page"],
-    ["Projets", ".task-filters"],
-    ["Calendrier", ".calendar-page"],
-    ["Préférences", ".settings-panel"],
-    ["Administration", ".admin-panel"],
-    ["Aide", ".help-article"],
-  ]) {
-    await page.click('[aria-label="Ouvrir la navigation"]');
-    await page.waitForFunction(
-      () =>
-        document.querySelector(".sidebar.open")?.getBoundingClientRect().x ===
-        0,
-    );
-    await page.click(`.nav-group button[aria-label=${JSON.stringify(route)}]`);
-    await page.waitForSelector(selector);
-    if (route === "Amis") {
-      await page.waitForSelector('[aria-label="Écrire à Ami hors ligne"]');
-      await page.click('[aria-label="Écrire à Ami hors ligne"]');
-      await page.waitForSelector(".friend-bubble.mine");
-    }
-    if (route === "Préférences") {
-      await click("Apparence");
-      await page.waitForSelector(".theme-gallery");
-    }
-    assert.equal(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-      true,
-      `${route} overflows on mobile`,
-    );
-    await page.screenshot({
-      path: `.impeccable/review/050-${route.replaceAll(" ", "-")}-mobile.png`,
-      fullPage: true,
-    });
-  }
-  await page.setViewport({ width: 1440, height: 1000 });
-  // The personal tools also work for a signed-in user without any workspace.
-  await db.query("DELETE FROM workspace_members WHERE user_id=$1", [user.id]);
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".personal-nav");
-  await page.click(".personal-nav button:nth-child(2)");
-  await page.waitForSelector(".places-map");
-  await page.waitForSelector(".place-list-row");
-  await page.screenshot({
-    path: ".impeccable/review/050-no-workspace-desktop.png",
-    fullPage: true,
-  });
-  await page.click(".personal-nav button:nth-child(3)");
-  await page.waitForSelector('[aria-label="Écrire à Ami hors ligne"]');
-  await page.click('[aria-label="Écrire à Ami hors ligne"]');
-  await waitText("Ce message t’attend à ton retour.");
-  console.log(
-    "0.5.0 PASS: personal map persistence, private notes, offline friend without common workspace, project list/filters, calendar agenda, structural themes, contextual help, desktop/mobile and personal tools without membership. OSM tiles mocked.",
-  );
-}
-
-async function runBrowserChecks() {
+  const page = await browser.newPage(),
+    failures: string[] = [];
   await page.emulateMediaFeatures([
     { name: "prefers-reduced-motion", value: "reduce" },
   ]);
   await page.setViewport({ width: 1440, height: 1000 });
-  await page.goto(origin, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector('a[href="/auth/login"]');
-  await page.screenshot({
-    path: ".impeccable/review/login.png",
-    fullPage: false,
+  page.on("pageerror", (e) => failures.push(String(e)));
+  page.on("console", (m) => {
+    if (m.type() === "error" && !m.text().includes("Failed to load resource"))
+      failures.push(m.text());
   });
+  page.on("dialog", async (d) => d.accept());
+  async function click(label: string, target: import("puppeteer").Page = page) {
+    const button = await target.waitForFunction(
+      (text) => {
+        const list = Array.from(
+          document.querySelectorAll<HTMLButtonElement>("button,a"),
+        );
+        return list.find(
+          (b) =>
+            (b.textContent?.trim() === text ||
+              b.getAttribute("aria-label") === text) &&
+            b.getBoundingClientRect().width > 0 &&
+            b.getBoundingClientRect().right > 0 &&
+            b.getBoundingClientRect().left < innerWidth &&
+            b.getBoundingClientRect().height > 0 &&
+            !b.hasAttribute("disabled"),
+        );
+      },
+      { timeout: 10000 },
+      label,
+    );
+    await (
+      button.asElement() as import("puppeteer").ElementHandle<Element>
+    ).click();
+  }
+  async function request(
+    path: string,
+    method = "GET",
+    body?: unknown,
+    expected = 200,
+  ) {
+    const result = await page.evaluate(
+      async ({ path, method, body }) => {
+        const r = await fetch(path, {
+          method,
+          headers: body ? { "Content-Type": "application/json" } : {},
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const text = await r.text();
+        let value: any;
+        try {
+          value = JSON.parse(text);
+        } catch {
+          value = { text };
+        }
+        return { status: r.status, body: value };
+      },
+      { path, method, body },
+    );
+    assert.equal(
+      result.status,
+      expected,
+      `${method} ${path}: ${JSON.stringify(result.body.error || {})}`,
+    );
+    return result.body;
+  }
+  await page.goto(origin);
   await page.click('a[href="/auth/login"]');
-  await page.waitForSelector(".home-page");
-  if (process.env.E2E_BRAINDUMP_ONLY === "1") {
-    await verifyBrainDump();
-    assertNoBrowserErrors();
-    return;
-  }
-  if (process.env.E2E_070_ONLY === "1") {
-    await verify070();
-    assertNoBrowserErrors();
-    return;
-  }
-  if (process.env.E2E_060_ONLY === "1") {
-    await verify060();
-    assertNoBrowserErrors();
-    return;
-  }
-  if (process.env.E2E_050_ONLY === "1") {
-    await verify050();
-    assertNoBrowserErrors();
-    return;
-  }
-  if (process.env.E2E_UX_ONLY === "1") {
-    await verifyUx();
-    assertNoBrowserErrors();
-    return;
-  }
-  await click("Conversations");
-  await page.waitForSelector(".composer textarea");
+  await page.waitForSelector(".shell-sidebar");
   await page.evaluate(() => document.fonts.ready);
-  await waitText("Bienvenue dans Liora.");
-  await page.screenshot({
-    path: ".impeccable/review/desktop.png",
-    fullPage: false,
-  });
+  const me = (await request("/api/v1/me")).data,
+    base = `/api/v1/workspaces/${workspace}`;
+  await page.waitForSelector(".personal-home");
+  await capture("v1-personal-desktop");
+  assert.equal(
+    await page.$$(".scope-personal .shell-channels").then((r) => r.length),
+    0,
+  );
   assert.equal(
     await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
+      () =>
+        document.body.textContent?.includes("Pages de l’équipe") ||
+        document.body.textContent?.includes("En direct"),
     ),
     false,
   );
-  if (process.env.E2E_EXPERIENCE_ONLY === "1") {
-    await verifyExperience();
-    assertNoBrowserErrors();
-    return;
-  }
-  if (process.env.E2E_MONITORING_ONLY === "1") {
-    const workspaceId = (
-      await db.query("SELECT id FROM workspaces WHERE name='LUMA'")
-    ).rows[0].id;
-    await click("Supervision");
-    await page.waitForSelector(".heartbeat-help");
-    await waitText("Jamais reçu");
-    await page.click(".heartbeat-help summary");
-    await waitText("Une clé API Argos ne convient pas.");
-    for (const [label, width, height] of [
-      ["desktop", 1440, 1000],
-      ["mobile", 390, 844],
-    ] as const) {
-      await page.setViewport({ width, height });
-      assert.equal(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        ),
-        true,
-      );
-      if (label === "mobile")
-        await page.$eval(".monitor-target-heartbeat", (el) =>
-          el.scrollIntoView({ block: "start" }),
-        );
-      await page.screenshot({
-        path: `.impeccable/review/heartbeat-${label}.png`,
-        fullPage: true,
-      });
-    }
-    const receipt = await page.evaluate(async (id) => {
-      const response = await fetch(`/api/v1/workspaces/${id}/heartbeat`, {
-        method: "POST",
-      });
-      return { status: response.status, body: await response.json() };
-    }, workspaceId);
-    assert.equal(receipt.status, 200);
-    assert.ok(receipt.body.received_at);
-    const { checkMonitoring } = await import("../src/server/workers.js");
-    await checkMonitoring();
-    await click("Actualiser");
-    await waitText("Liora reçoit les signaux");
-    await page.screenshot({
-      path: ".impeccable/review/heartbeat-received-mobile.png",
-      fullPage: true,
-    });
+  // Populated personal views: real friendship/message tables in the isolated E2E DB.
+  const friend = (
     await db.query(
-      "UPDATE monitoring_targets SET last_heartbeat=now()-interval '1 day' WHERE workspace_id=$1 AND kind='heartbeat'",
-      [workspaceId],
-    );
-    await checkMonitoring();
-    await click("Actualiser");
-    await waitText("Le dernier signal a expiré.");
-    await page.screenshot({
-      path: ".impeccable/review/heartbeat-expired-mobile.png",
-      fullPage: true,
-    });
-    assertNoBrowserErrors();
-    console.log(
-      "E2E MONITORING PASS: never received, authenticated receipt, recovery, expiration, 1440×1000 and 390×844.",
-    );
-    return;
-  }
-  // Regression: the workspace disclosure works by mouse and keyboard.
-  await page.click(".workspace-title");
-  await page.waitForSelector("#workspace-choices");
-  await page.screenshot({
-    path: ".impeccable/review/workspace-menu.png",
-    fullPage: false,
-  });
-  await page.keyboard.press("Escape");
-  assert.equal(await page.$("#workspace-choices"), null);
-  // Regression: stale member rows must never be rendered as roles, even with a delayed response.
-  await click("Administration");
-  await click("Membres");
-  await page.waitForSelector(".admin-row");
-  await page.setRequestInterception(true);
-  const delayRoles = (request: import("puppeteer").HTTPRequest) => {
-    if (request.url().endsWith("/roles"))
-      setTimeout(() => void request.continue(), 350);
-    else void request.continue();
-  };
-  page.on("request", delayRoles);
-  await click("Rôles et permissions");
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll(".admin-row")].some((r) =>
-      r.textContent?.includes("Owner"),
-    ),
-  );
-  await click("Membres");
-  await click("Rôles et permissions");
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll(".admin-row")].some((r) =>
-      r.textContent?.includes("Owner"),
-    ),
-  );
-  assert.equal(await page.$(".empty[role=alert]"), null);
-  await page.screenshot({
-    path: ".impeccable/review/roles.png",
-    fullPage: false,
-  });
-  await page.setRequestInterception(false);
-  page.off("request", delayRoles);
-  await click("Conversations");
-  await click("general");
-  // Thread and pin workflow.
-  await page.waitForSelector(".thread-link");
-  await page.click(".thread-link");
-  await page.type("dialog textarea", "Une réponse dans un fil persistant.");
-  await click("Envoyer la réponse");
-  await waitText("Une réponse dans un fil persistant.");
-  await page.screenshot({
-    path: ".impeccable/review/thread.png",
-    fullPage: false,
-  });
-  await page.click('dialog [aria-label="Fermer"]');
-  await page.click('[aria-label="Épingler"]');
-  await page.click('[aria-label="Messages épinglés"]');
-  await waitText("Message épinglé");
-  await page.click('[aria-label="Tous les messages"]');
-  await click("Rechercher des messages");
-  await page.type("dialog input", "Bienvenue");
-  await click("Rechercher");
-  await page.waitForSelector(".search-results button");
-  await page.click('dialog [aria-label="Fermer"]');
-  // A second human receives and loses monitoring permission without logging out.
-  provider.setSubject("browser-member");
-  const memberContext = await browser.createBrowserContext();
-  const member = await memberContext.newPage();
-  await member.goto(`${origin}/auth/login`);
-  await member.waitForSelector(".waiting");
-  provider.setSubject("test-owner");
-  const workspaceId = (
-    await db.query("SELECT id FROM workspaces WHERE name='LUMA'")
-  ).rows[0].id;
-  const memberRow = (
-    await db.query("SELECT id FROM users WHERE kyros_user_id='browser-member'")
-  ).rows[0];
-  const role = (
-    await db.query(
-      "SELECT * FROM roles WHERE workspace_id=$1 AND name='Member'",
-      [workspaceId],
+      "INSERT INTO users(kyros_user_id,name) VALUES('social-fixture-anais','Anaïs Laurent') RETURNING id",
+      [],
     )
   ).rows[0];
+  const otherFriend = (
+    await db.query(
+      "INSERT INTO users(kyros_user_id,name) VALUES('social-fixture-eliott','Eliott Moreau') RETURNING id",
+      [],
+    )
+  ).rows[0];
+  for (const person of [friend, otherFriend]) {
+    await db.query(
+      "INSERT INTO friendships(user_a,user_b) VALUES(LEAST($1::uuid,$2::uuid),GREATEST($1::uuid,$2::uuid))",
+      [me.id, person.id],
+    );
+  }
   await db.query(
-    "INSERT INTO workspace_members(workspace_id,user_id,role_id) VALUES($1,$2,$3)",
-    [workspaceId, memberRow.id, role.id],
+    "INSERT INTO friend_messages(sender_id,recipient_id,client_id,content,created_at,read_at) VALUES($1,$2,$3,'Salut ! On fait le point sur Liora demain ?',now()-interval '1 day',now())",
+    [me.id, friend.id, crypto.randomUUID()],
   );
-  await member.reload({ waitUntil: "domcontentloaded" });
-  await member.waitForSelector(".home-page");
-  await member.click('.nav-group button[aria-label="Conversations"]');
-  await member.waitForSelector(".composer textarea");
-  assert.equal(
-    await member.$$eval(".nav-group button", (buttons) =>
-      buttons.some((b) => b.textContent?.includes("Supervision")),
-    ),
-    false,
+  await db.query(
+    "INSERT INTO friend_messages(sender_id,recipient_id,client_id,content) VALUES($1,$2,gen_random_uuid(),'Oui, à 14 h. Je prépare **les dernières notes**. À demain !')",
+    [friend.id, me.id],
   );
-  const updateRole = async (permissions: string[]) =>
-    page.evaluate(
-      async ({ workspaceId, role, permissions }) => {
-        const r = await fetch(
-          `/api/v1/workspaces/${workspaceId}/roles/${role.id}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: role.name, permissions }),
-          },
-        );
-        return r.status;
-      },
-      { workspaceId, role, permissions },
-    );
-  assert.equal(await updateRole([...role.permissions, "VIEW_MONITORING"]), 200);
-  await member.waitForFunction(() =>
-    [...document.querySelectorAll(".nav-group button")].some((b) =>
-      b.textContent?.includes("Supervision"),
-    ),
+  await db.query(
+    "INSERT INTO friend_messages(sender_id,recipient_id,client_id,content,read_at) VALUES($1,$2,gen_random_uuid(),'Merci pour ton retour, tout est prêt.',now())",
+    [otherFriend.id, me.id],
   );
-  await member.evaluate(() =>
-    [...document.querySelectorAll<HTMLButtonElement>(".nav-group button")]
-      .find((b) => b.textContent?.includes("Supervision"))
-      ?.click(),
-  );
-  await member.waitForSelector(".monitor-target");
-  assert.equal(await updateRole(role.permissions), 200);
-  await member.waitForFunction(
+  await click("Messages privés");
+  await page.waitForSelector(".personal-message-row");
+  await click("Non lues");
+  assert.equal((await page.$$(".personal-message-row")).length, 1);
+  await click("Toutes");
+  await page.click(".personal-message-row");
+  await page.waitForSelector(".friend-bubble");
+  await page.waitForFunction(
     () =>
-      ![...document.querySelectorAll(".nav-group button")].some((b) =>
-        b.textContent?.includes("Supervision"),
-      ),
+      !document
+        .querySelector(".friend-message-list")
+        ?.getAttribute("aria-busy")
+        ?.includes("true"),
   );
-  assert.equal(await member.$(".monitor-target"), null);
-  await page.click('[aria-label="Créer un salon"]');
-  await page.type('dialog input[name="name"]', "salon-prive-navigateur");
-  await page.select('dialog select[name="is_private"]', "true");
-  await page.click("dialog button.primary");
-  await page.waitForSelector('[aria-label="Gérer les accès du salon"]');
-  await page.click('[aria-label="Gérer les accès du salon"]');
-  await page.waitForSelector("dialog .check-line input");
-  await page.$$eval("dialog .check-line input", (inputs) =>
-    inputs.forEach((el) => {
-      const input = el as HTMLInputElement;
-      if (!input.checked) input.click();
-    }),
-  );
-  await click("Enregistrer les accès");
-  await member.waitForFunction(() =>
-    document.body.innerText.includes("salon-prive-navigateur"),
-  );
-  await click("Conversation privée");
-  await page.waitForSelector('dialog select[name="user_id"]');
-  await page.select('dialog select[name="user_id"]', memberRow.id);
-  await page.click("dialog button.primary");
+  await page.type(".friend-messenger textarea", "Parfait, à demain !");
+  await click("Envoyer");
   await page.waitForFunction(() =>
-    document.querySelector(".channel-heading h1")?.textContent?.includes(" · "),
-  );
-  await page.type(".composer textarea", "Message direct depuis le navigateur.");
-  await page.click('[aria-label="Envoyer le message"]');
-  await waitText("Message direct depuis le navigateur.");
-  await page.screenshot({
-    path: ".impeccable/review/direct-message.png",
-    fullPage: false,
-  });
-  await click("Conversations");
-  await click("general");
-  await page.waitForSelector(".composer textarea");
-  await memberContext.close();
-  await page.type(
-    ".composer textarea",
-    "Le test navigateur confirme que les messages persistent.",
-  );
-  await page.click('[aria-label="Envoyer le message"]');
-  await waitText("Le test navigateur confirme");
-  const context = await browser.createBrowserContext();
-  const second = await context.newPage();
-  await context.setCookie(...(await browser.defaultBrowserContext().cookies()));
-  await second.goto(origin);
-  await second.waitForSelector(".home-page");
-  await second.click('.nav-group button[aria-label="Conversations"]');
-  await second.waitForSelector(".composer textarea");
-  await second.evaluate(() =>
-    [...document.querySelectorAll<HTMLButtonElement>(".channel-group button")]
-      .find((b) => b.textContent?.trim() === "general")
-      ?.click(),
-  );
-  await second.waitForFunction(
-    () =>
-      document.querySelector(".channel-heading h1")?.textContent === "general",
-  );
-  await second.type(
-    ".composer textarea",
-    "Signal envoyé depuis une seconde session navigateur.",
-  );
-  await second.click('[aria-label="Envoyer le message"]');
-  await waitText("Signal envoyé depuis une seconde");
-  await context.close();
-  await page.evaluate(() => {
-    const m = [...document.querySelectorAll(".message")].find((m) =>
-      m.textContent?.includes("Le test navigateur confirme"),
-    );
-    (
-      m?.querySelector(
-        '[aria-label="Ajouter une réaction"]',
-      ) as HTMLButtonElement
-    )?.click();
-  });
-  await page.waitForSelector('[aria-label="Insérer pouce vers le haut"]');
-  await page.click('[aria-label="Insérer pouce vers le haut"]');
-  await page.waitForSelector(".reactions .selected");
-  await click("Amis");
-  await click("Créer une invitation");
-  await click("Générer un lien");
-  await page.waitForSelector('input[aria-label="Lien d\'invitation"]');
-  const invitation = await page.$eval(
-    'input[aria-label="Lien d\'invitation"]',
-    (el) => (el as HTMLInputElement).value,
-  );
-  provider.setSubject("browser-member");
-  const friendContext = await browser.createBrowserContext();
-  const friendPage = await friendContext.newPage();
-  await friendPage.goto(`${origin}/auth/login`);
-  await friendPage.waitForSelector(".home-page");
-  provider.setSubject("test-owner");
-  await friendPage.goto(invitation);
-  await friendPage.waitForSelector(".invitation-page");
-  await friendPage.waitForSelector(".invitation-page button.primary");
-  await friendPage.click(".invitation-page button.primary");
-  await friendPage.waitForSelector(".home-page");
-  await page.waitForSelector(".friends-list article");
-  await page.screenshot({
-    path: ".impeccable/review/friends.png",
-    fullPage: false,
-  });
-  await friendContext.close();
-  await click("Aide et tutoriels");
-  await waitText("Inviter un ami");
-  await page.type('[aria-label="Rechercher dans l’aide"]', "aperçu");
-  await waitText("Rédiger une page");
-  await page.screenshot({
-    path: ".impeccable/review/help.png",
-    fullPage: false,
-  });
-  await click("Conversations");
-  await click("general");
-  await page.waitForSelector(".composer textarea");
-  await page.click('[aria-label="Mentionner un membre"]');
-  await page.waitForSelector(".mention-menu button");
-  await page.evaluate(() =>
-    [...document.querySelectorAll<HTMLButtonElement>(".mention-menu button")]
-      .find((b) => b.textContent?.includes("Alex"))
-      ?.click(),
+    document
+      .querySelector(".friend-message-list")
+      ?.textContent?.includes("Parfait, à demain !"),
   );
   assert.ok(
-    (
-      await page.$eval(
-        ".composer textarea",
-        (el) => (el as HTMLTextAreaElement).value,
-      )
-    ).includes("@Alex"),
+    (await request(`/api/v1/friends/${friend.id}/messages`)).data.some(
+      (m: any) => m.content === "Parfait, à demain !",
+    ),
   );
-  await page.keyboard.type("bonjour !");
-  await page.click('[aria-label="Envoyer le message"]');
-  await page.waitForSelector(".message-text .mention");
+  const messengerBounds = await page.$eval(".friend-messenger", (el) => ({
+    width: el.getBoundingClientRect().width,
+    bottom: el.getBoundingClientRect().bottom,
+  }));
+  assert.ok(
+    messengerBounds.width > 650,
+    "Conversation fills available desktop width",
+  );
+  assert.ok(messengerBounds.bottom <= 1000, "Composer remains within viewport");
   assert.equal(
-    await page.$eval(".message-text .mention", (el) => el.textContent),
-    "@Alex Dupont",
+    await page.$eval(".personal-message-row .avatar", (el) =>
+      Math.round(el.getBoundingClientRect().width),
+    ),
+    38,
   );
-  await page.click('[aria-label="Ajouter un emoji"]');
-  await page.waitForSelector(".emoji-grid button");
-  await page.type('[aria-label="Rechercher un emoji"]', "chat");
-  await page.screenshot({
-    path: ".impeccable/review/emojis.png",
-    fullPage: false,
-  });
-  await page.click(".emoji-grid button");
-  await page.$eval(".composer textarea", (el) => {
-    (el as HTMLTextAreaElement).value = "";
+  await capture("social-messages-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  await capture("social-messages-mobile");
+  await click("Retour aux conversations");
+  await page.waitForSelector(".conversation-index");
+  await capture("social-index-mobile");
+  await click("Ouvrir la navigation");
+  await click("Amis");
+  await page.waitForSelector(".friend-open");
+  await capture("social-friends-mobile");
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.type(".friend-search input", "Eliott");
+  assert.equal((await page.$$(".friend-open")).length, 1);
+  await page.$eval(".friend-search input", (el) => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(el, "");
     el.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  // Clear via keyboard so React's controlled draft follows.
-  await page.focus(".composer textarea");
-  await page.keyboard.down("Meta");
-  await page.keyboard.press("A");
-  await page.keyboard.up("Meta");
-  await page.keyboard.press("Backspace");
-  await writeFile(
-    "/tmp/liora-preview.gif",
-    Buffer.from("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==", "base64"),
+  await page.waitForFunction(
+    () => document.querySelectorAll(".friend-open").length === 2,
   );
-  const fileInput = await page.$('.composer input[type="file"]');
-  await fileInput!.uploadFile("/tmp/liora-preview.gif");
-  await page.waitForFunction(() =>
-    Boolean(
-      (
-        document.querySelector(".composer textarea") as HTMLTextAreaElement
-      )?.value.includes("/attachments/"),
-    ),
-  );
-  await page.click('[aria-label="Envoyer le message"]');
-  await page.waitForSelector(".chat-image img");
-  await page.waitForFunction(() =>
-    [...document.querySelectorAll<HTMLImageElement>(".chat-image img")].some(
-      (img) => img.complete && img.naturalWidth > 0,
-    ),
-  );
-  await click("Administration");
-  await click("Groupes");
-  await page.type('[aria-label="Nom du groupe"]', "Équipe navigateur");
-  await click("Créer le groupe");
-  await click("Équipe navigateur · 0");
-  await page.click(".group-management fieldset input");
-  await click("Enregistrer le groupe");
-  await waitText("Groupe enregistré");
-  await page.screenshot({
-    path: ".impeccable/review/groups.png",
-    fullPage: false,
-  });
-
-  const integrationChannel = (
-    await db.query(
-      "SELECT id FROM channels WHERE workspace_id=$1 AND name='general'",
-      [workspaceId],
+  await click("Écrire à Anaïs Laurent");
+  await page.waitForSelector(".friend-bubble");
+  await capture("social-friends-desktop");
+  await click("Ajouter un ami");
+  await page.waitForSelector(".friend-invite-dialog");
+  await capture("social-invitation-desktop");
+  await page.keyboard.press("Escape");
+  await click("Messages privés");
+  await page.waitForSelector(".personal-message-row");
+  await page.click(".personal-message-row");
+  await page.waitForSelector(".friend-bubble");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => {
+      document.documentElement.dataset.theme = t;
+    }, theme);
+    await capture(`social-messages-${theme}`);
+  }
+  for (const width of [320, 768, 1024, 1920]) {
+    await page.setViewport({ width, height: 900 });
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `Social overflow ${width}`,
+    );
+    assert.equal(
+      await page.$eval(
+        ".friend-send-row button",
+        (el) => el.getBoundingClientRect().bottom <= innerHeight,
+      ),
+      true,
+      `Send button visible ${width}`,
+    );
+  }
+  await page.setViewport({ width: 1440, height: 1000 });
+  const category = (
+    await request(
+      `${base}/categories`,
+      "POST",
+      { name: "Organisation · démonstration" },
+      201,
     )
-  ).rows[0].id;
-  assert.equal(
-    await page.evaluate(
-      async ({ workspaceId, integrationChannel }) => {
-        const response = await fetch(
-          `/api/v1/workspaces/${workspaceId}/connectors`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              provider: "github",
-              name: "GitHub navigateur",
-              config: { base_url: "https://api.github.com" },
-              channel_id: integrationChannel,
-            }),
-          },
-        );
-        return response.status;
+  ).data;
+  const channel = (
+    await request(
+      `${base}/channels`,
+      "POST",
+      {
+        name: "releases-demo",
+        category_id: category.id,
+        description: "Préparer les versions Liora · données de démonstration",
       },
-      { workspaceId, integrationChannel },
-    ),
+      201,
+    )
+  ).data;
+  await page.reload();
+  await page.waitForSelector(".workspace-rail");
+  await click("Espace LUMA");
+  await page.waitForSelector(".shell-channels");
+  await click(channel.name);
+  await page.waitForSelector(".composer textarea");
+  await page.type(
+    ".composer textarea",
+    "Revue **1.0** · message de démonstration",
+  );
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() =>
+    document.querySelector(".message-scroll")?.textContent?.includes("Revue"),
+  );
+  const message = (
+    await request(`${base}/channels/${channel.id}/messages`)
+  ).data.at(-1);
+  await page.$eval(".message", (el) => (el as HTMLElement).focus());
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("F10");
+  await page.keyboard.up("Shift");
+  await page.waitForSelector('[role="menu"]');
+  await page.keyboard.press("Escape");
+  assert.equal(
+    await page.$eval(".composer textarea", (el) => {
+      const e = new MouseEvent("contextmenu", {
+        bubbles: true,
+        cancelable: true,
+      });
+      el.dispatchEvent(e);
+      return e.defaultPrevented;
+    }),
+    false,
+    "Native editor context menu preserved",
+  );
+  const mentionedThread = (
+    await request(
+      `${base}/channels/${channel.id}/messages`,
+      "POST",
+      {
+        content: `**@[${me.id}]** Préparation de la prochaine version`,
+      },
+      201,
+    )
+  ).data;
+  await request(
+    `${base}/channels/${channel.id}/messages`,
+    "POST",
+    {
+      content: "Les notes sont prêtes.",
+      thread_id: mentionedThread.id,
+    },
     201,
   );
-  await click("Intégrations");
-  await page.waitForSelector(".integration-list");
-  assert.equal(
-    await page.$eval(".integration-list", (element) =>
-      element.textContent?.includes("GitHub navigateur"),
-    ),
-    false,
-  );
-  await click("Ajouter un module");
-  assert.deepEqual(
-    await page.$$eval(
-      '.connector-form select[name="provider"] option',
-      (options) => options.map((option) => (option as HTMLOptionElement).value),
-    ),
-    ["dropit", "braindump"],
-  );
-  assert.ok(await page.$('.connector-form input[name="client_id"]'));
-  assert.ok(await page.$('[aria-label="URL de retour DropIt"]'));
-  await page.screenshot({
-    path: ".impeccable/review/dropit-settings-desktop.png",
-    fullPage: false,
-  });
-  await page.type('.connector-form input[name="name"]', "DropIt navigateur");
-  await page.type('.connector-form input[name="base_url"]', dropit.origin);
-  await page.type('.connector-form input[name="client_id"]', dropit.client.id);
-  await page.type(
-    '.connector-form input[name="api_key"]',
-    dropit.client.api_key,
-  );
-  await page.click('.connector-form input[name="allow_private"]');
-  await click("Enregistrer le module");
-  await page.waitForSelector("dialog[open]");
-  await page.click('dialog [aria-label="Fermer"]');
-  await click("Tester la connexion");
-  await waitText("Connexion vérifiée.");
-  await page.screenshot({
-    path: ".impeccable/review/integrations.png",
-    fullPage: false,
-  });
-  await page.click(".profile-button");
-  await click("Comptes connectés");
-  await click("Connecter mon compte");
-  await page.waitForSelector('form[action="/integrations/authorize"]');
-  await page.screenshot({
-    path: ".impeccable/review/dropit-consent.png",
-    fullPage: false,
-  });
-  await click("Autoriser la connexion");
-  await page.waitForSelector(".connected-accounts");
-  await click("Mes fichiers");
-  await waitText("Guide de démonstration.pdf");
-  assert.equal(
-    await page.evaluate(() =>
-      document.body.innerText.includes("Fichier privé étranger.pdf"),
-    ),
-    false,
-  );
-  await page.screenshot({
-    path: ".impeccable/review/connected-files.png",
-    fullPage: false,
-  });
-  await click("Conversations");
-  await click("general");
-  await page.click('[aria-label="Commandes disponibles"]');
-  await waitText("Commandes personnelles");
-  await page.screenshot({
-    path: ".impeccable/review/commands.png",
-    fullPage: false,
-  });
-  await page.click('dialog [aria-label="Fermer"]');
-  await page.click('[aria-label="Fichiers DropIt"]');
-  await click("Mes fichiers");
-  await click("Insérer le partage");
-  await click("Insérer le lien dans mon brouillon");
-  await page.waitForFunction(() =>
-    document
-      .querySelector<HTMLTextAreaElement>(".composer textarea")
-      ?.value.includes("/d/synthetic-only"),
-  );
-  await page.click(".composer textarea");
-  await page.keyboard.down("Meta");
-  await page.keyboard.press("KeyA");
-  await page.keyboard.up("Meta");
-  await page.keyboard.press("Backspace");
-  await click("Projets");
-  await page.waitForSelector(".task-card");
-  await page.screenshot({
-    path: ".impeccable/review/board.png",
-    fullPage: false,
-  });
-  await page.click(".task-title");
-  await page.waitForSelector(".task-detail");
-  const target = await page.$eval(
-    ".task-detail select",
-    (el) => (el as HTMLSelectElement).options[1].value,
-  );
-  await page.select(".task-detail select", target);
   await page.waitForFunction(
-    (t) =>
-      (document.querySelector(".task-detail select") as HTMLSelectElement)
-        ?.value === t,
+    (name) =>
+      document
+        .querySelector(".channel-context")
+        ?.textContent?.includes(`@${name} Préparation`),
     {},
-    target,
+    me.name,
   );
-  await page.click('dialog [aria-label="Fermer"]');
-  await click("Pages de l’équipe");
-  await click("Modifier");
-  await page.waitForSelector(".document-block textarea");
-  await page.click(".document-block textarea");
-  await page.keyboard.press("End");
-  await page.keyboard.type(" Version enregistrée.");
-  await click("Enregistrer");
-  await page.waitForFunction(
-    () => !document.body.innerText.includes("Modifications non enregistrées"),
+  const threadText = await page.$eval(
+    ".channel-context",
+    (el) => el.textContent,
   );
-  await click("Aperçu");
-  await page.waitForFunction(() =>
-    document
-      .querySelector(".document-modes")
-      ?.textContent?.includes("Mode lecture"),
+  assert.ok(
+    !threadText?.includes(`@[${me.id}]`),
+    "Thread titles resolve mentions",
   );
-  assert.equal(await page.$(".document-block textarea"), null);
-  await page.screenshot({
-    path: ".impeccable/review/page-preview.png",
-    fullPage: false,
-  });
-  await click("Modifier");
-  await page.select('[aria-label="Ajouter un bloc"]', "stats");
-  await click("Aperçu");
-  await page.waitForSelector(".embedded-stats");
-  await click("Enregistrer");
-  await page.waitForFunction(
-    () => !document.body.innerText.includes("Modifications non enregistrées"),
-  );
-  await click("Supervision");
-  await page.waitForSelector(".monitor-target");
-  await waitText("Jamais reçu");
-  await page.click(".heartbeat-help summary");
-  await waitText("Une clé API Argos ne convient pas.");
-  await page.screenshot({
-    path: ".impeccable/review/monitoring.png",
-    fullPage: false,
-  });
+  assert.ok(threadText?.includes("1 réponse"), "Singular reply count");
+  await capture("social-threads-desktop");
+  await click("Paramètres du canal");
+  await page.waitForSelector(".channel-settings");
+  await page.waitForSelector(".settings-form fieldset");
+  await capture("social-channel-general-desktop");
   await page.setViewport({ width: 390, height: 844 });
+  await capture("social-channel-general-mobile");
+  await page.setViewport({ width: 320, height: 844 });
+  await capture("social-channel-general-320");
   assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
+    await page.$eval(
+      ".channel-settings",
+      (el) => el.scrollWidth <= el.clientWidth,
     ),
     true,
+    "Settings do not overflow at 320px",
   );
-  await page.screenshot({
-    path: ".impeccable/review/monitoring-mobile.png",
-    fullPage: true,
-  });
   await page.setViewport({ width: 1440, height: 1000 });
-  await click("Administration");
-  await click("Salons");
-  await page.waitForSelector(".admin-row");
-  await click("Ajouter");
-  await page.type('dialog input[name="name"]', "salon-navigateur");
-  await page.click("dialog button.primary");
-  await waitText("salon-navigateur");
-  await click("Feature flags");
-  await waitText("jellyfin.enabled");
+  await click("Permissions");
+  await page.waitForSelector(".permission-row");
+  await capture("social-channel-permissions-desktop");
+  await click("Options");
+  await page.$eval('.channel-settings input[type="number"]', (el) => {
+    const input = el as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(input, "5");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await page.click(".channel-settings .settings-toggle:last-of-type input");
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".settings-notice")
+      ?.textContent?.includes("Paramètres enregistrés"),
+  );
   assert.equal(
-    await page.$$eval(".nav-group button", (els) =>
-      els.some((e) => /jellyfin|films|séries/i.test(e.textContent || "")),
+    await page.$eval(
+      '.channel-settings input[type="number"]',
+      (el) => (el as HTMLInputElement).value,
     ),
-    false,
+    "5",
+    "Following preserves unsaved channel options",
   );
-  await page.screenshot({
-    path: ".impeccable/review/admin.png",
-    fullPage: false,
-  });
-  await page.click(".profile-button");
-  await click("Apparence");
-  await page.click('input[name="theme"][value="dusk"]');
-  await click("Enregistrer");
+  await click("Enregistrer les options");
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".channel-settings")
+      ?.textContent?.includes("Paramètres enregistrés"),
+  );
+  await capture("v1-channel-settings-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  await capture("social-channel-options-mobile");
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.keyboard.press("Escape");
+  await click("Membres et contexte");
+  await page.waitForSelector(".context-drawer");
+  await page.waitForFunction(() =>
+    document.querySelector(".context-drawer .member-open"),
+  );
+  await page.click(".context-drawer .member-open");
+  await page.waitForSelector(".member-profile");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  const fixtureRole = (
+    await request(
+      `${base}/roles`,
+      "POST",
+      {
+        name: "Membres UX · démonstration",
+        permissions: ["VIEW_WORKSPACE", "VIEW_CHANNEL", "READ_MESSAGE"],
+      },
+      201,
+    )
+  ).data;
+  const accessNames = [
+    "Anaïs Laurent",
+    "Eliott Moreau",
+    "Léa Bernard",
+    "Hugo Petit",
+    "Emma Robert",
+    "Louis Durand",
+    "Manon Dubois",
+    "Lucas Leroy",
+    "Chloé Morel",
+    "Nathan Simon",
+    "Camille Laurent",
+    "Jules Lefebvre",
+    "Inès Michel",
+    "Gabriel Garcia",
+    "Sarah Roux",
+    "Arthur David",
+    "Zoé Bertrand",
+    "Noah Vincent",
+    "Louise Fournier",
+    "Raphaël Moreau",
+  ];
+  for (let i = 0; i < accessNames.length; i++) {
+    await db.query(
+      "INSERT INTO users(kyros_user_id,name) VALUES($1,$2) ON CONFLICT(kyros_user_id) DO NOTHING",
+      [`access-fixture-${i}`, accessNames[i]],
+    );
+    await db.query(
+      "INSERT INTO workspace_members(workspace_id,user_id,role_id) SELECT $1,id,$3 FROM users WHERE kyros_user_id=$2",
+      [workspace, `access-fixture-${i}`, fixtureRole.id],
+    );
+  }
+  const privateChannel = (
+    await request(
+      `${base}/channels`,
+      "POST",
+      { name: "equipe-privee-demo", is_private: true },
+      201,
+    )
+  ).data;
+  await page.reload();
+  await page.waitForSelector(".shell-sidebar");
+  await click(privateChannel.name);
+  await page.waitForSelector(".channel-heading");
+  await click("Paramètres du canal");
+  await click("Accès privés");
+  await page.waitForSelector(".channel-access-content .check-line");
+  assert.equal(
+    (await page.$$("dialog[open]")).length,
+    1,
+    "Private access is embedded in the existing settings dialog",
+  );
   await page.waitForFunction(
-    () => document.documentElement.dataset.theme === "dusk",
+    () =>
+      document.querySelectorAll(".channel-access-content .check-line").length >=
+      21,
   );
-  await page.screenshot({
-    path: ".impeccable/review/dusk.png",
-    fullPage: false,
+  await page.$eval(".channel-access-fields", (el) => {
+    el.scrollTop = el.scrollHeight;
   });
-  await page.click('input[name="theme"][value="light"]');
-  await click("Enregistrer");
-  await page.waitForFunction(
-    () => document.documentElement.dataset.theme === "light",
+  const accessFooter = await page.$eval(
+    ".channel-access-content .settings-form-actions",
+    (el) => el.getBoundingClientRect().bottom,
   );
-  await new Promise((r) => setTimeout(r, 250));
-  await page.screenshot({
-    path: ".impeccable/review/light.png",
-    fullPage: false,
-  });
-  await page.click('input[name="theme"][value="dark"]');
-  await click("Enregistrer");
-  await page.waitForFunction(
-    () => document.documentElement.dataset.theme === "dark",
+  assert.ok(
+    accessFooter <= 1000,
+    "Access save button remains visible with a long member list",
   );
-  await click("Conversations");
-  await click("general");
+  await capture("social-channel-access-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  assert.ok(
+    (await page.$eval(
+      ".channel-access-content .settings-form-actions",
+      (el) => el.getBoundingClientRect().bottom,
+    )) <= 844,
+    "Mobile access save remains visible",
+  );
+  await capture("social-channel-access-mobile");
+  await page.setViewport({ width: 1440, height: 1000 });
+  await page.keyboard.press("Escape");
+  await click(channel.name);
   await page.waitForSelector(".composer textarea");
-  plannedRestart = true;
-  await stop();
-  start();
-  await ready();
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".composer textarea");
-  await click("Conversations");
-  await click("general");
-  await waitText("Le test navigateur confirme");
-  plannedRestart = false;
-  await page.setViewport({
-    width: 390,
-    height: 844,
-    isMobile: true,
-    hasTouch: true,
-  });
-  await waitText("Le test navigateur confirme");
-  await page.screenshot({
-    path: ".impeccable/review/mobile.png",
-    fullPage: false,
-  });
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    ),
-    false,
-  );
-  await page.click('[aria-label="Ouvrir la navigation"]');
-  await page.waitForFunction(
-    () =>
-      document.querySelector(".sidebar.open")?.getBoundingClientRect().x === 0,
-  );
-  await page.click(".workspace-title");
-  await page.waitForSelector("#workspace-choices");
-  await page.screenshot({
-    path: ".impeccable/review/mobile-workspace-menu.png",
-    fullPage: false,
-  });
-  await page.click(".workspace-title");
-  await click("Projets");
-  await page.waitForSelector(".task-card");
-  await page.waitForFunction(
-    () =>
-      (document.querySelector(".sidebar")?.getBoundingClientRect().right ??
-        1) <= 0,
-  );
-  await page.screenshot({
-    path: ".impeccable/review/mobile-board.png",
-    fullPage: false,
-  });
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    ),
-    false,
-  );
-  await page.click('[aria-label="Ouvrir la navigation"]');
-  await page.waitForFunction(
-    () =>
-      document.querySelector(".sidebar.open")?.getBoundingClientRect().x === 0,
-  );
-  await click("Aide et tutoriels");
-  await page.waitForSelector(".help-article");
-  await page.waitForFunction(
-    () =>
-      (document.querySelector(".sidebar")?.getBoundingClientRect().right ??
-        1) <= 0,
-  );
-  await page.screenshot({
-    path: ".impeccable/review/mobile-help.png",
-    fullPage: false,
-  });
-  await page.click('[aria-label="Ouvrir la navigation"]');
-  await page.waitForSelector(".sidebar.open");
-  await page.click(".profile-button");
-  await click("Comptes connectés");
-  await click("Mes fichiers");
-  await waitText("Guide de démonstration.pdf");
-  await page.screenshot({
-    path: ".impeccable/review/mobile-connections.png",
-    fullPage: false,
-  });
-  assert.equal(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    ),
-    false,
-  );
-  await page.click('[aria-label="Ouvrir la navigation"]');
-  await page.waitForSelector(".sidebar.open");
+  await request(`${base}/messages/${message.id}/pin`, "PUT", { pinned: true });
+  // TEXT/EMBED preview and actual test use the same message pipeline.
+  const hook = (
+    await request(
+      `${base}/webhooks`,
+      "POST",
+      { name: "Livraisons · démonstration", channel_id: channel.id },
+      201,
+    )
+  ).data;
   await click("Administration");
-  await click("Intégrations");
-  await page.waitForSelector(".integration-list");
-  await page.screenshot({
-    path: ".impeccable/review/mobile-integrations.png",
-    fullPage: false,
-  });
+  await click("Webhooks entrants");
+  await page.waitForSelector(".webhook-settings");
+  await page.select(".webhook-settings>label select", hook.id);
+  await page.select(".webhook-editor select", "EMBED");
+  await page.type(
+    '.webhook-editor input[type="text"]',
+    "Version 1.0 · démonstration",
+  );
+  await page.type(
+    ".webhook-editor textarea",
+    "Le nouveau contexte personnel est prêt pour la revue.",
+  );
+  await page.waitForSelector(".webhook-preview .webhook-embed");
+  await click("Publier un test");
+  await page.waitForFunction(() =>
+    document.querySelector(".webhook-history")?.textContent?.includes("202"),
+  );
+  await capture("v1-webhook-history-desktop");
   await page.evaluate(() => {
-    const btn = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".integration-list button"),
-    ).find((b) => b.innerText.includes("DropIt navigateur"));
-    btn?.click();
+    for (const el of document.querySelectorAll<HTMLElement>(
+      "main,.page,.shell-content,.shell-body,.webhook-settings",
+    ))
+      el.scrollTop = 0;
   });
-  await page.waitForSelector('.connector-form input[name="base_url"]');
-  assert.ok(await page.$('.connector-form input[name="client_id"]'));
+  await capture("v1-webhooks-desktop");
+  const rich = (
+    await request(`${base}/channels/${channel.id}/messages`)
+  ).data.find((m: any) => m.rich_content);
+  assert.equal(rich.rich_content.mode, "EMBED");
+  await request("/api/v1/google-calendar/connect", "POST", {}, 404);
+  // Personal functions remain usable independently of the selected workspace.
+  await click("Accueil personnel");
+  await click("Rappels");
+  await click("Nouveau rappel");
+  await page.waitForSelector("dialog input");
+  await page.type(
+    'dialog input[name="title"]',
+    "Revoir le brief · démonstration",
+  );
+  await click("Enregistrer");
+  await page.waitForSelector(".reminder-row");
+  await request(
+    "/api/v1/me/favorites",
+    "POST",
+    { target_type: "channel", target_id: channel.id },
+    201,
+  );
+  await click("Favoris");
+  await page.waitForSelector(".favorite-row");
+  await page.click(".favorite-row button");
+  await page.waitForSelector(".composer textarea");
   assert.equal(
-    await page.$eval(".integration-list", (element) =>
-      element.textContent?.includes("GitHub navigateur"),
+    await page.evaluate(
+      () =>
+        document.querySelector(".scope-workspace .channel-heading h1")
+          ?.textContent,
     ),
-    false,
+    channel.name,
   );
-  await page.screenshot({
-    path: ".impeccable/review/dropit-settings-mobile.png",
-    fullPage: false,
-  });
-  await page.goto(dropit.origin + "/integrations");
-  await page.waitForSelector("#clients article");
-  await page.screenshot({
-    path: ".impeccable/review/dropit-mobile.png",
-    fullPage: false,
-  });
+  await click("Accueil personnel");
+  await click("Notes datées");
+  await click("Nouvelle note");
+  await page.waitForSelector("dialog input");
+  await page.type(
+    'dialog input[name="title"]',
+    "Point de départ · démonstration",
+  );
+  await page.type("dialog textarea", "Notes privées en Markdown.");
+  await click("Enregistrer");
+  await page.waitForSelector(".dated-note");
+  await click("Préférences");
+  await click("Synchronisation Agenda");
+  await page.waitForSelector(".caldav-settings");
+  await page.waitForSelector(".caldav-settings form input");
+  await page.type(".caldav-settings form input", "Mac · démonstration");
+  await click("Créer un accès");
+  await page.waitForSelector(".caldav-password");
+  assert.equal((await request("/api/v1/calendar-sync")).data.length, 1);
+  await click("J’ai conservé le mot de passe");
+  assert.equal((await page.$$(".caldav-password")).length, 0);
+  const credentials = await request("/api/v1/calendar-sync");
+  await request(`/api/v1/calendar-sync/${credentials.data[0].id}`, "DELETE");
+  // Kanban actions retain their business APIs and keyboard menus.
+  await click("Espace LUMA");
+  await click("Projets");
+  await page.waitForSelector(".project-tabs");
+  await page.waitForSelector(".project-tabs .entity-surface");
+  await page.$eval(".project-tabs .entity-surface", (el) =>
+    (el as HTMLElement).focus(),
+  );
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("F10");
+  await page.keyboard.up("Shift");
+  await page.waitForSelector('[role="menu"]');
+  await page.keyboard.press("Escape");
+  // Capture one batch of the built desktop/mobile surfaces and supported themes.
+  async function capture(name: string) {
+    await page.evaluate(() => document.fonts.ready);
+    await page.screenshot({
+      path: `.impeccable/review/${name}.png`,
+      fullPage: false,
+    });
+  }
+  await page.waitForSelector(".kanban");
+  await capture("v1-kanban-desktop");
+  await click("releases-demo");
+  await page.waitForSelector(".webhook-embed");
+  await capture("desktop");
+  const dimensions = await page.$eval(
+    ".shell-v1",
+    (el) => getComputedStyle(el).gridTemplateColumns,
+  );
+  for (const theme of [
+    "light",
+    "dusk",
+    "midnight",
+    "forest",
+    "ember",
+    "atelier",
+    "orbit",
+    "terminal",
+    "lagoon",
+    "dark",
+  ]) {
+    await page.evaluate((t) => {
+      document.documentElement.dataset.theme = t;
+    }, theme);
+    assert.equal(
+      await page.$eval(
+        ".shell-v1",
+        (el) => getComputedStyle(el).gridTemplateColumns,
+      ),
+      dimensions,
+      `${theme}: shared shell geometry`,
+    );
+    if (theme === "light") await capture("v1-paper-desktop");
+  }
+  await page.setViewport({ width: 390, height: 844 });
+  await page.waitForFunction(
+    () => document.documentElement.scrollWidth <= innerWidth,
+  );
+  await capture("mobile");
+  await click("Membres et contexte");
+  await page.waitForSelector(".context-drawer");
+  await capture("v1-context-mobile");
+  await page.keyboard.press("Escape");
+  await click("Accueil personnel");
+  await click("Ouvrir la navigation");
+  await page.waitForSelector(".shell-sidebar.open");
+  await click("Notes datées");
+  await page.waitForSelector(".dated-note");
+  assert.equal((await page.$$(".shell-sidebar.open")).length, 0);
+  await capture("v1-notes-mobile");
+  for (const width of [320, 768, 1024, 1440, 1920]) {
+    await page.setViewport({ width, height: 900 });
+    assert.equal(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+      true,
+      `Overflow ${width}`,
+    );
+  }
   await page.setViewport({ width: 1440, height: 1000 });
-  await page.screenshot({
-    path: ".impeccable/review/dropit-desktop.png",
+  await click("Préférences");
+  await click("Synchronisation Agenda");
+  await page.waitForSelector(".caldav-settings");
+  await capture("v1-caldav-desktop");
+  await page.setViewport({ width: 390, height: 844 });
+  await capture("v1-caldav-mobile");
+  // A fresh Kyros account has the same personal navigation with zero workspaces.
+  provider.setSubject("v1-no-workspace");
+  const context = await browser.createBrowserContext(),
+    fresh = await context.newPage();
+  await fresh.emulateMediaFeatures([
+    { name: "prefers-reduced-motion", value: "reduce" },
+  ]);
+  await fresh.setViewport({ width: 390, height: 844 });
+  await fresh.goto(`${origin}/auth/login`);
+  await fresh.waitForSelector(".personal-home");
+  assert.equal(
+    await fresh.$$eval(".rail-workspaces button", (e) => e.length),
+    0,
+  );
+  await fresh.screenshot({
+    path: ".impeccable/review/v1-no-workspace-mobile.png",
     fullPage: false,
   });
-  await page.goto(origin, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector(".sidebar");
-  await verifyExperience();
-  assertNoBrowserErrors();
+  // The same account can subsequently read a workspace while write actions remain absent.
+  provider.setSubject("test-owner");
+  const readRole = (
+    await request(
+      `${base}/roles`,
+      "POST",
+      {
+        name: "Lecture seule · démonstration",
+        permissions: ["VIEW_WORKSPACE", "VIEW_CHANNEL", "READ_MESSAGE"],
+      },
+      201,
+    )
+  ).data;
+  await request(
+    `${base}/members`,
+    "POST",
+    { kyros_user_id: "v1-no-workspace", role_id: readRole.id },
+    201,
+  );
+  await request(`${base}/messages/${message.id}/reactions`, "POST", {
+    emoji: "👍",
+  });
+  await fresh.setViewport({ width: 1440, height: 1000 });
+  await fresh.reload();
+  await fresh.waitForSelector(".workspace-rail");
+  await click("Espace LUMA", fresh);
+  await click(channel.name, fresh);
+  await fresh.waitForSelector(".message");
+  await fresh.waitForSelector(".reactions > span");
+  assert.equal(
+    (await fresh.$$('.message-actions [aria-label="Répondre"]')).length,
+    0,
+  );
+  assert.equal((await fresh.$$(".reactions button")).length, 0);
+  assert.equal((await fresh.$$(".composer textarea")).length, 0);
+  await fresh.click(".message > .entity-menu-button");
+  await fresh.waitForSelector('[role="menu"]');
+  const readonlyActions = await fresh.$$eval('[role="menuitem"]', (els) =>
+    els.map((e) => e.textContent),
+  );
+  assert.equal(readonlyActions.includes("Répondre"), false);
+  assert.equal(readonlyActions.includes("Ajouter une réaction"), false);
+  await fresh.keyboard.press("Escape");
+  await fresh.setViewport({ width: 1440, height: 1000 });
+  await fresh.screenshot({
+    path: ".impeccable/review/v1-readonly-desktop.png",
+    fullPage: false,
+  });
+  await page.setViewport({ width: 320, height: 844 });
+  await click("Espace LUMA");
+  await click("Ouvrir la navigation");
+  await click(channel.name);
+  await page.waitForSelector(".message");
+  await capture("v1-channel-320");
+  await context.close();
+  provider.setSubject("test-owner");
+  assert.deepEqual(failures, [], "No critical console errors");
   console.log(
-    "E2E PASS: Kyros, refresh of monitoring grants, member/role race, workspace menus, threads, pins, search, private channel access, DMs, messages, kanban, pages, themes, persistence, 1440×1000 and 390×844.",
+    "E2E 1.0 PASS: Kyros, personal/workspace navigation, chat, keyboard menus, channel options, context/profile drawers, generic webhook preview/test/history, personal reminders/favorites/notes, CalDAV credentials, Kanban, responsive widths, no-workspace account.",
   );
-}
-try {
-  await runBrowserChecks();
-} catch (e) {
-  console.error("Browser QA failure:", e);
-  await page
-    .screenshot({ path: ".impeccable/review/failure.png", fullPage: false })
-    .catch(() => {});
-  console.error(
-    await page
-      .evaluate(() => document.body.innerText.slice(-3500))
-      .catch(() => ""),
-  );
-  throw e;
 } finally {
-  await browser.close();
-  await stop();
-  await new Promise<void>((resolve) => provider.server.close(() => resolve()));
-  await db.end();
-  await pool.end();
-  await dropit.close();
-  await placesProvider.close();
-  await connections070?.close();
-  await brainModule?.close();
+  await browser?.close();
+  if (server?.exitCode === null) {
+    server.kill("SIGTERM");
+    await new Promise<void>((r) => server!.once("exit", () => r()));
+  }
+  await Promise.all([
+    new Promise<void>((r) => provider.server.close(() => r())),
+    places.close(),
+    db.end(),
+    pool.end(),
+  ]);
 }

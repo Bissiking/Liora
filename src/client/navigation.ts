@@ -41,15 +41,14 @@ export const navigation = [
     group: "Équipe",
     permission: "VIEW_PROJECT",
   },
-  {
-    id: "pages",
-    label: "Pages de l'équipe",
-    icon: FileText,
-    group: "Équipe",
-    permission: "VIEW_PAGES",
-  },
   { id: "calendar", label: "Calendrier", icon: CalendarDays, group: "Équipe" },
   { id: "notes", label: "Notes datées", icon: StickyNote, group: "Mon espace" },
+  {
+    id: "messages",
+    label: "Messages privés",
+    icon: MessageSquare,
+    group: "Mon espace",
+  },
   { id: "friends", label: "Amis", icon: Users, group: "Mon espace" },
   {
     id: "monitoring",
@@ -94,3 +93,23 @@ export function navigationVisible(
     ].some(can);
   return !n.permission || can(n.permission);
 }
+
+export const personalViews = new Set([
+  "home",
+  "notifications",
+  "reminders",
+  "places",
+  "favorites",
+  "notes",
+  "friends",
+  "messages",
+  "settings",
+  "help",
+  "about",
+]);
+export const personalNavigation = navigation.filter((n) =>
+  personalViews.has(n.id),
+);
+export const workspaceNavigation = navigation.filter(
+  (n) => !personalViews.has(n.id),
+);

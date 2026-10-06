@@ -73,4 +73,12 @@ Jellyfin et demandes films/séries seulement derrière feature flags. Aucun lien
 
 ## 1.0 — STABLE
 
-Audit sécurité indépendant, sauvegardes/restaurations automatisées et vérifiées, métriques, limites distribuées, plan de rétention, migrations ALPHA/BETA validées, tests de charge, accessibilité consolidée, API OpenAPI complète et runbooks d’incidents.
+Refonte structurelle demandée le 5 octobre 2026 : séparation personnel/workspace, rail et navigation contextuelle, canaux configurables, panneau utile et profils, menus contextuels centralisés, webhooks TEXT/EMBED, CalDAV comme seul connecteur calendrier officiel, retrait des Pages de l’UX et de Google du runtime, responsive et accessibilité, consolidation CSS puis thèmes en dernier.
+
+**Préparation seulement, pas encore implémentée.** [Brief original](DOCS/BRIEF_1.0.0.md), [audit du dépôt 0.7.1](DOCS/AUDIT_1.0.0.md), [plan précis fichier par fichier, migrations et critères de sortie](DOCS/PLAN_1.0.0.md). Les migrations historiques et données de production doivent être conservées ; la préparation a précédé l’implémentation locale 1.0.0-beta.1 du 6 octobre 2026.
+
+La stabilité exige aussi : audit sécurité indépendant, sauvegardes/restaurations automatisées et vérifiées, métriques, limites distribuées, plan de rétention, migrations ALPHA/BETA validées, tests de charge, accessibilité consolidée, API OpenAPI complète et runbooks d’incidents. Les preuves locales de l’audit ne remplacent pas ces qualifications.
+
+## Préversion 1.0.0-beta.1 — 6 octobre 2026
+
+Les lots applicatifs du brief sont livrés localement : navigation, personnel, canaux/droits, membres/profils, menus, webhooks, retrait Google/Pages UI, CalDAV officiel, CSS et palettes. Migrations 012–015 additives ; 76 tests et E2E Chrome. [État livré et critères ouverts](DOCS/RELEASE_1.0.0.md). Avant stable : qualification CalDAV native multi-clients, sécurité/charge, restauration et bascule de production. Pas de déploiement effectué.

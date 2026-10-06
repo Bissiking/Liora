@@ -1,4 +1,4 @@
-# Liora — charte directrice · 0.7.1 BETA
+# Liora — charte directrice · 1.0.0-beta.1
 
 **Avant tout développement significatif, lire PROJECT_CHARTER.md.**
 
@@ -63,7 +63,7 @@ Surveillance indépendante de l’API Argos, de l’URL de santé Argus et d’u
 
 ## Versioning et roadmap
 
-SemVer, version courante **0.7.1 — BETA** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
+SemVer, version courante **1.0.0-beta.1** dans VERSION et package.json, affichée dans À propos et administration. Toute évolution significative met à jour CHANGELOG.md et ROADMAP.md. Pas de tag ou publication automatique requis. Voir ROADMAP.md pour 0.2 à 1.0.
 
 ## Definition of Done et qualité
 
@@ -104,3 +104,7 @@ Notes datées personnelles et lien opt-in BrainDump sous identité Kyros vérifi
 ## Intégration BrainDump — 0.7.1 du 5 octobre 2026
 
 BrainDump 2.1.0 rejoint DropIt dans les paramètres : configuration en base, consentement personnel et PKCE, même sujet/émetteur Kyros, lecture seule des notes datées, refresh rotatif, révocation et retrait des copies. Aucune publication des notes privées dans un salon. Migration Liora 011 et SQLite BrainDump additive 3. Configuration et limites : DOCS/RELEASE_0.7.1.md. Fournisseurs réels et déploiement restent à qualifier.
+
+## Direction 1.0 — 6 octobre 2026
+
+Le [brief 1.0](DOCS/BRIEF_1.0.0.md) remplace les choix UX historiques : rail personnel/workspaces, navigation contextuelle, panneau utile, menus centralisés, capacités de canal, CalDAV officiel. Google Calendar OAuth/runtime est retiré ; Pages retire son interface, sans suppression des API ou tables. Dix thèmes conservés avec une seule géométrie. Migrations 001–011 immuables, 012–015 additives ; aucune intervention de production dans le développement local. La préversion 1.0.0-beta.1 est livrée avant qualification externe ; ne pas annoncer 1.0.0 stable tant que les critères du plan restent ouverts. [État et limites](DOCS/RELEASE_1.0.0.md).

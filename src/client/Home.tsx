@@ -314,7 +314,7 @@ export function Home({
             </header>
             {sectionState(
               "favorites",
-              "Gardez vos salons, pages et projets à portée de main en les ajoutant aux favoris.",
+              "Gardez vos salons et projets à portée de main en les ajoutant aux favoris.",
             )}
             {!loading &&
               !errors.includes("favorites") &&

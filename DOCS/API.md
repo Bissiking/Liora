@@ -1,5 +1,23 @@
 # API Liora v1
 
+## Branche 1.0.0-beta.1
+
+Les contrats historiques ci-dessous restent disponibles sauf les routes Google Calendar, retirées (404). Pages demeure une API historique ; son interface, ses liens de navigation et ses cibles de favoris dans l’UX sont retirés. CalDAV est le parcours officiel : [CALDAV.md](CALDAV.md).
+
+- `GET /api/v1/me/notifications` : activité personnelle et notifications des memberships actifs filtrées selon les droits. `PATCH /:id` applique l’état au seul propriétaire.
+- `GET/POST /api/v1/me/reminders`, `PATCH/DELETE /:id` : rappels sans workspace, titre/body/date UTC/fuseau et répétition daily/weekly/monthly. Les historiques workspace accessibles portent `source_base`.
+- `GET/POST /api/v1/me/favorites`, `PATCH/DELETE /:id` : agrégation et mutation des favoris autorisés ; la source est déduite de la cible. `GET /favorite-targets?type=channel|project|task|event` expose uniquement les cibles lisibles.
+- `GET /api/v1/me/conversations` : amis et DMs historiques autorisés avec dernier message/non-lus.
+- Sous `/api/v1/workspaces/:workspace`, `GET /channels` ajoute `capabilities`, `unread_count`, `mention_count`. L’accès privé/DM reste obligatoire, indépendamment des exceptions.
+- `GET /channels/:id/settings` : options, overrides, webhooks/intégrations liés selon les droits ; MANAGE_CHANNEL. `PATCH /options` : `{slowmode_seconds:0..21600,threads_enabled:boolean}`. `PUT /permissions` : `{role_id:uuid|null,user_id:uuid|null,permissions:{[capability]:boolean}}`, exactement un sujet ; objet partiel ou vide pour héritage, MANAGE_CHANNEL + MANAGE_PERMISSIONS, Owner protégé.
+- `POST /channels/:id/read` : `{through:message_uuid}` d’un message de ce canal ; marqueur monotone avec précision PostgreSQL. Les notifications de messages/mentions jusqu’au marqueur sont lues, les autres activités conservées.
+- `GET /channels/:id/context` : membres autorisés, fils, épingles et fichiers ; READ_MESSAGE.
+- `POST /api/webhooks/:token` accepte le format générique `{mode:"TEXT",content,metadata?}` ou `{mode:"EMBED",content?,embed:{title?,description?,color?,url?,author?,footer?,timestamp?,fields?,image?,thumbnail?,icon?},metadata?}`. Limites communes dans `src/shared/webhook-message.ts` : URL HTTPS, champs/longueurs bornés, métadonnées JSON bornées ; anciens payloads conservés.
+- `POST /webhooks/:id/test` : publication explicite via le même pipeline ; MANAGE_WEBHOOK et lecture du canal, réponse 202. `GET /webhooks/:id/history` : cinquante réceptions avec HTTP/mode/test/erreur/date, VIEW_WEBHOOKS et lecture du canal. Aucune URL secrète récupérée par ces routes.
+- Les envois sortants exposent désormais `http_status`, `last_attempt_at`, `sent_at` et leur source ; désactivation et tentatives restent contrôlées par les endpoints existants.
+
+Les quatre capacités READ_MESSAGE, ATTACH_FILES, REPLY_THREAD et MENTION_USERS complètent les permissions locales historiques. Héritage workspace → rôle de canal → exception utilisateur ; les permissions privées et le statut du compte restent des gardes obligatoires. Les membres se modifient par `{role_id? ,state?}` sans remplacer les valeurs omises.
+
 Base `/api/v1`. JSON, dates UTC ISO-8601, UUID. Authentification : cookie de session pour humains ; `Authorization: Bearer <token>` pour bots/services. En usage navigateur, les mutations exigent un en-tête Origin égal à APP_URL. Toute route d’espace contrôle son appartenance et sa permission atomique.
 
 Réponse de liste `{data:[]}` ; objet `{data:{}}` ; action `{ok:true}`. Erreur `{error:{code,message,requestId}}`, sans stack. Codes HTTP : 400 validation, 401 session/token, 403 permission, 404 absent, 409 conflit/référence, 413 taille, 429 limite, 503 fournisseur temporairement inaccessible.
@@ -175,25 +193,17 @@ Le format stocké des messages et blocs reste texte ; le rendu Markdown n’ajou
 
 Toutes les routes ci-dessous, sauf `/dav/`, demandent la session humaine Kyros de Liora. Aucune clé technique n’accède aux notes ni aux connexions personnelles.
 
-| Route | Fonction |
-| --- | --- |
-| `GET /api/v1/notes?before=<uuid>` | Notes personnelles triées par date/id, 100 par page et `nextCursor`. |
-| `POST /api/v1/notes` | `{title,content,due_at}` ; date ISO avec offset obligatoire. |
-| `PATCH/DELETE /api/v1/notes/:id` | Notes Liora du propriétaire ; copies BrainDump en lecture seule. |
-| `GET/PUT /api/v1/braindump` | État/configuration disponible ; `{enabled}` pour lier/délier le compte. |
-| `POST /api/v1/braindump/sync` | Copie datée sous identité Kyros vérifiée, transactionnelle. |
-| `PATCH /api/v1/me/appearance` | Fusion atomique de `{theme?,density?,fontSize?}`, dix thèmes dont `lagoon`. |
-| `GET /api/v1/calendar-sync` | Accès CalDAV, serveur et identifiant ; aucun mot de passe retourné. |
-| `POST /api/v1/calendar-sync` | `{name}` ; mot de passe aléatoire affiché une seule fois, maximum dix appareils. |
-| `DELETE /api/v1/calendar-sync/:id` | Révocation limitée au compte courant. |
-| `GET /api/v1/google-calendar` | Connexion, statut, périmètre et conflits, sans jetons. |
-| `POST /api/v1/google-calendar/connect` | URL OAuth Google, état et PKCE liés à la session. |
-| `GET /api/v1/google-calendar/callback` | Consomme l’état à usage unique, échange le code et revient aux préférences. |
-| `GET /api/v1/google-calendar/calendars` | Agendas Google où le compte peut écrire. |
-| `PUT /api/v1/google-calendar` | `{workspace_id,calendar_id,enabled}` ; événements de l’auteur hors salons privés. |
-| `POST /api/v1/google-calendar/sync` | Passage manuel ; `{ok,count,conflicts?}` ou `{ok:false,error}` affiché en UI. |
-| `POST /api/v1/google-calendar/resolve` | `{google_id,version:"liora"|"google"}` ; choix personnel et synchronisation. |
-| `DELETE /api/v1/google-calendar` | Supprime autorisation/liens locaux ; événements existants conservés. |
+| Route                              | Fonction                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------------- |
+| `GET /api/v1/notes?before=<uuid>`  | Notes personnelles triées par date/id, 100 par page et `nextCursor`.             |
+| `POST /api/v1/notes`               | `{title,content,due_at}` ; date ISO avec offset obligatoire.                     |
+| `PATCH/DELETE /api/v1/notes/:id`   | Notes Liora du propriétaire ; copies BrainDump en lecture seule.                 |
+| `GET/PUT /api/v1/braindump`        | État/configuration disponible ; `{enabled}` pour lier/délier le compte.          |
+| `POST /api/v1/braindump/sync`      | Copie datée sous identité Kyros vérifiée, transactionnelle.                      |
+| `PATCH /api/v1/me/appearance`      | Fusion atomique de `{theme?,density?,fontSize?}`, dix thèmes dont `lagoon`.      |
+| `GET /api/v1/calendar-sync`        | Accès CalDAV, serveur et identifiant ; aucun mot de passe retourné.              |
+| `POST /api/v1/calendar-sync`       | `{name}` ; mot de passe aléatoire affiché une seule fois, maximum dix appareils. |
+| `DELETE /api/v1/calendar-sync/:id` | Révocation limitée au compte courant.                                            |
 
 CalDAV sous `/dav/`, découverte `/.well-known/caldav` : Basic avec identifiant de compte et accès par appareil, HTTPS hors localhost. OPTIONS, PROPFIND Depth 0/1, REPORT calendar-query/multiget, GET/HEAD, PUT et DELETE. PUT/DELETE d’un événement existant exigent son ETag exact par `If-Match` ; une version obsolète retourne 412. Répétitions simples/ancrées et droits calendrier existants ; les notes datées forment une collection personnelle en lecture seule. Formats et limites dans RELEASE_0.7.0.md.
 

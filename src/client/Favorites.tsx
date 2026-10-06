@@ -6,7 +6,7 @@ import type { Row, Result } from "./types";
 import { Empty, Modal } from "./ui";
 const labels: Record<string, string> = {
   channel: "Salon",
-  page: "Page",
+
   project: "Projet",
   task: "Tâche",
   event: "Événement",
@@ -62,13 +62,13 @@ export function Favorites({
     setTarget("");
     const resource = {
       channel: "channels",
-      page: "pages",
+
       project: "projects",
       task: "tasks",
       event: "calendar",
     }[type];
     void collection(
-      `${base}/${resource}${type === "event" ? `?start=${new Date().toISOString().slice(0, 10)}&end=${new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10)}` : ""}`,
+      `${base === "/api/v1/me" ? `${base}/favorite-targets?type=${type}` : `${base}/${resource}`}${base !== "/api/v1/me" && type === "event" ? `?start=${new Date().toISOString().slice(0, 10)}&end=${new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10)}` : ""}`,
     )
       .then((r) => {
         if (!gone) {
@@ -107,7 +107,7 @@ export function Favorites({
         <p role="status">Chargement des favoris…</p>
       ) : !favorites.length ? (
         <Empty title="Aucun favori">
-          Ajoutez un salon, une page, un projet, une tâche ou un événement.
+          Ajoutez un salon, un projet, une tâche ou un événement.
         </Empty>
       ) : (
         favorites.map((f) => (
@@ -115,7 +115,10 @@ export function Favorites({
             <Star size={18} />
             <div>
               <strong>{f.label || f.target_name}</strong>
-              <small>{labels[f.target_type]}</small>
+              <small>
+                {labels[f.target_type]}
+                {f.workspace_name ? ` · ${f.workspace_name}` : ""}
+              </small>
             </div>
             <button onClick={() => onNavigate(f)}>Ouvrir</button>
             <button
@@ -174,6 +177,7 @@ export function Favorites({
                 <option value="">Choisir un élément</option>
                 {targets.map((t) => (
                   <option key={t.id} value={t.id}>
+                    {t.workspace_name ? `${t.workspace_name} · ` : ""}
                     {t.title || t.name}
                   </option>
                 ))}

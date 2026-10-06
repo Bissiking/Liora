@@ -1,5 +1,7 @@
 # Liora 0.7.1 — intégration BrainDump
 
+> Guide historique 0.x. Pour la branche 1.0, Google OAuth/runtime est retiré et les accès CalDAV suivent [CALDAV.md](CALDAV.md). Les migrations déjà appliquées et les données historiques sont conservées.
+
 BrainDump devient un fournisseur configurable dans **Administration → Intégrations**, aux côtés de DropIt. Les autres fournisseurs restent masqués dans les paramètres ; leurs API existantes ne sont pas supprimées. Les notes restent personnelles : la configuration d'un espace ne donne accès à aucun contenu d'un membre.
 
 ## Configurer les deux applications

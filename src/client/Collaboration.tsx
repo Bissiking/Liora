@@ -157,22 +157,24 @@ export function Thread({
             </p>
           )}
         </div>
-        {can("CREATE_THREAD") && can("SEND_MESSAGE") && (
-          <form className="form" onSubmit={submit}>
-            <label>
-              Répondre dans le fil
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                required
-                maxLength={8000}
-              />
-            </label>
-            <button className="primary" disabled={busy || !draft.trim()}>
-              Envoyer la réponse
-            </button>
-          </form>
-        )}
+        {can("REPLY_THREAD") &&
+          channel.threads_enabled !== false &&
+          can("SEND_MESSAGE") && (
+            <form className="form" onSubmit={submit}>
+              <label>
+                Répondre dans le fil
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  required
+                  maxLength={8000}
+                />
+              </label>
+              <button className="primary" disabled={busy || !draft.trim()}>
+                Envoyer la réponse
+              </button>
+            </form>
+          )}
         {error && (
           <p className="error" role="alert">
             {error}
@@ -354,11 +356,13 @@ export function ChannelAccess({
   channel,
   close,
   refresh,
+  embedded = false,
 }: {
   base: string;
   channel: Row;
   close: () => void;
   refresh: () => void;
+  embedded?: boolean;
 }) {
   const [groups, setGroups] = useState<Row[]>([]),
     [groupIds, setGroupIds] = useState<string[]>([]);
@@ -392,35 +396,35 @@ export function ChannelAccess({
       gone = true;
     };
   }, [base, channel.id]);
-  return (
-    <Modal title={`Accès à ${channel.name}`} onClose={close}>
-      <div className="collaboration-panel">
-        <p>
-          Seuls les membres sélectionnés et les gestionnaires de salons peuvent
-          ouvrir ce salon privé. La permission de supervision reste requise pour
-          un salon de monitoring.
-        </p>
-        <form
-          className="form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setBusy(true);
-            try {
-              await api(`${base}/channels/${channel.id}/access`, "PUT", {
-                user_ids: ids,
-              });
-              await api(`${base}/channels/${channel.id}/groups`, "PUT", {
-                group_ids: groupIds,
-              });
-              refresh();
-              close();
-            } catch (e) {
-              setError((e as Error).message);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
+  const body = (
+    <div className="collaboration-panel channel-access-content">
+      <p>
+        Seuls les membres sélectionnés et les gestionnaires de salons peuvent
+        ouvrir ce salon privé. La permission de supervision reste requise pour
+        un salon de monitoring.
+      </p>
+      <form
+        className="form"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            await api(`${base}/channels/${channel.id}/access`, "PUT", {
+              user_ids: ids,
+            });
+            await api(`${base}/channels/${channel.id}/groups`, "PUT", {
+              group_ids: groupIds,
+            });
+            refresh();
+            close();
+          } catch (e) {
+            setError((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <fieldset className="channel-access-fields" disabled={busy || !ready}>
           {groups.length > 0 && (
             <fieldset>
               <legend>Groupes autorisés</legend>
@@ -463,11 +467,20 @@ export function ChannelAccess({
               {error}
             </p>
           )}
+        </fieldset>
+        <div className="settings-form-actions">
           <button className="primary" disabled={!ready || busy}>
             Enregistrer les accès
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
+    </div>
+  );
+  return embedded ? (
+    body
+  ) : (
+    <Modal title={`Accès à ${channel.name}`} onClose={close}>
+      {body}
     </Modal>
   );
 }

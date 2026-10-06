@@ -102,7 +102,14 @@ export function extractPreview(html: string, url: string) {
 }
 export const previewRouter = Router({ mergeParams: true });
 previewRouter.get("/link-preview", async (req, res) => {
-  await authorize(req.actor, z.uuid().parse(req.workspaceId), "VIEW_CHANNEL");
+  const workspace = z.uuid().parse(req.workspaceId);
+  if (req.query.channel_id)
+    await channelAccess(
+      req.actor,
+      workspace,
+      z.uuid().parse(req.query.channel_id),
+    );
+  else await authorize(req.actor, workspace, "VIEW_CHANNEL");
   const url = z.url().max(2000).parse(req.query.url);
   const r = await publicFetch(url);
   assert(

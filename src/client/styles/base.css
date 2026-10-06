@@ -1,3 +1,4 @@
+/* src/client/styles/base.css: consolidated from src/client/styles.css */
 /* src/client/styles.css */
 :root {
   font-family: var(--font-body);
@@ -284,14 +285,6 @@ a.primary:hover {
   color: #a2aea7;
   writing-mode: vertical-rl;
 }
-.sidebar {
-  width: 235px;
-  flex-shrink: 0;
-  background: var(--side);
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-}
 .workspace-title {
   height: 83px;
   padding: 23px 20px;
@@ -439,11 +432,6 @@ a.primary:hover {
   color: var(--accent);
   font-size: 10px;
 }
-.channel-index {
-  overflow: auto;
-  flex: 1;
-  padding: 0 12px;
-}
 .section-label {
   display: flex;
   align-items: center;
@@ -557,16 +545,6 @@ a.primary:hover {
   display: flex;
   flex-direction: column;
 }
-.topbar {
-  height: 62px;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 29px;
-  flex-shrink: 0;
-}
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -582,13 +560,6 @@ a.primary:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 10px;
-  color: var(--muted);
 }
 .connection {
   display: flex;
@@ -611,9 +582,6 @@ a.primary:hover {
   background: var(--line);
   width: 1px;
   margin: 0 3px;
-}
-.topbar-right .avatar {
-  margin-left: 3px;
 }
 .menu-toggle {
   display: none;
@@ -756,7 +724,7 @@ a.primary:hover {
 .message-text {
   font-size: 12px;
   line-height: 1.85;
-  color: #d4dbda;
+  color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-width: 75ch;
@@ -1350,24 +1318,6 @@ a.primary:hover {
 .page-list > button.active {
   background: var(--surface-2);
   color: var(--text);
-}
-.document {
-  max-width: 850px;
-  padding: 50px 55px;
-  flex: 1;
-  min-width: 0;
-}
-.document > header > svg {
-  color: var(--accent);
-  margin-bottom: 25px;
-}
-.document h1 {
-  font-size: 32px;
-}
-.document > header p {
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 10px;
 }
 .document-blocks {
   margin: 40px 0;
@@ -2179,9 +2129,6 @@ dialog > header h2 {
   font-size: 15px;
 }
 @media (min-width: 1500px) {
-  .sidebar {
-    width: 254px;
-  }
   .context-panel {
     width: 270px;
   }
@@ -2236,9 +2183,6 @@ dialog > header h2 {
   }
 }
 @media (max-width: 900px) {
-  .sidebar {
-    width: 212px;
-  }
   .space-rail {
     width: 55px;
   }
@@ -2277,9 +2221,6 @@ dialog > header h2 {
     white-space: nowrap;
     width: auto;
   }
-  .document {
-    padding: 35px;
-  }
   .admin-layout,
   .settings-layout {
     flex-direction: column;
@@ -2310,21 +2251,6 @@ dialog > header h2 {
   .space-rail {
     display: none;
   }
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 25;
-    width: 260px;
-    transform: translateX(-100%);
-    visibility: hidden;
-    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .sidebar.open {
-    transform: translateX(0);
-    visibility: visible;
-  }
   .sidebar-backdrop {
     display: block;
     position: fixed;
@@ -2336,20 +2262,6 @@ dialog > header h2 {
   }
   .menu-toggle {
     display: inline-flex;
-  }
-  .topbar {
-    height: 55px;
-    padding: 0 13px;
-    gap: 8px;
-  }
-  .topbar-right {
-    gap: 8px;
-  }
-  .topbar-right > .avatar,
-  .topbar-right > .divider,
-  .topbar-right > svg,
-  .topbar-right > span:last-of-type {
-    display: none;
   }
   .breadcrumb {
     flex: 1;
@@ -2559,12 +2471,6 @@ dialog > header h2 {
   .session-row button {
     margin-left: 34px;
   }
-  .document {
-    padding: 30px 25px;
-  }
-  .document h1 {
-    font-size: 27px;
-  }
   .document-blocks {
     margin: 25px 0;
   }
@@ -2741,10 +2647,6 @@ dialog > header h2 {
     min-width: 29px;
   }
   .composer-toolbar .icon-button {
-    min-height: 36px;
-    min-width: 36px;
-  }
-  .topbar .icon-button {
     min-height: 36px;
     min-width: 36px;
   }
